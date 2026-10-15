@@ -6,7 +6,8 @@
  */
 import { build } from "esbuild";
 import { readFile, readdir } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
+import { cwd } from "node:process";
 
 /**
  * esbuild's stand-in for the `import.meta.glob` of vite, which the tests run on: an eager glob of the
@@ -46,7 +47,9 @@ const importRaw = {
     setup(build) {
         build.onResolve({ filter: /\?raw$/ }, async ({ path, resolveDir, kind, importer }) => {
             const resolved = await build.resolve(path.slice(0, -"?raw".length), { resolveDir, kind, importer });
-            return resolved.errors.length ? { errors: resolved.errors } : { path: resolved.path, namespace: "raw" };
+            if (resolved.errors.length) return { errors: resolved.errors };
+            // esbuild writes the path into the bundle as a comment, so it is kept relative: the same on every machine.
+            return { path: relative(cwd(), resolved.path), namespace: "raw" };
         });
         build.onLoad({ filter: /.*/, namespace: "raw" }, async ({ path }) => ({ contents: await readFile(path, "utf8"), loader: "text" }));
     },
@@ -84,6 +87,11 @@ await build({
 });
 
 // A glob the plugin missed would leave the card without its languages, and only a browser would notice.
-if ((await readFile("dist/map-feed-card.js", "utf8")).includes("import.meta.glob")) {
+const bundle = await readFile("dist/map-feed-card.js", "utf8");
+if (bundle.includes("import.meta.glob")) {
     throw new Error("import.meta.glob was left in the bundle: the import-glob plugin did not match it");
+}
+// A path from this machine would make the committed build differ from CI's, and doesn't belong in a public file.
+if (bundle.includes(cwd())) {
+    throw new Error(`The bundle contains ${cwd()}: an import's absolute path was left in it`);
 }
