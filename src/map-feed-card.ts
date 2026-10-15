@@ -707,8 +707,9 @@ export class MapFeedCard extends LitElement {
                 display: flex;
                 align-items: center;
                 gap: 6px;
-                flex: 0 1 auto;
-                min-width: 0;
+                /* The title beside it wraps first, so the order is never cut short while there is room for it. */
+                flex: none;
+                max-width: 100%;
                 height: 32px;
                 box-sizing: border-box;
                 margin-left: auto;

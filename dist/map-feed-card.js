@@ -1,4 +1,4 @@
-/*! map-feed-card 1.0.2 | MIT License */
+/*! map-feed-card 1.0.3 | MIT License */
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
@@ -33923,7 +33923,7 @@ var FIT_GROWTH_MS = 3e3;
 var WIDE_PX = 640;
 console.info(
   `%c  MAP-FEED-CARD 
-%c  ${"1.0.2"}    `,
+%c  ${"1.0.3"}    `,
   "color: orange; font-weight: bold; background: black",
   "color: white; font-weight: bold; background: dimgray"
 );
@@ -34472,8 +34472,9 @@ MapFeedCard.styles = [
                 display: flex;
                 align-items: center;
                 gap: 6px;
-                flex: 0 1 auto;
-                min-width: 0;
+                /* The title beside it wraps first, so the order is never cut short while there is room for it. */
+                flex: none;
+                max-width: 100%;
                 height: 32px;
                 box-sizing: border-box;
                 margin-left: auto;
