@@ -3,6 +3,7 @@
         "name": "Karttasyöte",
         "description": "Junat, laivat, bussit, tietyöt, linnut ja muut karttasyötteen kohteet Home Assistantin omalla kartalla",
         "select_hint": "Valitse kohde kartalta nähdäksesi sen tarkemmat tiedot.",
+        "nothing_to_show": "Ei näytettävää juuri nyt.",
         "no_entity": "Entiteettiä ei löydy:",
         "not_a_feed": "ei ole karttasyöte",
         "unavailable": "ei ole juuri nyt saatavilla",

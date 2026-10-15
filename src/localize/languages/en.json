@@ -3,6 +3,7 @@
         "name": "Map feed",
         "description": "Trains, ships, buses, road works, birds and anything else from a map feed, on Home Assistant's own map",
         "select_hint": "Select an item on the map to see more about it.",
+        "nothing_to_show": "Nothing to show right now.",
         "no_entity": "Entity not found:",
         "not_a_feed": "is not a map feed",
         "unavailable": "is not available right now",

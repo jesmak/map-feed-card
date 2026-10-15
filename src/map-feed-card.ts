@@ -220,7 +220,13 @@ export class MapFeedCard extends LitElement {
                             ? this.renderList(view, titleInList ? title : "")
                             : html`<div class="panel">
                                   ${view?.problems.map((problem) => html`<div class="problem">${problem}</div>`)}
-                                  ${selected ? this.details(selected) : html`<div class="hint">${this.text("common.select_hint")}</div>`}
+                                  ${
+                                      selected
+                                          ? this.details(selected)
+                                          : html`<div class="hint">
+                                                ${this.text(view?.items.size ? "common.select_hint" : "common.nothing_to_show")}
+                                            </div>`
+                                  }
                               </div>`
                     }
                 </div>

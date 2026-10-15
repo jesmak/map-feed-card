@@ -1430,6 +1430,7 @@ var en_default = {
     name: "Map feed",
     description: "Trains, ships, buses, road works, birds and anything else from a map feed, on Home Assistant's own map",
     select_hint: "Select an item on the map to see more about it.",
+    nothing_to_show: "Nothing to show right now.",
     no_entity: "Entity not found:",
     not_a_feed: "is not a map feed",
     unavailable: "is not available right now",
@@ -1537,6 +1538,7 @@ var fi_default = {
     name: "Karttasy\xF6te",
     description: "Junat, laivat, bussit, tiety\xF6t, linnut ja muut karttasy\xF6tteen kohteet Home Assistantin omalla kartalla",
     select_hint: "Valitse kohde kartalta n\xE4hd\xE4ksesi sen tarkemmat tiedot.",
+    nothing_to_show: "Ei n\xE4ytett\xE4v\xE4\xE4 juuri nyt.",
     no_entity: "Entiteetti\xE4 ei l\xF6ydy:",
     not_a_feed: "ei ole karttasy\xF6te",
     unavailable: "ei ole juuri nyt saatavilla",
@@ -34034,7 +34036,9 @@ var MapFeedCard = class extends i4 {
                     </div>
                     ${list ? this.renderList(view, titleInList ? title : "") : b2`<div class="panel">
                                   ${view?.problems.map((problem) => b2`<div class="problem">${problem}</div>`)}
-                                  ${selected ? this.details(selected) : b2`<div class="hint">${this.text("common.select_hint")}</div>`}
+                                  ${selected ? this.details(selected) : b2`<div class="hint">
+                                                ${this.text(view?.items.size ? "common.select_hint" : "common.nothing_to_show")}
+                                            </div>`}
                               </div>`}
                 </div>
             </ha-card>
