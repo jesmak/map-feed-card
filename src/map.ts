@@ -88,6 +88,9 @@ export class FeedMap {
     private lastRecovery = 0;
     private unsubscribe?: () => void;
     private destroyed = false;
+    /** What the map was last fitted to, fitted again when its size changes until someone moves it. */
+    private fittedTo: [LngLat, LngLat] | null = null;
+    private movedSinceFit = false;
 
     constructor(
         private readonly container: HTMLElement,
@@ -145,6 +148,10 @@ export class FeedMap {
         // A new style drops every source and layer, so they are added again whenever one has loaded.
         map.on("style.load", () => this.addLayers());
         map.on("click", (event) => this.click(event));
+        // Only a move someone makes has the event that caused it; the card's own fits and pans don't.
+        map.on("movestart", (event) => {
+            if (event.originalEvent) this.movedSinceFit = true;
+        });
         // Marks the map drawn, for whatever waits for it, such as the README's screenshots; MapLibre says so only in an event.
         map.on("idle", () => (this.container.dataset.mapReady = ""));
         // A line's or an area's name follows the pointer; touch has no hover, and a tap shows the details anyway.
@@ -185,6 +192,8 @@ export class FeedMap {
 
     /** Shows everything in `bounds`, as [[west, south], [east, north]]. */
     fit(bounds: [LngLat, LngLat]): void {
+        this.fittedTo = bounds;
+        this.movedSinceFit = false;
         this.map?.fitBounds(bounds, { padding: 40, maxZoom: FIT_MAX_ZOOM, animate: false });
     }
 
@@ -195,7 +204,10 @@ export class FeedMap {
         const { x, y } = map.project(position);
         const { clientWidth: width, clientHeight: height } = map.getContainer();
         const margin = REVEAL_MARGIN_PX;
-        if (x < margin || y < margin || x > width - margin || y > height - margin) map.easeTo({ center: position });
+        if (x < margin || y < margin || x > width - margin || y > height - margin) {
+            this.movedSinceFit = true;
+            map.easeTo({ center: position });
+        }
     }
 
     resize(): void {
@@ -203,6 +215,8 @@ export class FeedMap {
         // A new size clears the canvas until the next frame, so the map isn't drawn until MapLibre is idle again.
         delete this.container.dataset.mapReady;
         this.map.resize();
+        // A dashboard lays its columns out after the card has started, so the first fit can be for another width.
+        if (this.fittedTo && !this.movedSinceFit) this.fit(this.fittedTo);
     }
 
     destroy(): void {

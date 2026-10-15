@@ -1,4 +1,4 @@
-/*! map-feed-card 1.0.0 | MIT License */
+/*! map-feed-card 1.0.1 | MIT License */
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
@@ -33639,6 +33639,9 @@ var FeedMap = class {
     this.refused = false;
     this.lastRecovery = 0;
     this.destroyed = false;
+    /** What the map was last fitted to, fitted again when its size changes until someone moves it. */
+    this.fittedTo = null;
+    this.movedSinceFit = false;
     this.style = style;
     this.dark = dark;
     this.theme = theme;
@@ -33681,6 +33684,9 @@ var FeedMap = class {
     });
     map.on("style.load", () => this.addLayers());
     map.on("click", (event) => this.click(event));
+    map.on("movestart", (event) => {
+      if (event.originalEvent) this.movedSinceFit = true;
+    });
     map.on("idle", () => this.container.dataset.mapReady = "");
     const tooltip = new jF({ closeButton: false, closeOnClick: false, className: "feed-tooltip", offset: 12 });
     for (const layer of TAP_LAYERS) {
@@ -33714,6 +33720,8 @@ var FeedMap = class {
   }
   /** Shows everything in `bounds`, as [[west, south], [east, north]]. */
   fit(bounds) {
+    this.fittedTo = bounds;
+    this.movedSinceFit = false;
     this.map?.fitBounds(bounds, { padding: 40, maxZoom: FIT_MAX_ZOOM, animate: false });
   }
   /** Moves the selected item into view when it isn't, or is so near the edge that its marker is cut off. */
@@ -33723,12 +33731,16 @@ var FeedMap = class {
     const { x: x3, y: y4 } = map.project(position);
     const { clientWidth: width, clientHeight: height } = map.getContainer();
     const margin = REVEAL_MARGIN_PX;
-    if (x3 < margin || y4 < margin || x3 > width - margin || y4 > height - margin) map.easeTo({ center: position });
+    if (x3 < margin || y4 < margin || x3 > width - margin || y4 > height - margin) {
+      this.movedSinceFit = true;
+      map.easeTo({ center: position });
+    }
   }
   resize() {
     if (!this.map) return;
     delete this.container.dataset.mapReady;
     this.map.resize();
+    if (this.fittedTo && !this.movedSinceFit) this.fit(this.fittedTo);
   }
   destroy() {
     this.destroyed = true;
@@ -33907,7 +33919,7 @@ var FIT_GROWTH_MS = 3e3;
 var WIDE_PX = 640;
 console.info(
   `%c  MAP-FEED-CARD 
-%c  ${"1.0.0"}    `,
+%c  ${"1.0.1"}    `,
   "color: orange; font-weight: bold; background: black",
   "color: white; font-weight: bold; background: dimgray"
 );
