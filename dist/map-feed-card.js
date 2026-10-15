@@ -1549,8 +1549,8 @@ var fi_default = {
     legend: "N\xE4yt\xE4 selite",
     list: "N\xE4yt\xE4 kohteet listana",
     list_height: "Listan korkeus (px)",
-    list_height_helper: "Kun lista on kartan alla. Kartan vieress\xE4 lista on kartan korkuinen.",
-    sort: "Listan alkuj\xE4rjestys",
+    list_height_helper: "Kun lista on kartan alla. Kartan vieress\xE4 lista on koko kartan korkuinen.",
+    sort: "Listan aloitusj\xE4rjestys",
     sort_helper: "Jokin sy\xF6tteiden tarjoamista j\xE4rjestyksist\xE4. J\xE4rjestyst\xE4 voi vaihtaa my\xF6s kortilla.",
     labels: "N\xE4yt\xE4 nimet merkkien vieress\xE4"
   },
@@ -34441,10 +34441,26 @@ MapFeedCard.styles = [
                 padding: 0 7px 0 6px;
                 border-radius: 11px;
             }
+            /* Larger by its size, never by scale: scale would also multiply the translate MapLibre places it with. */
             .feed-marker.selected {
                 border: 2.5px solid #fff;
-                transform-origin: center;
-                scale: 1.2;
+                box-shadow:
+                    0 0 0 2px rgba(0, 0, 0, 0.35),
+                    0 2px 8px rgba(0, 0, 0, 0.55);
+            }
+            .feed-marker.disc.selected {
+                width: 28px;
+                height: 28px;
+            }
+            .feed-marker.badge.selected {
+                height: 28px;
+                padding: 0 9px 0 8px;
+                border-radius: 14px;
+                font-size: 14px;
+            }
+            .feed-marker.plain.selected {
+                width: 18px;
+                height: 18px;
             }
             .feed-marker .glyph {
                 width: 12px;

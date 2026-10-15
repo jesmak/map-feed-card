@@ -770,10 +770,26 @@ export class MapFeedCard extends LitElement {
                 padding: 0 7px 0 6px;
                 border-radius: 11px;
             }
+            /* Larger by its size, never by scale: scale would also multiply the translate MapLibre places it with. */
             .feed-marker.selected {
                 border: 2.5px solid #fff;
-                transform-origin: center;
-                scale: 1.2;
+                box-shadow:
+                    0 0 0 2px rgba(0, 0, 0, 0.35),
+                    0 2px 8px rgba(0, 0, 0, 0.55);
+            }
+            .feed-marker.disc.selected {
+                width: 28px;
+                height: 28px;
+            }
+            .feed-marker.badge.selected {
+                height: 28px;
+                padding: 0 9px 0 8px;
+                border-radius: 14px;
+                font-size: 14px;
+            }
+            .feed-marker.plain.selected {
+                width: 18px;
+                height: 18px;
             }
             .feed-marker .glyph {
                 width: 12px;
