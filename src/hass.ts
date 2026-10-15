@@ -23,6 +23,8 @@ export interface HomeAssistant {
     /** `theme` is the default theme; `selectedTheme` the viewer's own choice, null when they follow the default. */
     themes?: { darkMode?: boolean; theme?: string };
     selectedTheme?: { theme?: string } | null;
+    /** Where home is, which the map shows until a feed has something on it. */
+    config?: { latitude?: number; longitude?: number };
     language?: string;
     locale?: { language?: string };
     callService(

@@ -1,4 +1,4 @@
-/*! map-feed-card 1.0.1 | MIT License */
+/*! map-feed-card 1.0.2 | MIT License */
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
@@ -33619,6 +33619,7 @@ function describe(error) {
 // src/map.ts
 var REVEAL_MARGIN_PX = 32;
 var FIT_MAX_ZOOM = 13;
+var HOME_ZOOM = 9;
 var RECOVERY_THROTTLE_MS = 3e4;
 var SHAPES = "feed-shapes";
 var AREAS = "feed-areas";
@@ -33630,9 +33631,10 @@ function ensureWorker() {
   UF(URL.createObjectURL(new Blob([maplibre_gl_worker_default], { type: "text/javascript" })));
 }
 var FeedMap = class {
-  constructor(container, style, dark, theme, onSelect) {
+  constructor(container, style, dark, theme, onSelect, home = null) {
     this.container = container;
     this.onSelect = onSelect;
+    this.home = home;
     this.markers = /* @__PURE__ */ new Map();
     this.content = { points: [], shapes: [], areas: [], attributions: [], selected: null };
     this.attributionText = "";
@@ -33657,8 +33659,8 @@ var FeedMap = class {
     const map = new qP({
       container: this.container,
       style,
-      center: [0, 0],
-      zoom: 1,
+      center: this.home ?? [0, 0],
+      zoom: this.home ? HOME_ZOOM : 1,
       attributionControl: false,
       dragRotate: false,
       pitchWithRotate: false,
@@ -33919,7 +33921,7 @@ var FIT_GROWTH_MS = 3e3;
 var WIDE_PX = 640;
 console.info(
   `%c  MAP-FEED-CARD 
-%c  ${"1.0.1"}    `,
+%c  ${"1.0.2"}    `,
   "color: orange; font-weight: bold; background: black",
   "color: white; font-weight: bold; background: dimgray"
 );
@@ -34137,7 +34139,9 @@ var MapFeedCard = class extends i4 {
   }
   async startMap() {
     this.mapStarting = true;
-    const map = new FeedMap(this.mapElement, this.options.mapStyle, this.dark(), this.themeColors(), (key) => this.select(key));
+    const { latitude, longitude } = this.hass.config ?? {};
+    const home = typeof latitude === "number" && typeof longitude === "number" ? [longitude, latitude] : null;
+    const map = new FeedMap(this.mapElement, this.options.mapStyle, this.dark(), this.themeColors(), (key) => this.select(key), home);
     try {
       await ensureToken(this.hass);
       await map.init();

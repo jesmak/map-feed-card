@@ -57,6 +57,8 @@ const REVEAL_MARGIN_PX = 32;
 
 /** Not much point in zooming a single item in to its doorstep. */
 const FIT_MAX_ZOOM = 13;
+/** Home's surroundings, a region rather than streets, while there is nothing to fit the map to. */
+const HOME_ZOOM = 9;
 
 /** After a refused tile, how long before another refusal may ask for a new token again. */
 const RECOVERY_THROTTLE_MS = 30_000;
@@ -98,6 +100,7 @@ export class FeedMap {
         dark: boolean,
         theme: Record<string, string> | null,
         private readonly onSelect: (key: string | null) => void,
+        private readonly home: LngLat | null = null,
     ) {
         this.style = style;
         this.dark = dark;
@@ -116,8 +119,8 @@ export class FeedMap {
         const map = new MapLibreMap({
             container: this.container,
             style,
-            center: [0, 0],
-            zoom: 1,
+            center: this.home ?? [0, 0],
+            zoom: this.home ? HOME_ZOOM : 1,
             attributionControl: false,
             dragRotate: false,
             pitchWithRotate: false,

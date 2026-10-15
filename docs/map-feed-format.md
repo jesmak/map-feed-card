@@ -368,7 +368,8 @@ example with the Douglas–Peucker algorithm and a tolerance of 10–20 metres.
 - Sources **SHOULD** include only items inside their configured area and keep the attribute to a few tens
   of kilobytes. Home Assistant pushes every change to every open dashboard, including ones without a map.
 - Sources **SHOULD** refresh no more often than every 30 seconds and round coordinates to 5 decimals
-  (about 1 m).
+  (about 1 m). A source of live vehicle positions, which report every few seconds, **MAY** refresh as often as
+  every 15 seconds, and should let the user choose a longer interval.
 - Sources **SHOULD** leave out properties that have no value instead of writing `null`.
 - Sources **SHOULD** become `unavailable` when fetching fails, like a standard update coordinator, rather
   than keep showing old positions as live.

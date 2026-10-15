@@ -347,7 +347,9 @@ export class MapFeedCard extends LitElement {
 
     private async startMap(): Promise<void> {
         this.mapStarting = true;
-        const map = new FeedMap(this.mapElement!, this.options!.mapStyle, this.dark(), this.themeColors(), (key) => this.select(key));
+        const { latitude, longitude } = this.hass!.config ?? {};
+        const home: LngLat | null = typeof latitude === "number" && typeof longitude === "number" ? [longitude, latitude] : null;
+        const map = new FeedMap(this.mapElement!, this.options!.mapStyle, this.dark(), this.themeColors(), (key) => this.select(key), home);
         try {
             await ensureToken(this.hass!);
             await map.init();
