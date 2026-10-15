@@ -33966,6 +33966,7 @@ var MapFeedCard = class extends i4 {
     this.resizer = new ResizeObserver(([entry]) => {
       this.wide = (entry?.contentRect.width ?? 0) >= WIDE_PX;
       this.map?.resize();
+      this.fitLegend();
     });
     this.resizer.observe(this);
     this.mapError = "";
@@ -34105,6 +34106,7 @@ var MapFeedCard = class extends i4 {
         </button>`;
   }
   updated() {
+    this.fitLegend();
     if (this.fitSelected) {
       this.fitSelected = false;
       this.fitRow();
@@ -34297,6 +34299,27 @@ var MapFeedCard = class extends i4 {
     return b2`<div class="legend">
             ${entries.map((entry) => b2`<span><i style="background:${entry.color}"></i>${entry.label}</span>`)}
         </div>`;
+  }
+  /**
+   * A legend that wraps would keep all the width it may take, with space left over after its lines. It is narrowed to
+   * its widest line, which keeps every line as it is: what didn't fit on a line before fits no better now.
+   */
+  fitLegend() {
+    const legend = this.renderRoot.querySelector(".legend");
+    if (!legend) return;
+    legend.style.width = "";
+    const lines = /* @__PURE__ */ new Map();
+    for (const entry of legend.children) {
+      const box = entry.getBoundingClientRect();
+      const line2 = lines.get(Math.round(box.top));
+      lines.set(Math.round(box.top), {
+        left: Math.min(line2?.left ?? box.left, box.left),
+        right: Math.max(line2?.right ?? box.right, box.right)
+      });
+    }
+    if (lines.size < 2) return;
+    const widest = Math.max(...[...lines.values()].map((line2) => line2.right - line2.left));
+    legend.style.width = `${Math.ceil(widest)}px`;
   }
   problem(entity, status) {
     if (status === "missing") return `${this.text("common.no_entity")} ${entity}`;
@@ -34552,6 +34575,23 @@ MapFeedCard.styles = [
                     padding: 8px 12px;
                     flex-wrap: wrap;
                     row-gap: 6px;
+                }
+                ha-card .head h2 {
+                    font-size: 16px;
+                }
+                /* The tag goes under the name and count, which beside it would break a line a word. */
+                ha-card .media li {
+                    display: grid;
+                    grid-template-columns: auto minmax(0, 1fr);
+                    row-gap: 0;
+                }
+                ha-card .media .thumb {
+                    grid-row: span 2;
+                }
+                ha-card .media .tag {
+                    grid-column: 2;
+                    justify-self: start;
+                    margin-top: 4px;
                 }
             }
             /* Narrower still, the chip gets a line of its own, so a name never breaks in the middle of a word. */
