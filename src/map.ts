@@ -199,7 +199,10 @@ export class FeedMap {
     }
 
     resize(): void {
-        this.map?.resize();
+        if (!this.map) return;
+        // A new size clears the canvas until the next frame, so the map isn't drawn until MapLibre is idle again.
+        delete this.container.dataset.mapReady;
+        this.map.resize();
     }
 
     destroy(): void {

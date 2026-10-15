@@ -1,0 +1,849 @@
+{
+    "clock": "2026-10-14T08:40:00+03:00",
+    "states": {
+        "sensor.trains_helsinki_lappeenranta": {
+            "state": "5",
+            "attributes": {
+                "friendly_name": "Trains Helsinki – Lappeenranta",
+                "map_feed_version": 1,
+                "attribution": "Fintraffic / digitraffic.fi, CC BY 4.0",
+                "updated": "2026-10-14T08:40:00+03:00",
+                "geojson": {
+                    "type": "FeatureCollection",
+                    "features": [
+                        {
+                            "type": "Feature",
+                            "id": "train:2026-10-14/8",
+                            "geometry": {
+                                "type": "Point",
+                                "coordinates": [27.1305, 60.8912]
+                            },
+                            "properties": {
+                                "name": "IC 8",
+                                "kind": "train.long_distance",
+                                "updated": "2026-10-14T08:39:30+03:00",
+                                "heading": 262,
+                                "speed_kmh": 148,
+                                "delay_minutes": 11,
+                                "badge": "IC 8",
+                                "label": "→ Helsinki",
+                                "subtitle": "Joensuu → Helsinki",
+                                "details": [
+                                    {
+                                        "label": "Next stop",
+                                        "value": "Kouvola 09:04"
+                                    },
+                                    {
+                                        "label": "Cars",
+                                        "value": "7, restaurant car 4"
+                                    }
+                                ],
+                                "notices": ["Late because of track work between Luumäki and Kouvola."]
+                            }
+                        },
+                        {
+                            "type": "Feature",
+                            "id": "train:2026-10-14/84",
+                            "geometry": {
+                                "type": "Point",
+                                "coordinates": [25.8721, 60.9302]
+                            },
+                            "properties": {
+                                "name": "S 84",
+                                "kind": "train.long_distance",
+                                "updated": "2026-10-14T08:39:42+03:00",
+                                "heading": 104,
+                                "speed_kmh": 176,
+                                "delay_minutes": 1,
+                                "badge": "S 84",
+                                "label": "→ Joensuu",
+                                "subtitle": "Helsinki → Joensuu"
+                            }
+                        },
+                        {
+                            "type": "Feature",
+                            "id": "train:2026-10-14/72",
+                            "geometry": {
+                                "type": "Point",
+                                "coordinates": [25.1302, 60.4521]
+                            },
+                            "properties": {
+                                "name": "IC 72",
+                                "kind": "train.long_distance",
+                                "updated": "2026-10-14T08:39:36+03:00",
+                                "heading": 18,
+                                "speed_kmh": 160,
+                                "delay_minutes": 0,
+                                "badge": "IC 72",
+                                "label": "→ Kuopio",
+                                "subtitle": "Helsinki → Kuopio"
+                            }
+                        },
+                        {
+                            "type": "Feature",
+                            "id": "train:2026-10-14/9421",
+                            "geometry": {
+                                "type": "Point",
+                                "coordinates": [25.0449, 60.2931]
+                            },
+                            "properties": {
+                                "name": "R 9421",
+                                "kind": "train.commuter",
+                                "updated": "2026-10-14T08:39:48+03:00",
+                                "heading": 192,
+                                "speed_kmh": 0,
+                                "stationary": true,
+                                "delay_minutes": 4,
+                                "badge": "R",
+                                "label": "→ Helsinki",
+                                "subtitle": "Riihimäki → Helsinki"
+                            }
+                        },
+                        {
+                            "type": "Feature",
+                            "id": "train:2026-10-14/3022",
+                            "geometry": {
+                                "type": "Point",
+                                "coordinates": [27.8012, 60.9611]
+                            },
+                            "properties": {
+                                "name": "T 3022",
+                                "kind": "train.cargo",
+                                "updated": "2026-10-14T08:39:00+03:00",
+                                "heading": 68,
+                                "speed_kmh": 74,
+                                "badge": "T",
+                                "label": "→ Vainikkala",
+                                "subtitle": "Kouvola → Vainikkala"
+                            }
+                        }
+                    ]
+                },
+                "feed_type": "train",
+                "list": {
+                    "sort": [
+                        {
+                            "key": "delay",
+                            "label": "Delay",
+                            "property": "delay_minutes",
+                            "order": "desc"
+                        },
+                        {
+                            "key": "number",
+                            "label": "Number",
+                            "property": "badge"
+                        }
+                    ],
+                    "default": "delay",
+                    "count": "trains"
+                }
+            }
+        },
+        "sensor.birds_nearby_sighting_places": {
+            "state": "5",
+            "attributes": {
+                "friendly_name": "Birds nearby",
+                "map_feed_version": 1,
+                "attribution": "Data provided by eBird.org (https://ebird.org)",
+                "updated": "2026-10-14T08:40:00+03:00",
+                "geojson": {
+                    "type": "FeatureCollection",
+                    "features": [
+                        {
+                            "type": "Feature",
+                            "id": "location:L1",
+                            "geometry": {
+                                "type": "Point",
+                                "coordinates": [23.7148, 61.4702]
+                            },
+                            "properties": {
+                                "name": "Reed Bay",
+                                "kind": "bird",
+                                "updated": "2026-10-14T07:50:00+03:00",
+                                "badge": "6",
+                                "subtitle": "6 species · 14.10. · 3.9 km southwest",
+                                "color": "#d84315",
+                                "opacity": 1.0,
+                                "details": [
+                                    {
+                                        "label": "Bohemian Waxwing",
+                                        "value": "24 birds · 07:40",
+                                        "image": {
+                                            "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/16/Bombycilla_garrulus%2C_Novosibirsk_1.jpg/500px-Bombycilla_garrulus%2C_Novosibirsk_1.jpg",
+                                            "caption": "Bohemian Waxwing · Tatiana Bulyonkova from Novosibirsk, Russia, CC BY-SA 2.0"
+                                        },
+                                        "tag": {
+                                            "text": "notable",
+                                            "tone": "item"
+                                        }
+                                    },
+                                    {
+                                        "label": "Eurasian Bullfinch",
+                                        "value": "3 birds · 07:50",
+                                        "image": {
+                                            "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/de/Bullfinch_male.jpg/500px-Bullfinch_male.jpg",
+                                            "caption": "Eurasian Bullfinch · Francis Franklin, CC BY-SA 3.0"
+                                        }
+                                    },
+                                    {
+                                        "label": "Fieldfare",
+                                        "value": "6 birds · 07:45",
+                                        "image": {
+                                            "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c1/Turdus_pilaris_EM1B9020_%2834450664312%29.jpg/500px-Turdus_pilaris_EM1B9020_%2834450664312%29.jpg",
+                                            "caption": "Fieldfare · Bengt Nyman from Vaxholm, Sweden, CC BY 2.0"
+                                        }
+                                    },
+                                    {
+                                        "label": "Great Crested Grebe",
+                                        "value": "4 birds · 07:35",
+                                        "image": {
+                                            "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/27/Podiceps_cristatus_2_-_Lake_Dulverton.jpg/500px-Podiceps_cristatus_2_-_Lake_Dulverton.jpg",
+                                            "caption": "Great Crested Grebe · JJ Harrison (https://www.jjharrison.com.au/), CC BY-SA 3.0"
+                                        }
+                                    },
+                                    {
+                                        "label": "Velvet Scoter",
+                                        "value": "2 birds · 07:30",
+                                        "image": {
+                                            "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/35/Velvet_Scoter%2C_Eyebrook_Reservoir%2C_Leics.jpg/500px-Velvet_Scoter%2C_Eyebrook_Reservoir%2C_Leics.jpg",
+                                            "caption": "Velvet Scoter · Vince, CC BY 2.0"
+                                        },
+                                        "tag": {
+                                            "text": "VU",
+                                            "tone": "warning"
+                                        }
+                                    },
+                                    {
+                                        "label": "Long-tailed Duck",
+                                        "value": "11 birds · 07:30",
+                                        "image": {
+                                            "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8e/Long-tailed-duck.jpg/500px-Long-tailed-duck.jpg",
+                                            "caption": "Long-tailed Duck · Wolfgang Wander, CC BY-SA 3.0"
+                                        },
+                                        "tag": {
+                                            "text": "VU",
+                                            "tone": "warning"
+                                        }
+                                    }
+                                ],
+                                "link": {
+                                    "url": "https://ebird.org/hotspot/L1",
+                                    "label": "Hotspot on eBird"
+                                },
+                                "distance_km": 3.9,
+                                "list": {
+                                    "text": "6 species · 14.10.",
+                                    "value": "3.9 km"
+                                }
+                            }
+                        },
+                        {
+                            "type": "Feature",
+                            "id": "location:L2",
+                            "geometry": {
+                                "type": "Point",
+                                "coordinates": [23.7321, 61.5068]
+                            },
+                            "properties": {
+                                "name": "Lakeside Park",
+                                "kind": "bird",
+                                "updated": "2026-10-13T15:25:00+03:00",
+                                "badge": "2",
+                                "subtitle": "2 species · 13.10. · 1.8 km northwest",
+                                "color": "#2e7d32",
+                                "opacity": 0.9,
+                                "details": [
+                                    {
+                                        "label": "Eurasian Blackbird",
+                                        "value": "2 birds · 15:25"
+                                    },
+                                    {
+                                        "label": "Great Tit",
+                                        "value": "5 birds · 15:20"
+                                    }
+                                ],
+                                "link": {
+                                    "url": "https://ebird.org/hotspot/L2",
+                                    "label": "Hotspot on eBird"
+                                },
+                                "distance_km": 1.8,
+                                "list": {
+                                    "text": "2 species · 13.10.",
+                                    "value": "1.8 km"
+                                }
+                            }
+                        },
+                        {
+                            "type": "Feature",
+                            "id": "location:L4",
+                            "geometry": {
+                                "type": "Point",
+                                "coordinates": [23.8433, 61.4887]
+                            },
+                            "properties": {
+                                "name": "4.5 km east",
+                                "kind": "bird",
+                                "updated": "2026-10-12T09:00:00+03:00",
+                                "badge": "1",
+                                "subtitle": "1 species · 12.10.",
+                                "color": "#2e7d32",
+                                "opacity": 0.8,
+                                "details": [
+                                    {
+                                        "label": "Eurasian Jay",
+                                        "value": "1 bird · 09:00"
+                                    }
+                                ],
+                                "distance_km": 4.5
+                            }
+                        },
+                        {
+                            "type": "Feature",
+                            "id": "location:L3",
+                            "geometry": {
+                                "type": "Point",
+                                "coordinates": [23.7902, 61.5131]
+                            },
+                            "properties": {
+                                "name": "Harbour Point",
+                                "kind": "bird",
+                                "updated": "2026-10-11T12:15:00+03:00",
+                                "badge": "2",
+                                "subtitle": "2 species · 11.10. · 2.3 km northeast",
+                                "color": "#2e7d32",
+                                "opacity": 0.7,
+                                "details": [
+                                    {
+                                        "label": "Common Goldeneye",
+                                        "value": "12 birds · 12:15"
+                                    },
+                                    {
+                                        "label": "Whooper Swan",
+                                        "value": "7 birds · 12:10"
+                                    }
+                                ],
+                                "link": {
+                                    "url": "https://ebird.org/hotspot/L3",
+                                    "label": "Hotspot on eBird"
+                                },
+                                "distance_km": 2.3,
+                                "list": {
+                                    "text": "2 species · 11.10.",
+                                    "value": "2.3 km"
+                                }
+                            }
+                        },
+                        {
+                            "type": "Feature",
+                            "id": "location:L5",
+                            "geometry": {
+                                "type": "Point",
+                                "coordinates": [23.6577, 61.4611]
+                            },
+                            "properties": {
+                                "name": "6.8 km southwest",
+                                "kind": "bird",
+                                "updated": "2026-10-09T10:30:00+03:00",
+                                "badge": "1",
+                                "subtitle": "1 species · 9.10.",
+                                "color": "#2e7d32",
+                                "opacity": 0.5,
+                                "details": [
+                                    {
+                                        "label": "Common Redpoll",
+                                        "value": "30 birds · 10:30"
+                                    }
+                                ],
+                                "distance_km": 6.8
+                            }
+                        }
+                    ]
+                },
+                "area": {
+                    "center": [61.4978, 23.761],
+                    "radius_km": 10
+                },
+                "feed_type": "nature",
+                "legend": [
+                    {
+                        "color": "#2e7d32",
+                        "label": "sighting place"
+                    },
+                    {
+                        "color": "#d84315",
+                        "label": "notable"
+                    }
+                ],
+                "list": {
+                    "sort": [
+                        {
+                            "key": "distance",
+                            "label": "Distance",
+                            "property": "distance_km"
+                        },
+                        {
+                            "key": "newest",
+                            "label": "Newest",
+                            "property": "updated",
+                            "order": "desc"
+                        }
+                    ],
+                    "default": "distance",
+                    "count": "sighting places"
+                }
+            }
+        },
+        "sensor.ships_lake_saimaa": {
+            "state": "5",
+            "attributes": {
+                "friendly_name": "Ships on Lake Saimaa",
+                "map_feed_version": 1,
+                "attribution": "Fintraffic / digitraffic.fi, CC BY 4.0",
+                "updated": "2026-10-14T08:40:00+03:00",
+                "geojson": {
+                    "type": "FeatureCollection",
+                    "features": [
+                        {
+                            "type": "Feature",
+                            "id": "ship:230900001",
+                            "geometry": {
+                                "type": "Point",
+                                "coordinates": [28.0105, 61.1012]
+                            },
+                            "properties": {
+                                "name": "SAIMAA TRADER",
+                                "kind": "ship.cargo",
+                                "updated": "2026-10-14T08:39:00+03:00",
+                                "heading": 214,
+                                "speed_kmh": 16.7,
+                                "details": [
+                                    {
+                                        "label": "Type",
+                                        "value": "Cargo"
+                                    },
+                                    {
+                                        "label": "Destination",
+                                        "value": "Lappeenranta"
+                                    },
+                                    {
+                                        "label": "Draught",
+                                        "value": 4.4,
+                                        "unit": "m"
+                                    }
+                                ],
+                                "footer": "MMSI 230900001 · IMO 9000001"
+                            }
+                        },
+                        {
+                            "type": "Feature",
+                            "id": "ship:230900002",
+                            "geometry": {
+                                "type": "Point",
+                                "coordinates": [28.2203, 61.0702]
+                            },
+                            "properties": {
+                                "name": "LAKELAND STAR",
+                                "kind": "ship.passenger",
+                                "updated": "2026-10-14T08:38:00+03:00",
+                                "heading": 48,
+                                "speed_kmh": 19.1,
+                                "details": [
+                                    {
+                                        "label": "Type",
+                                        "value": "Passenger"
+                                    },
+                                    {
+                                        "label": "Destination",
+                                        "value": "Savonlinna"
+                                    }
+                                ],
+                                "footer": "MMSI 230900002"
+                            }
+                        },
+                        {
+                            "type": "Feature",
+                            "id": "ship:230900003",
+                            "geometry": {
+                                "type": "Point",
+                                "coordinates": [28.1902, 61.0631]
+                            },
+                            "properties": {
+                                "name": "KAISLA",
+                                "kind": "ship.pleasure",
+                                "updated": "2026-10-14T08:26:00+03:00",
+                                "stationary": true,
+                                "speed_kmh": 0,
+                                "details": [
+                                    {
+                                        "label": "Type",
+                                        "value": "Sailing vessel"
+                                    }
+                                ],
+                                "footer": "MMSI 230900003"
+                            }
+                        },
+                        {
+                            "type": "Feature",
+                            "id": "ship:230900004",
+                            "geometry": {
+                                "type": "Point",
+                                "coordinates": [28.3511, 61.1405]
+                            },
+                            "properties": {
+                                "name": "PILOT S12",
+                                "kind": "ship.pilot",
+                                "updated": "2026-10-14T08:39:30+03:00",
+                                "heading": 301,
+                                "speed_kmh": 28.4,
+                                "details": [
+                                    {
+                                        "label": "Type",
+                                        "value": "Pilot vessel"
+                                    }
+                                ],
+                                "footer": "MMSI 230900004"
+                            }
+                        },
+                        {
+                            "type": "Feature",
+                            "id": "ship:230900005",
+                            "geometry": {
+                                "type": "Point",
+                                "coordinates": [28.0602, 61.2004]
+                            },
+                            "properties": {
+                                "name": "AURA",
+                                "kind": "ship.tug",
+                                "updated": "2026-10-14T08:37:00+03:00",
+                                "heading": 172,
+                                "speed_kmh": 9.2,
+                                "details": [
+                                    {
+                                        "label": "Type",
+                                        "value": "Tug"
+                                    }
+                                ],
+                                "footer": "MMSI 230900005"
+                            }
+                        }
+                    ]
+                },
+                "area": {
+                    "center": [61.11, 28.17],
+                    "radius_km": 15
+                },
+                "feed_type": "ship"
+            }
+        },
+        "sensor.buses_lappeenranta": {
+            "state": "5",
+            "attributes": {
+                "friendly_name": "Buses in Lappeenranta",
+                "map_feed_version": 1,
+                "attribution": "Digitransit / Waltti, CC BY 4.0",
+                "updated": "2026-10-14T08:40:00+03:00",
+                "geojson": {
+                    "type": "FeatureCollection",
+                    "features": [
+                        {
+                            "type": "Feature",
+                            "id": "bus:6/1",
+                            "geometry": {
+                                "type": "Point",
+                                "coordinates": [28.1661, 61.0592]
+                            },
+                            "properties": {
+                                "name": "Line 6 → Skinnarila",
+                                "kind": "bus",
+                                "updated": "2026-10-14T08:39:48+03:00",
+                                "heading": 118,
+                                "speed_kmh": 34,
+                                "delay_minutes": 2,
+                                "badge": "6",
+                                "label": "→ Skinnarila",
+                                "details": [
+                                    {
+                                        "label": "Next stop",
+                                        "value": "Kauppatori 08:41"
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "type": "Feature",
+                            "id": "bus:1/1",
+                            "geometry": {
+                                "type": "Point",
+                                "coordinates": [28.1952, 61.0571]
+                            },
+                            "properties": {
+                                "name": "Line 1 → Sammonlahti",
+                                "kind": "bus",
+                                "updated": "2026-10-14T08:39:42+03:00",
+                                "heading": 262,
+                                "speed_kmh": 41,
+                                "delay_minutes": 0,
+                                "badge": "1",
+                                "label": "→ Sammonlahti"
+                            }
+                        },
+                        {
+                            "type": "Feature",
+                            "id": "bus:2/1",
+                            "geometry": {
+                                "type": "Point",
+                                "coordinates": [28.1712, 61.0662]
+                            },
+                            "properties": {
+                                "name": "Line 2 → Kourula",
+                                "kind": "bus",
+                                "updated": "2026-10-14T08:39:36+03:00",
+                                "heading": 12,
+                                "speed_kmh": 0,
+                                "stationary": true,
+                                "delay_minutes": -1,
+                                "badge": "2",
+                                "label": "→ Kourula"
+                            }
+                        },
+                        {
+                            "type": "Feature",
+                            "id": "bus:5/1",
+                            "geometry": {
+                                "type": "Point",
+                                "coordinates": [28.2105, 61.0498]
+                            },
+                            "properties": {
+                                "name": "Line 5 → Lauritsala",
+                                "kind": "bus",
+                                "updated": "2026-10-14T08:39:48+03:00",
+                                "heading": 74,
+                                "speed_kmh": 48,
+                                "delay_minutes": 6,
+                                "badge": "5",
+                                "label": "→ Lauritsala"
+                            }
+                        },
+                        {
+                            "type": "Feature",
+                            "id": "bus:8/1",
+                            "geometry": {
+                                "type": "Point",
+                                "coordinates": [28.2003, 61.0702]
+                            },
+                            "properties": {
+                                "name": "Line 8 → Kesämäki",
+                                "kind": "bus",
+                                "updated": "2026-10-14T08:39:24+03:00",
+                                "heading": 190,
+                                "speed_kmh": 27,
+                                "delay_minutes": 0,
+                                "badge": "8",
+                                "label": "→ Kesämäki"
+                            }
+                        }
+                    ]
+                },
+                "feed_type": "transit",
+                "list": {
+                    "sort": [
+                        {
+                            "key": "line",
+                            "label": "Line",
+                            "property": "badge"
+                        }
+                    ],
+                    "default": "line",
+                    "count": "vehicles"
+                }
+            }
+        },
+        "sensor.traffic_messages": {
+            "state": "2",
+            "attributes": {
+                "friendly_name": "Traffic messages",
+                "map_feed_version": 1,
+                "attribution": "Fintraffic / digitraffic.fi, CC BY 4.0",
+                "updated": "2026-10-14T08:40:00+03:00",
+                "geojson": {
+                    "type": "FeatureCollection",
+                    "features": [
+                        {
+                            "type": "Feature",
+                            "id": "roadwork:1",
+                            "geometry": {
+                                "type": "Point",
+                                "coordinates": [27.4405, 60.9012]
+                            },
+                            "properties": {
+                                "name": "Road 6, Luumäki. Road works.",
+                                "kind": "road.roadwork",
+                                "subtitle": "Road 6 between Kouvola and Lappeenranta.",
+                                "details": [
+                                    {
+                                        "label": "Restrictions",
+                                        "value": "One lane closed, 60 km/h"
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "type": "Feature",
+                            "id": "roadwork:1/line",
+                            "geometry": {
+                                "type": "LineString",
+                                "coordinates": [
+                                    [27.3302, 60.8854],
+                                    [27.4405, 60.9012],
+                                    [27.5603, 60.9188]
+                                ]
+                            },
+                            "properties": {
+                                "kind": "road.roadwork",
+                                "point": "roadwork:1"
+                            }
+                        },
+                        {
+                            "type": "Feature",
+                            "id": "announcement:2",
+                            "geometry": {
+                                "type": "Point",
+                                "coordinates": [27.8203, 60.8402]
+                            },
+                            "properties": {
+                                "name": "Road 26, Taavetti. Fallen tree.",
+                                "kind": "road.announcement",
+                                "details": [
+                                    {
+                                        "label": "Restrictions",
+                                        "value": "Expect delays"
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                },
+                "area": {
+                    "center": [60.88, 27.6],
+                    "radius_km": 25
+                },
+                "feed_type": "road"
+            }
+        },
+        "sensor.road_maintenance": {
+            "state": "1",
+            "attributes": {
+                "friendly_name": "Road maintenance",
+                "map_feed_version": 1,
+                "attribution": "Fintraffic / digitraffic.fi, CC BY 4.0",
+                "updated": "2026-10-14T08:40:00+03:00",
+                "geojson": {
+                    "type": "FeatureCollection",
+                    "features": [
+                        {
+                            "type": "Feature",
+                            "id": "maintenance:7",
+                            "geometry": {
+                                "type": "Point",
+                                "coordinates": [27.6811, 60.9402]
+                            },
+                            "properties": {
+                                "name": "Ploughing",
+                                "kind": "road.maintenance",
+                                "updated": "2026-10-14T08:38:00+03:00",
+                                "heading": 58,
+                                "details": [
+                                    {
+                                        "label": "Task",
+                                        "value": "Ploughing, salting"
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "type": "Feature",
+                            "id": "maintenance:7/track",
+                            "geometry": {
+                                "type": "LineString",
+                                "coordinates": [
+                                    [27.5603, 60.9188],
+                                    [27.6811, 60.9402],
+                                    [27.7905, 60.9603]
+                                ]
+                            },
+                            "properties": {
+                                "kind": "road.maintenance_track",
+                                "point": "maintenance:7",
+                                "updated": "2026-10-14T08:20:00+03:00"
+                            }
+                        }
+                    ]
+                },
+                "feed_type": "road"
+            }
+        }
+    },
+    "shots": [
+        {
+            "name": "trains",
+            "width": 400,
+            "popup": "IC 8",
+            "card": {
+                "type": "custom:map-feed-card",
+                "list": true,
+                "map_height": 260,
+                "list_height": 340,
+                "entities": [
+                    {
+                        "entity": "sensor.trains_helsinki_lappeenranta",
+                        "color_by": "delay"
+                    }
+                ]
+            }
+        },
+        {
+            "name": "birds",
+            "width": 400,
+            "popup": "6",
+            "card": {
+                "type": "custom:map-feed-card",
+                "list": true,
+                "map_height": 260,
+                "list_height": 340,
+                "entities": [
+                    {
+                        "entity": "sensor.birds_nearby_sighting_places",
+                        "show_area": true
+                    }
+                ]
+            }
+        },
+        {
+            "name": "list-wide",
+            "width": 820,
+            "popup": "6",
+            "card": {
+                "type": "custom:map-feed-card",
+                "title": "Birds nearby",
+                "list": true,
+                "map_height": 440,
+                "entities": [
+                    {
+                        "entity": "sensor.birds_nearby_sighting_places",
+                        "show_area": true
+                    }
+                ]
+            }
+        },
+        {
+            "name": "road-traffic",
+            "width": 820,
+            "card": {
+                "type": "custom:map-feed-card",
+                "title": "Road traffic",
+                "map_height": 380,
+                "entities": ["sensor.traffic_messages", "sensor.road_maintenance"]
+            }
+        }
+    ]
+}

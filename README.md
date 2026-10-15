@@ -5,6 +5,13 @@ Assistant's own map, with the selected item's details beside it.
 
 [![GitHub Release][releases-shield]][releases] [![GitHub Release Date][release-date-shield]][releases] [![HACS][hacs-shield]][hacs] [![License][license-shield]](LICENSE)
 
+<p>
+<img src="https://raw.githubusercontent.com/jesmak/map-feed-card/main/docs/images/trains-light.png#gh-light-mode-only" width="400" alt="Trains on a map coloured by their delay, a late train's details opened in the list below it">
+<img src="https://raw.githubusercontent.com/jesmak/map-feed-card/main/docs/images/trains-dark.png#gh-dark-mode-only" width="400" alt="Trains on a map coloured by their delay, a late train's details opened in the list below it">
+<img src="https://raw.githubusercontent.com/jesmak/map-feed-card/main/docs/images/birds-light.png#gh-light-mode-only" width="400" alt="Bird sightings on a map with a legend, a notable place's species with pictures and tags in the list below it">
+<img src="https://raw.githubusercontent.com/jesmak/map-feed-card/main/docs/images/birds-dark.png#gh-dark-mode-only" width="400" alt="Bird sightings on a map with a legend, a notable place's species with pictures and tags in the list below it">
+</p>
+
 ## What is it?
 
 A custom card for things that have a position and change, such as the trains on a stretch of track, the ships near a
@@ -84,6 +91,11 @@ drawn in their item's colour, and tapping one selects it. Pointing at a line or 
 `labels` every marker has its name beside it. When the card opens, the map shows the feeds' areas, or everything in
 them when they have none. The map follows the theme, light or dark, and takes the map colours a theme sets with `--ha-color-map-*` variables, as Home Assistant's own map does.
 
+<p>
+<img src="https://raw.githubusercontent.com/jesmak/map-feed-card/main/docs/images/road-traffic-light.png#gh-light-mode-only" width="830" alt="Road works, an announcement and a snow plough on a map, with the road works' stretch drawn as a line and a legend of their kinds">
+<img src="https://raw.githubusercontent.com/jesmak/map-feed-card/main/docs/images/road-traffic-dark.png#gh-dark-mode-only" width="830" alt="Road works, an announcement and a snow plough on a map, with the road works' stretch drawn as a line and a legend of their kinds">
+</p>
+
 **The details** of the item tapped open in the panel. The title is the item's name, or a train's route when its
 marker already shows its number. Under it, something that moves has a status line with its delay, its speed and how
 old its position is, coloured by the delay. Then come the item's details, drawn by their shape. Rows with a picture,
@@ -92,6 +104,11 @@ tag, such as an endangered species' status. Notices are highlighted below them. 
 
 **The list**, with `list: true`, shows every item as a row: a title, a line under it and a value, such as a delay or
 a distance. A feed can say what the list can be sorted by, such as delay and number for trains, and the order is chosen on the card when there is more than one. Tapping a row unfolds its details beneath it and brings its marker into view, and tapping it again folds them away. Tapping a marker opens its row. Above the list is the number of items, with the sensor's name when the card shows one feed.
+
+<p>
+<img src="https://raw.githubusercontent.com/jesmak/map-feed-card/main/docs/images/list-wide-light.png#gh-light-mode-only" width="830" alt="Bird sightings with the list beside the map, the nearest place opened to its species">
+<img src="https://raw.githubusercontent.com/jesmak/map-feed-card/main/docs/images/list-wide-dark.png#gh-dark-mode-only" width="830" alt="Bird sightings with the list beside the map, the nearest place opened to its species">
+</p>
 
 **The legend** over the map explains the colours: the delay classes with `color_by: delay`, the feed's own colours
 when it explains them, and otherwise the kinds on the map when there is more than one. With `color_by: delay`, only trains, public transport and anything the feed gives a delay or

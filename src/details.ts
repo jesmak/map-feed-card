@@ -141,9 +141,16 @@ export function besidesRow(
 ): string[] {
     return [
         parts.title !== row.title ? parts.title : "",
-        parts.subtitle !== row.text ? parts.subtitle : "",
+        subtitleBeyond(parts.subtitle, row.text),
         parts.age !== row.value ? parts.age : "",
     ].filter(Boolean);
+}
+
+/** What the subtitle says beyond the row's text: the rest when it starts with it, such as a place's direction, or all of it. */
+function subtitleBeyond(subtitle: string, text: string): string {
+    if (subtitle === text) return "";
+    if (text && subtitle.startsWith(text)) return subtitle.slice(text.length).replace(/^[\s·,]+/, "");
+    return subtitle;
 }
 
 /**

@@ -101,6 +101,15 @@ describe("details under a list row", () => {
         ]);
         expect(besidesRow({ title: "13.8 km south-east", text: "", value: "1 d ago" }, { ...parts, subtitle: "" })).toEqual([]);
     });
+
+    it("add only what a subtitle says beyond the row's text when it starts with it", () => {
+        const hotspot = { title: "Reed Bay", subtitle: "6 species · 14.10. · 3.9 km southwest", age: "50 min ago" };
+        expect(besidesRow({ title: "Reed Bay", text: "6 species · 14.10.", value: "3.9 km" }, hotspot)).toEqual([
+            "3.9 km southwest",
+            "50 min ago",
+        ]);
+        expect(besidesRow({ title: "Reed Bay", text: "Lakeside", value: "" }, hotspot)).toContain(hotspot.subtitle);
+    });
 });
 
 describe("detail rows", () => {

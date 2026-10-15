@@ -1319,9 +1319,14 @@ function cacheKey(point) {
 function besidesRow(row, parts) {
   return [
     parts.title !== row.title ? parts.title : "",
-    parts.subtitle !== row.text ? parts.subtitle : "",
+    subtitleBeyond(parts.subtitle, row.text),
     parts.age !== row.value ? parts.age : ""
   ].filter(Boolean);
+}
+function subtitleBeyond(subtitle, text2) {
+  if (subtitle === text2) return "";
+  if (text2 && subtitle.startsWith(text2)) return subtitle.slice(text2.length).replace(/^[\s·,]+/, "");
+  return subtitle;
 }
 function titleIsSubtitle(item, point) {
   return point !== null && point.badge !== "" && point.badge === item.name && item.subtitle !== "";
@@ -33721,7 +33726,9 @@ var FeedMap = class {
     if (x3 < margin || y4 < margin || x3 > width - margin || y4 > height - margin) map.easeTo({ center: position });
   }
   resize() {
-    this.map?.resize();
+    if (!this.map) return;
+    delete this.container.dataset.mapReady;
+    this.map.resize();
   }
   destroy() {
     this.destroyed = true;
