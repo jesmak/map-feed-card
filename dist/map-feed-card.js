@@ -1092,8 +1092,12 @@ function delayClass(point, thresholds) {
 function kindColor(item) {
   return item.color ?? (Object.hasOwn(KIND_COLORS, item.kind) ? KIND_COLORS[item.kind] : void 0) ?? FAMILY_COLORS[kindFamily(item.kind)];
 }
+function canBeLate(point) {
+  const family = kindFamily(point.kind);
+  return family === "train" || family === "transit" || point.delayMinutes !== null || point.cancelled;
+}
 function pointColor(point, colorBy, thresholds) {
-  return colorBy === "delay" ? DELAY_COLORS[delayClass(point, thresholds)] : kindColor(point);
+  return colorBy === "delay" && canBeLate(point) ? DELAY_COLORS[delayClass(point, thresholds)] : kindColor(point);
 }
 function shapeColor(shape) {
   return !shape.color && shape.kind === "other" ? SHAPE_COLOR : kindColor(shape);
@@ -33088,7 +33092,7 @@ var FeedMap = class {
       element.classList.toggle("selected", selected);
       element.style.background = drawn.color;
       element.style.color = textOn(drawn.color);
-      element.style.opacity = String(drawn.point.opacity);
+      entry.marker.setOpacity(drawn.point.opacity);
       element.style.zIndex = selected ? "2" : "";
       element.title = drawn.point.label || drawn.point.name;
       element.setAttribute("aria-label", drawn.point.label || drawn.point.name);
@@ -33383,9 +33387,13 @@ var MapFeedCard = class extends i4 {
       }
       const { points, shapes, area, attribution } = result.feed;
       const pointKeys = /* @__PURE__ */ new Map();
+      let byDelay = false;
+      let ownColours = false;
       for (const point of points) {
         if (feed.maxAgeMinutes !== null && point.updatedMs !== null && now - point.updatedMs > feed.maxAgeMinutes * 6e4)
           continue;
+        if (feed.colorBy === "delay" && canBeLate(point)) byDelay = true;
+        else ownColours = true;
         const drawn = { key: `${feed.entity}|${point.id}`, point, color: pointColor(point, feed.colorBy, feed.delayThresholds) };
         pointKeys.set(point.id, drawn);
         view.content.points.push(drawn);
@@ -33398,17 +33406,21 @@ var MapFeedCard = class extends i4 {
         const key = `${feed.entity}|${shape.id}`;
         const drawn = { key, selects: owner?.key ?? key, shape, color: owner?.color ?? shapeColor(shape) };
         view.content.shapes.push(drawn);
-        if (!owner) view.items.set(key, { item: shape, point: null, color: drawn.color, feed });
+        if (!owner) {
+          view.items.set(key, { item: shape, point: null, color: drawn.color, feed });
+          ownColours = true;
+        }
       }
       if (area && feed.showArea)
         view.content.areas.push({ area, color: feed.areaColor ?? areaColor(this.dark()) });
       if (area) view.extent.push(...areaOutline(area));
       if (attribution) view.content.attributions.push(attribution);
-      const legend = result.feed.legend.length ? result.feed.legend : feed.colorBy === "delay" ? this.delayLegend(feed) : [];
-      const signature = JSON.stringify(legend);
-      if (!legends.has(signature)) {
-        legends.add(signature);
-        view.legend.push(...legend);
+      for (const legend of [byDelay ? this.delayLegend(feed) : [], ownColours ? result.feed.legend : []]) {
+        const signature = JSON.stringify(legend);
+        if (legend.length && !legends.has(signature)) {
+          legends.add(signature);
+          view.legend.push(...legend);
+        }
       }
     }
     view.content.attributions = [...new Set(view.content.attributions)];
@@ -33697,7 +33709,8 @@ MapFeedCard.styles = [
             }
             .tag.neutral {
                 color: var(--primary-text-color);
-                background: var(--secondary-background-color);
+                /* A theme's secondary background can be the card's own colour, so the tag is tinted by the text instead. */
+                background: color-mix(in srgb, var(--primary-text-color) 14%, transparent);
             }
             .notices {
                 margin-top: 12px;

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { HomeAssistant } from "../src/hass";
-import { feedState, trainFeature } from "./support/fakes";
+import { feedState, shipFeature, trainFeature } from "./support/fakes";
 
 // happy-dom has no WebGL, and the tile proxy is Home Assistant's; the card is tested without its map.
 const drawn = vi.hoisted(() => ({ updates: [] as Array<Record<string, unknown>>, fits: 0 }));
@@ -104,6 +104,25 @@ describe("map-feed-card", () => {
             false,
             true,
         );
+    });
+
+    it("colours by delay only what can be late, and explains both colourings", async () => {
+        const legend = [{ color: "#2e7d32", label: "Harbour" }];
+        const both = await mount(
+            { entities: [{ entity: "sensor.mixed", color_by: "delay" }] },
+            { "sensor.mixed": feedState("sensor.mixed", [trainFeature(), shipFeature()], { legend }) },
+        );
+        const colours = (drawn.updates.at(-1)!.points as Array<{ color: string }>).map((point) => point.color);
+        expect(colours).toEqual(["#c62828", "#ef6c00"]);
+        const labels = [...both.shadowRoot!.querySelectorAll(".legend span")].map((entry) => entry.textContent!.trim());
+        expect(labels).toEqual(["on time", "3+ min", "10+ min", "Harbour"]);
+
+        document.body.innerHTML = "";
+        const trains = await mount(
+            { entities: [{ entity: "sensor.mixed", color_by: "delay" }] },
+            { "sensor.mixed": feedState("sensor.mixed", [trainFeature()], { legend }) },
+        );
+        expect(trains.shadowRoot!.querySelector(".legend")!.textContent).not.toContain("Harbour");
     });
 
     it("says which feeds it can't draw", async () => {

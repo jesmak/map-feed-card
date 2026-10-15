@@ -59,15 +59,15 @@ The card needs Home Assistant 2026.9 or newer, which serves the map tiles it dra
 
 Each feed in `entities` can have options of its own:
 
-| Name                | Type    | Default  | Description                                                                |
-| ------------------- | ------- | -------- | -------------------------------------------------------------------------- |
-| `entity`            | string  | required | The map feed sensor                                                        |
-| `color_by`          | string  | `kind`   | `kind` colours by what the item is, `delay` by how late it is              |
-| `late_minutes`      | number  | `3`      | With `color_by: delay`, minutes late from which an item is yellow          |
-| `very_late_minutes` | number  | `10`     | With `color_by: delay`, minutes late from which an item is red             |
-| `max_age_minutes`   | number  |          | Hide items whose position is older than this                               |
-| `show_area`         | boolean | `false`  | Draw the area the feed covers, as a dashed outline                         |
-| `area_color`        | string  |          | The area's colour, as a hex colour. By default a blue that suits the theme |
+| Name                | Type    | Default  | Description                                                                                  |
+| ------------------- | ------- | -------- | -------------------------------------------------------------------------------------------- |
+| `entity`            | string  | required | The map feed sensor                                                                          |
+| `color_by`          | string  | `kind`   | `kind` colours by what the item is, `delay` trains and public transport by how late they are |
+| `late_minutes`      | number  | `3`      | With `color_by: delay`, minutes late from which an item is yellow                            |
+| `very_late_minutes` | number  | `10`     | With `color_by: delay`, minutes late from which an item is red                               |
+| `max_age_minutes`   | number  |          | Hide items whose position is older than this                                                 |
+| `show_area`         | boolean | `false`  | Draw the area the feed covers, as a dashed outline                                           |
+| `area_color`        | string  |          | The area's colour, as a hex colour. By default a blue that suits the theme                   |
 
 Every option is in the card's visual editor.
 
@@ -85,8 +85,9 @@ old its position is, coloured by the delay. Then come the item's details, drawn 
 such as the species seen at a place, are a list with the pictures, and rows without one a table. A row can carry a
 tag, such as an endangered species' status. Notices are highlighted below them. Tapping a picture shows it large.
 
-**The legend** over the map explains the colours: the feed's own, when it has one, or the delay classes with
-`color_by: delay`.
+**The legend** over the map explains the colours: the delay classes with `color_by: delay`, and the feed's own colours
+when it explains them. With `color_by: delay`, only trains, public transport and anything the feed gives a delay or
+marks cancelled are coloured by their delay. Everything else, such as birds or road works, keeps its own colour.
 
 When the card is at least 640 pixels wide, the details sit beside the map instead of below it.
 

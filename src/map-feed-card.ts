@@ -25,7 +25,7 @@ import { browserLanguage, translate } from "./localize/localize";
 import { FeedMap, type DrawnArea, type DrawnPoint, type DrawnShape, type MapContent } from "./map";
 import { ensureToken } from "./map-tiles";
 import { parseOptions, type CardOptions, type FeedOptions } from "./options";
-import { areaColor, DELAY_COLORS, pointColor, shapeColor } from "./style";
+import { areaColor, canBeLate, DELAY_COLORS, pointColor, shapeColor } from "./style";
 
 /** Replaced at build time with the version in package.json. */
 declare const __CARD_VERSION__: string;
@@ -251,9 +251,13 @@ export class MapFeedCard extends LitElement {
             }
             const { points, shapes, area, attribution } = result.feed;
             const pointKeys = new Map<string, DrawnPoint>();
+            let byDelay = false;
+            let ownColours = false;
             for (const point of points) {
                 if (feed.maxAgeMinutes !== null && point.updatedMs !== null && now - point.updatedMs > feed.maxAgeMinutes * 60_000)
                     continue;
+                if (feed.colorBy === "delay" && canBeLate(point)) byDelay = true;
+                else ownColours = true;
                 const drawn = { key: `${feed.entity}|${point.id}`, point, color: pointColor(point, feed.colorBy, feed.delayThresholds) };
                 pointKeys.set(point.id, drawn);
                 view.content.points.push(drawn);
@@ -267,18 +271,23 @@ export class MapFeedCard extends LitElement {
                 const key = `${feed.entity}|${shape.id}`;
                 const drawn: DrawnShape = { key, selects: owner?.key ?? key, shape, color: owner?.color ?? shapeColor(shape) };
                 view.content.shapes.push(drawn);
-                if (!owner) view.items.set(key, { item: shape, point: null, color: drawn.color, feed });
+                if (!owner) {
+                    view.items.set(key, { item: shape, point: null, color: drawn.color, feed });
+                    ownColours = true;
+                }
             }
             if (area && feed.showArea)
                 view.content.areas.push({ area, color: feed.areaColor ?? areaColor(this.dark()) } satisfies DrawnArea);
             // The feed's area frames the map best; without one, everything in the feed does.
             if (area) view.extent.push(...areaOutline(area));
             if (attribution) view.content.attributions.push(attribution);
-            const legend = result.feed.legend.length ? result.feed.legend : feed.colorBy === "delay" ? this.delayLegend(feed) : [];
-            const signature = JSON.stringify(legend);
-            if (!legends.has(signature)) {
-                legends.add(signature);
-                view.legend.push(...legend);
+            // The delay classes explain what is coloured by delay, the feed's legend what keeps the feed's own colours.
+            for (const legend of [byDelay ? this.delayLegend(feed) : [], ownColours ? result.feed.legend : []]) {
+                const signature = JSON.stringify(legend);
+                if (legend.length && !legends.has(signature)) {
+                    legends.add(signature);
+                    view.legend.push(...legend);
+                }
             }
         }
         view.content.attributions = [...new Set(view.content.attributions)];
@@ -572,7 +581,8 @@ export class MapFeedCard extends LitElement {
             }
             .tag.neutral {
                 color: var(--primary-text-color);
-                background: var(--secondary-background-color);
+                /* A theme's secondary background can be the card's own colour, so the tag is tinted by the text instead. */
+                background: color-mix(in srgb, var(--primary-text-color) 14%, transparent);
             }
             .notices {
                 margin-top: 12px;

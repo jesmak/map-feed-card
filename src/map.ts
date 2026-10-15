@@ -213,7 +213,8 @@ export class FeedMap {
             element.classList.toggle("selected", selected);
             element.style.background = drawn.color;
             element.style.color = textOn(drawn.color);
-            element.style.opacity = String(drawn.point.opacity);
+            // MapLibre sets the element's opacity on every frame, so it is given to the marker instead.
+            entry.marker.setOpacity(drawn.point.opacity);
             element.style.zIndex = selected ? "2" : "";
             element.title = drawn.point.label || drawn.point.name;
             element.setAttribute("aria-label", drawn.point.label || drawn.point.name);

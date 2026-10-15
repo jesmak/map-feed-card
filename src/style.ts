@@ -77,8 +77,17 @@ export function kindColor(item: Pick<FeedItem, "kind" | "color">): string {
     );
 }
 
+/**
+ * Whether colouring by delay applies: to trains and public transport, and to anything that says it is late or
+ * cancelled. A bird or a road work has no delay to show, so it keeps its own colour.
+ */
+export function canBeLate(point: Pick<FeedPoint, "kind" | "delayMinutes" | "cancelled">): boolean {
+    const family = kindFamily(point.kind);
+    return family === "train" || family === "transit" || point.delayMinutes !== null || point.cancelled;
+}
+
 export function pointColor(point: FeedPoint, colorBy: ColorBy, thresholds: readonly [number, number]): string {
-    return colorBy === "delay" ? DELAY_COLORS[delayClass(point, thresholds)] : kindColor(point);
+    return colorBy === "delay" && canBeLate(point) ? DELAY_COLORS[delayClass(point, thresholds)] : kindColor(point);
 }
 
 export function shapeColor(shape: FeedShape): string {

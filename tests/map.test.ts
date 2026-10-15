@@ -26,6 +26,10 @@ vi.mock("maplibre-gl", () => {
         setLngLat() {
             return this;
         }
+        setOpacity(opacity: number) {
+            this.element.dataset.opacity = String(opacity);
+            return this;
+        }
         addTo() {
             this.element.classList.add("maplibregl-marker");
             return this;
@@ -91,5 +95,21 @@ describe("map markers", () => {
         expect(marker.classList.contains("maplibregl-marker")).toBe(true);
         expect(marker.classList.contains("selected")).toBe(false);
         expect(marker.classList.contains("plain")).toBe(false);
+    });
+
+    it("fades a marker through MapLibre, which owns the element's opacity", async () => {
+        vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({} as RenderingContext);
+        const map = new FeedMap(document.createElement("div"), "default", true, () => undefined);
+        await map.init();
+        map.update({
+            points: [{ key: "a", point: ship({ opacity: 0.55 }), color: "#1565c0" }],
+            shapes: [],
+            areas: [],
+            attributions: [],
+            selected: null,
+        });
+        const marker = map["markers"].get("a")!.element;
+        expect(marker.dataset.opacity).toBe("0.55");
+        expect(marker.style.opacity).toBe("");
     });
 });
