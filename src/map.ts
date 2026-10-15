@@ -4,7 +4,7 @@
  */
 import { AttributionControl, Map as MapLibreMap, Marker, NavigationControl, Popup, setWorkerUrl } from "maplibre-gl";
 import type { FeatureCollection } from "geojson";
-import type { GeoJSONSource, MapLayerMouseEvent, StyleSpecification } from "maplibre-gl";
+import type { FilterSpecification, GeoJSONSource, MapLayerMouseEvent, StyleSpecification } from "maplibre-gl";
 // The worker is carried as text and started from a blob, so the card stays one file, as HACS installs it.
 import workerSource from "maplibre-gl/dist/maplibre-gl-worker.mjs?raw";
 
@@ -281,15 +281,34 @@ export class FeedMap {
             filter: ["==", ["geometry-type"], "Polygon"],
             paint: { "fill-color": ["get", "color"], "fill-opacity": ["*", 0.25, ["get", "opacity"]] },
         });
+        // The selected line is cased, a white band with a dark edge under it, so it stands out among lines of its own
+        // colour, such as a road among roads in the same condition. Width alone doesn't.
+        const selected: FilterSpecification = ["==", ["get", "selected"], true];
+        map.addLayer({
+            id: "feed-selected-halo",
+            type: "line",
+            source: SHAPES,
+            filter: selected,
+            layout: { "line-cap": "round", "line-join": "round" },
+            paint: { "line-color": "rgba(0, 0, 0, 0.55)", "line-width": ["+", ["get", "width"], 10], "line-blur": 1 },
+        });
+        map.addLayer({
+            id: "feed-selected-casing",
+            type: "line",
+            source: SHAPES,
+            filter: selected,
+            layout: { "line-cap": "round", "line-join": "round" },
+            paint: { "line-color": "#ffffff", "line-width": ["+", ["get", "width"], 6] },
+        });
         map.addLayer({
             id: "feed-line",
             type: "line",
             source: SHAPES,
-            layout: { "line-cap": "round", "line-join": "round" },
+            layout: { "line-cap": "round", "line-join": "round", "line-sort-key": ["case", ["get", "selected"], 1, 0] },
             paint: {
                 "line-color": ["get", "color"],
-                "line-width": ["case", ["get", "selected"], ["+", ["get", "width"], 3], ["get", "width"]],
-                "line-opacity": ["get", "opacity"],
+                "line-width": ["get", "width"],
+                "line-opacity": ["case", ["get", "selected"], 1, ["get", "opacity"]],
             },
         });
         this.updateLayers();

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { delayText, formatAge, groups, speedText, statusLine, titleIsSubtitle, type Text } from "../src/details";
+import { besidesRow, delayText, formatAge, groups, speedText, statusLine, titleIsSubtitle, type Text } from "../src/details";
 import type { FeedPoint } from "../src/feed";
 import { delayClass, kindColor, markerHtml, textOn } from "../src/style";
 
@@ -88,6 +88,18 @@ describe("texts", () => {
         expect(titleIsSubtitle(site, site)).toBe(false);
         expect(titleIsSubtitle(point({ subtitle: "" }), point())).toBe(false);
         expect(titleIsSubtitle(point(), null)).toBe(false);
+    });
+});
+
+describe("details under a list row", () => {
+    it("add the name, subtitle and age that the row's own parts left out", () => {
+        const parts = { title: "13.8 km south-east", subtitle: "5 species · 14.10.", age: "1 d ago" };
+        expect(besidesRow({ title: "13.8 km south-east", text: "5 species · 14.10.", value: "1 d ago" }, parts)).toEqual([]);
+        expect(besidesRow({ title: "Kaislalahti", text: "5 species · 14.10.", value: "3.9 km" }, parts)).toEqual([
+            "13.8 km south-east",
+            "1 d ago",
+        ]);
+        expect(besidesRow({ title: "13.8 km south-east", text: "", value: "1 d ago" }, { ...parts, subtitle: "" })).toEqual([]);
     });
 });
 

@@ -62,6 +62,10 @@ export interface LegendEntry {
     label: string;
 }
 
+/** What a feed is about, as the format's kind families; the editor offers only the options that make sense for it. */
+export const FEED_TYPES = ["ship", "train", "transit", "road", "nature", "other"] as const;
+export type FeedType = (typeof FEED_TYPES)[number];
+
 /** An order the feed offers for the card's list. */
 export interface SortKey {
     key: string;
@@ -139,6 +143,8 @@ export interface FeedShape extends FeedItem {
 }
 
 export interface Feed {
+    /** null when the feed doesn't say, or says something the card doesn't know. */
+    type: FeedType | null;
     attribution: string;
     area: FeedArea | null;
     legend: LegendEntry[];
@@ -185,6 +191,7 @@ export function readFeed(state: HassEntity | undefined): FeedResult {
     const list = readList(attributes.list);
     const sortProperties = [...new Set(list.sort.map((key) => key.property))];
     const feed: Feed = {
+        type: (FEED_TYPES as readonly unknown[]).includes(attributes.feed_type) ? (attributes.feed_type as FeedType) : null,
         attribution: text(attributes.attribution),
         area: readArea(attributes.area),
         legend: readLegend(attributes.legend),

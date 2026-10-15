@@ -127,6 +127,23 @@ export interface DetailsInput {
     featured: FeedImage | null;
     onImage: (image: FeedImage | null) => void;
     text: Text;
+    /**
+     * In the list, the row shown above the details. The details then leave out their own head and show only what the
+     * row doesn't: the name, the subtitle or the age, when the feed gave the row parts of its own.
+     */
+    row?: { title: string; text: string; value: string };
+}
+
+/** What the details add to a list row: the name, subtitle and age that the row's own parts left out. */
+export function besidesRow(
+    row: { title: string; text: string; value: string },
+    parts: { title: string; subtitle: string; age: string },
+): string[] {
+    return [
+        parts.title !== row.title ? parts.title : "",
+        parts.subtitle !== row.text ? parts.subtitle : "",
+        parts.age !== row.value ? parts.age : "",
+    ].filter(Boolean);
 }
 
 /**
@@ -144,19 +161,24 @@ export function renderDetails(input: DetailsInput): TemplateResult {
     const title = subtitleTitle ? item.subtitle : item.name;
     const status = moving ? statusLine(point, input.thresholds, text) : null;
     const age = moving ? "" : formatAge(item.updatedMs, text);
+    const extras = input.row ? besidesRow(input.row, { title: title || item.name, subtitle: subtitleTitle ? "" : item.subtitle, age }) : [];
     const rows = [...item.details, ...(input.actionRows?.status === "loaded" ? input.actionRows.rows : [])];
 
     return html`
         ${input.featured ? featuredImage(input.featured, input.onImage, text) : nothing}
-        <div class="head">
-            ${
-                point?.badge
-                    ? html`<span class="chip" style="background:${color};color:${textOn(color)}">${point.badge}</span>`
-                    : html`<span class="dot" style="background:${color}"></span>`
-            }
-            <h2>${title || item.name}</h2>
-            ${age ? html`<span class="age">${age}</span>` : nothing}
-        </div>
+        ${
+            !input.row
+                ? html`<div class="head">
+                      ${
+                          point?.badge
+                              ? html`<span class="chip" style="background:${color};color:${textOn(color)}">${point.badge}</span>`
+                              : html`<span class="dot" style="background:${color}"></span>`
+                      }
+                      <h2>${title || item.name}</h2>
+                      ${age ? html`<span class="age">${age}</span>` : nothing}
+                  </div>`
+                : nothing
+        }
         ${
             status?.text
                 ? html`<div
@@ -167,7 +189,8 @@ export function renderDetails(input: DetailsInput): TemplateResult {
                   </div>`
                 : nothing
         }
-        ${item.subtitle && !subtitleTitle ? html`<div class="subtitle">${item.subtitle}</div>` : nothing}
+        ${item.subtitle && !subtitleTitle && !input.row ? html`<div class="subtitle">${item.subtitle}</div>` : nothing}
+        ${extras.length ? html`<div class="subtitle">${extras.join(" · ")}</div>` : nothing}
         ${groups(rows).map((group) => (group.media ? mediaList(group.rows, color, input.onImage) : table(group.rows)))}
         ${input.actionRows?.status === "loading" ? html`<div class="loading">${text("common.loading")}</div>` : nothing}
         ${item.notices.length ? html`<div class="notices">${item.notices.map((notice) => html`<p>${notice}</p>`)}</div>` : nothing}

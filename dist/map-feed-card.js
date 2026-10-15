@@ -780,6 +780,7 @@ var maplibre_gl_default = '.maplibregl-map{font:12px/20px Helvetica Neue,Arial,H
 var SUPPORTED_FEED_VERSION = 1;
 var MIN_OPACITY = 0.3;
 var MAX_IMAGES = 6;
+var FEED_TYPES = ["ship", "train", "transit", "road", "nature", "other"];
 var UNAVAILABLE_STATES = /* @__PURE__ */ new Set(["unavailable", "unknown"]);
 var HEX_COLOR = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
 var ACTION_NAME = /^([a-z0-9_]+)\.([a-z0-9_]+)$/;
@@ -797,6 +798,7 @@ function readFeed(state) {
   const list = readList(attributes.list);
   const sortProperties = [...new Set(list.sort.map((key) => key.property))];
   const feed = {
+    type: FEED_TYPES.includes(attributes.feed_type) ? attributes.feed_type : null,
     attribution: text(attributes.attribution),
     area: readArea(attributes.area),
     legend: readLegend(attributes.legend),
@@ -1304,6 +1306,13 @@ var DetailLoader = class {
 function cacheKey(point) {
   return `${point.id}|${JSON.stringify(point.detailAction)}`;
 }
+function besidesRow(row, parts) {
+  return [
+    parts.title !== row.title ? parts.title : "",
+    parts.subtitle !== row.text ? parts.subtitle : "",
+    parts.age !== row.value ? parts.age : ""
+  ].filter(Boolean);
+}
 function titleIsSubtitle(item, point) {
   return point !== null && point.badge !== "" && point.badge === item.name && item.subtitle !== "";
 }
@@ -1314,21 +1323,23 @@ function renderDetails(input) {
   const title = subtitleTitle ? item.subtitle : item.name;
   const status = moving ? statusLine(point, input.thresholds, text2) : null;
   const age = moving ? "" : formatAge(item.updatedMs, text2);
+  const extras = input.row ? besidesRow(input.row, { title: title || item.name, subtitle: subtitleTitle ? "" : item.subtitle, age }) : [];
   const rows = [...item.details, ...input.actionRows?.status === "loaded" ? input.actionRows.rows : []];
   return b2`
         ${input.featured ? featuredImage(input.featured, input.onImage, text2) : A}
-        <div class="head">
-            ${point?.badge ? b2`<span class="chip" style="background:${color3};color:${textOn(color3)}">${point.badge}</span>` : b2`<span class="dot" style="background:${color3}"></span>`}
-            <h2>${title || item.name}</h2>
-            ${age ? b2`<span class="age">${age}</span>` : A}
-        </div>
+        ${!input.row ? b2`<div class="head">
+                      ${point?.badge ? b2`<span class="chip" style="background:${color3};color:${textOn(color3)}">${point.badge}</span>` : b2`<span class="dot" style="background:${color3}"></span>`}
+                      <h2>${title || item.name}</h2>
+                      ${age ? b2`<span class="age">${age}</span>` : A}
+                  </div>` : A}
         ${status?.text ? b2`<div
                       class="status"
                       style=${status.color ? `color:color-mix(in srgb, ${status.color} 70%, var(--primary-text-color))` : ""}
                   >
                       ${status.text}
                   </div>` : A}
-        ${item.subtitle && !subtitleTitle ? b2`<div class="subtitle">${item.subtitle}</div>` : A}
+        ${item.subtitle && !subtitleTitle && !input.row ? b2`<div class="subtitle">${item.subtitle}</div>` : A}
+        ${extras.length ? b2`<div class="subtitle">${extras.join(" \xB7 ")}</div>` : A}
         ${groups(rows).map((group) => group.media ? mediaList(group.rows, color3, input.onImage) : table(group.rows))}
         ${input.actionRows?.status === "loading" ? b2`<div class="loading">${text2("common.loading")}</div>` : A}
         ${item.notices.length ? b2`<div class="notices">${item.notices.map((notice) => b2`<p>${notice}</p>`)}</div>` : A}
@@ -1769,9 +1780,40 @@ var FEED_DEFAULTS = {
   show_area: false,
   labels: false
 };
+var MINUTES = { number: { min: 0, max: 1440, step: 1, mode: "box", unit_of_measurement: "min" } };
+function feedFields(type, hasArea, options) {
+  const set = (name) => options[name] !== void 0 && options[name] !== null && options[name] !== "" && options[name] !== FEED_DEFAULTS[name];
+  const late = type === null || type === "train" || type === "transit" || type === "other";
+  const colorBy = late || set("color_by");
+  const area = hasArea || set("show_area");
+  const fields = [
+    ...colorBy ? ["color_by"] : [],
+    ...colorBy && options.color_by === "delay" ? ["late_minutes", "very_late_minutes"] : [],
+    ...type !== "nature" || set("max_age_minutes") ? ["max_age_minutes"] : [],
+    "labels",
+    ...area ? ["show_area"] : [],
+    ...area && options.show_area === true || set("area_color") ? ["area_color"] : []
+  ];
+  for (const name of ["late_minutes", "very_late_minutes"])
+    if (set(name) && !fields.includes(name)) fields.splice(fields.indexOf("labels"), 0, name);
+  return fields;
+}
+function feedSchema(fields, text2) {
+  const selectors = {
+    color_by: {
+      select: { mode: "dropdown", options: ["kind", "delay"].map((value) => ({ value, label: text2(`editor.color_by_${value}`) })) }
+    },
+    late_minutes: MINUTES,
+    very_late_minutes: MINUTES,
+    max_age_minutes: MINUTES,
+    labels: { boolean: {} },
+    show_area: { boolean: {} },
+    area_color: { text: {} }
+  };
+  return fields.map((name) => ({ name, selector: selectors[name] }));
+}
 function schema(hass, text2, entities) {
   const feeds = Object.values(hass.states).filter((entity) => isMapFeed(entity)).map((entity) => entity.entity_id);
-  const minutes = { number: { min: 0, max: 1440, step: 1, mode: "box", unit_of_measurement: "min" } };
   return [
     { name: "title", selector: { text: {} } },
     {
@@ -1782,26 +1824,23 @@ function schema(hass, text2, entities) {
           multiple: true,
           label_field: "entity",
           fields: {
-            entity: { label: text2("editor.entity"), required: true, selector: { entity: { include_entities: feeds } } },
-            color_by: {
-              label: text2("editor.color_by"),
-              selector: {
-                select: {
-                  mode: "dropdown",
-                  options: ["kind", "delay"].map((value) => ({ value, label: text2(`editor.color_by_${value}`) }))
-                }
-              }
-            },
-            late_minutes: { label: text2("editor.late_minutes"), selector: minutes },
-            very_late_minutes: { label: text2("editor.very_late_minutes"), selector: minutes },
-            max_age_minutes: { label: text2("editor.max_age_minutes"), selector: minutes },
-            labels: { label: text2("editor.labels"), selector: { boolean: {} } },
-            show_area: { label: text2("editor.show_area"), selector: { boolean: {} } },
-            area_color: { label: text2("editor.area_color"), selector: { text: {} } }
+            entity: { label: text2("editor.entity"), required: true, selector: { entity: { include_entities: feeds } } }
           }
         }
       }
     },
+    // Each feed's own options in a section of its own, since what makes sense depends on the feed.
+    ...entities.map((entry, index) => {
+      const state = hass.states[String(entry.entity ?? "")];
+      const result = readFeed(state);
+      const feed = result.status === "ok" ? result.feed : null;
+      return {
+        type: "expandable",
+        name: `feed_${index}`,
+        title: String(state?.attributes?.friendly_name ?? entry.entity ?? ""),
+        schema: feedSchema(feedFields(feed?.type ?? null, feed?.area != null, entry), text2)
+      };
+    }),
     {
       name: "map_style",
       selector: {
@@ -1818,7 +1857,10 @@ function schema(hass, text2, entities) {
     },
     { name: "list", selector: { boolean: {} } },
     { name: "list_height", selector: { number: { min: 100, max: 1200, step: 10, mode: "box", unit_of_measurement: "px" } } },
-    ...sortField(hass, entities)
+    ...sortField(
+      hass,
+      entities.map((entry) => String(entry.entity ?? ""))
+    )
   ];
 }
 function sortField(hass, entities) {
@@ -1847,6 +1889,8 @@ var MapFeedCardEditor = class extends i4 {
   constructor() {
     super(...arguments);
     this.config = { type: "custom:map-feed-card", entities: [] };
+    /** The feeds as the form was last drawn with them. */
+    this.entities = [];
   }
   setConfig(config) {
     this.config = { ...config };
@@ -1857,15 +1901,13 @@ var MapFeedCardEditor = class extends i4 {
       ...FEED_DEFAULTS,
       ...typeof entry === "string" ? { entity: entry } : entry
     }));
+    const sections = Object.fromEntries(entities.map((entry, index) => [`feed_${index}`, entry]));
+    this.entities = entities;
     return b2`
             <ha-form
                 .hass=${this.hass}
-                .data=${{ ...CARD_DEFAULTS, ...this.config, entities }}
-                .schema=${schema(
-      this.hass,
-      (key) => this.text(key),
-      entities.map((entry) => String(entry.entity ?? ""))
-    )}
+                .data=${{ ...CARD_DEFAULTS, ...this.config, entities, ...sections }}
+                .schema=${schema(this.hass, (key) => this.text(key), entities)}
                 .computeLabel=${(entry) => this.text(`editor.${entry.name}`)}
                 .computeHelper=${(entry) => this.helper(entry.name)}
                 @value-changed=${this.valueChanged}
@@ -1874,9 +1916,18 @@ var MapFeedCardEditor = class extends i4 {
   }
   valueChanged(event) {
     const value = event.detail.value;
-    const config = withoutDefaults({ ...value, entities: void 0 }, CARD_DEFAULTS);
+    let entities = Array.isArray(value.entities) ? value.entities : [];
+    if (JSON.stringify(entities) === JSON.stringify(this.entities)) {
+      entities = entities.map((entry, index) => ({
+        ...entry,
+        ...value[`feed_${index}`],
+        entity: entry.entity
+      }));
+    }
+    const rest = Object.fromEntries(Object.entries(value).filter(([key]) => key !== "entities" && !key.startsWith("feed_")));
+    const config = withoutDefaults(rest, CARD_DEFAULTS);
     config.type = value.type ?? "custom:map-feed-card";
-    config.entities = compactFeeds(Array.isArray(value.entities) ? value.entities : []);
+    config.entities = compactFeeds(entities);
     this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
   }
   text(key) {
@@ -33716,15 +33767,32 @@ var FeedMap = class {
       filter: ["==", ["geometry-type"], "Polygon"],
       paint: { "fill-color": ["get", "color"], "fill-opacity": ["*", 0.25, ["get", "opacity"]] }
     });
+    const selected = ["==", ["get", "selected"], true];
+    map.addLayer({
+      id: "feed-selected-halo",
+      type: "line",
+      source: SHAPES,
+      filter: selected,
+      layout: { "line-cap": "round", "line-join": "round" },
+      paint: { "line-color": "rgba(0, 0, 0, 0.55)", "line-width": ["+", ["get", "width"], 10], "line-blur": 1 }
+    });
+    map.addLayer({
+      id: "feed-selected-casing",
+      type: "line",
+      source: SHAPES,
+      filter: selected,
+      layout: { "line-cap": "round", "line-join": "round" },
+      paint: { "line-color": "#ffffff", "line-width": ["+", ["get", "width"], 6] }
+    });
     map.addLayer({
       id: "feed-line",
       type: "line",
       source: SHAPES,
-      layout: { "line-cap": "round", "line-join": "round" },
+      layout: { "line-cap": "round", "line-join": "round", "line-sort-key": ["case", ["get", "selected"], 1, 0] },
       paint: {
         "line-color": ["get", "color"],
-        "line-width": ["case", ["get", "selected"], ["+", ["get", "width"], 3], ["get", "width"]],
-        "line-opacity": ["get", "opacity"]
+        "line-width": ["get", "width"],
+        "line-opacity": ["case", ["get", "selected"], 1, ["get", "opacity"]]
       }
     });
     this.updateLayers();
@@ -33795,6 +33863,8 @@ function emptyCollection() {
 
 // src/map-feed-card.ts
 var TICK_MS = 3e4;
+var UNFOLD_MS = 220;
+var FIT_GROWTH_MS = 3e3;
 var WIDE_PX = 640;
 console.info(
   `%c  MAP-FEED-CARD 
@@ -33818,11 +33888,14 @@ var MapFeedCard = class extends i4 {
     this.featured = null;
     this.mapError = "";
     this.wide = false;
+    this.closing = /* @__PURE__ */ new Set();
+    /** When the selection changed, so content that grows soon after is fitted, but not once the list has been scrolled away. */
+    this.selectedAt = 0;
     this.mapStarting = false;
     this.fitted = false;
     this.loader = new DetailLoader();
-    /** Set when a marker is tapped, so the list scrolls to its row once it is drawn. */
-    this.scrollToSelected = false;
+    /** Set when something is selected, so the list scrolls its row into view once it is drawn. */
+    this.fitSelected = false;
   }
   static getConfigElement() {
     return document.createElement("map-feed-card-editor");
@@ -33885,7 +33958,10 @@ var MapFeedCard = class extends i4 {
     const view = this.view;
     const selected = this.selected ? view?.items.get(this.selected) : void 0;
     if (selected?.point?.detailAction) {
-      this.loader.load(selected.point, this.hass, selected.feed.entity, () => this.requestUpdate());
+      this.loader.load(selected.point, this.hass, selected.feed.entity, () => {
+        this.requestUpdate();
+        this.fitSoon();
+      });
     }
     const { list, title } = this.options;
     const titleInList = list && this.wide && title !== "";
@@ -33909,8 +33985,9 @@ var MapFeedCard = class extends i4 {
             </ha-card>
         `;
   }
-  details(selected) {
+  details(selected, row) {
     return renderDetails({
+      row,
       item: selected.item,
       point: selected.point,
       color: selected.color,
@@ -33931,7 +34008,10 @@ var MapFeedCard = class extends i4 {
       this.language()
     );
     const counts = new Set(lists.map((list) => list.count));
-    const count = counts.size === 1 && lists[0]?.count ? `${entries.length} ${lists[0].count}` : this.text("list.count", { n: entries.length });
+    const number3 = counts.size === 1 && lists[0]?.count ? `${entries.length} ${lists[0].count}` : this.text("list.count", { n: entries.length });
+    const feeds = this.options.feeds;
+    const name = feeds.length === 1 ? this.hass?.states[feeds[0].entity]?.attributes?.friendly_name : void 0;
+    const count = typeof name === "string" && name ? `${name} \xB7 ${number3}` : number3;
     return b2`<div class="list">
             <div class="list-head">
                 ${title ? b2`<h1 class="list-title">${title}</h1>` : b2`<span class="count">${count}</span>`}
@@ -33947,14 +34027,32 @@ var MapFeedCard = class extends i4 {
             </div>
             <div class="rows">
                 ${view?.problems.map((problem) => b2`<div class="problem">${problem}</div>`)}
-                ${entries.map((entry) => entry.key === this.selected ? this.openRow(entry) : this.row(entry))}
+                ${entries.map((entry) => this.listItem(entry))}
             </div>
         </div>`;
   }
-  row(entry) {
+  /**
+   * A row, and under it its details, which unfold when the row is selected and fold away when it no longer is. The
+   * row itself stays as it is, so nothing in the list moves but the details.
+   */
+  listItem(entry) {
+    const open = entry.key === this.selected;
+    const shown = open || this.closing.has(entry.key);
     const row = rowOf(entry.item, entry.point, (key, values) => this.text(key, values));
+    return b2`<div class="item ${open ? "open" : ""}" data-key=${entry.key} style="--item-color:${entry.color}">
+            ${this.row(entry, row, open)}
+            <div class="unfold" @transitionend=${(event) => open && event.target === event.currentTarget && this.fitRow()}>
+                <div class="unfold-inner">
+                    ${shown ? b2`<div class="unfold-body" @load=${{ handleEvent: () => open && this.fitSoon(), capture: true }}>
+                                  ${this.details(entry, row)}
+                              </div>` : A}
+                </div>
+            </div>
+        </div>`;
+  }
+  row(entry, row, open) {
     const valueStyle = row.valueIsDelay ? `color:color-mix(in srgb, ${entry.color} 70%, var(--primary-text-color))` : "";
-    return b2`<button class="row" data-key=${entry.key} @click=${() => this.select(entry.key)}>
+    return b2`<button class="row" aria-expanded=${open ? "true" : "false"} @click=${() => this.select(open ? null : entry.key)}>
             ${entry.point?.badge ? b2`<span class="chip" style="background:${entry.color};color:${textOn(entry.color)}">${entry.point.badge}</span>` : b2`<span class="dot" style="background:${entry.color};opacity:${entry.item.opacity}"></span>`}
             <span class="row-text">
                 <span class="row-title">${row.title}</span>
@@ -33963,21 +34061,10 @@ var MapFeedCard = class extends i4 {
             ${row.value ? b2`<span class="row-value" style=${valueStyle}>${row.value}</span>` : A}
         </button>`;
   }
-  /** The selected row, opened in place to its details; its head closes it again. */
-  openRow(entry) {
-    return b2`<div
-            class="open"
-            data-key=${entry.key}
-            style="--item-color:${entry.color}"
-            @click=${(event) => event.target.closest(".head") && this.select(null)}
-        >
-            ${this.details(entry)}
-        </div>`;
-  }
   updated() {
-    if (this.scrollToSelected) {
-      this.scrollToSelected = false;
-      this.revealRow();
+    if (this.fitSelected) {
+      this.fitSelected = false;
+      this.fitRow();
     }
     if (!this.map && !this.mapStarting && this.mapElement && this.hass && this.options) void this.startMap();
     if (!this.map || !this.view) return;
@@ -33993,7 +34080,7 @@ var MapFeedCard = class extends i4 {
   }
   async startMap() {
     this.mapStarting = true;
-    const map = new FeedMap(this.mapElement, this.options.mapStyle, this.dark(), this.themeColors(), (key) => this.select(key, true));
+    const map = new FeedMap(this.mapElement, this.options.mapStyle, this.dark(), this.themeColors(), (key) => this.select(key));
     try {
       await ensureToken(this.hass);
       await map.init();
@@ -34012,22 +34099,57 @@ var MapFeedCard = class extends i4 {
       this.mapStarting = false;
     }
   }
-  /** fromMap: a marker or shape was tapped, so the list scrolls to its row; a row tapped moves the map instead. */
-  select(key, fromMap = false) {
+  select(key) {
     if (key === this.selected) return;
+    const previous = this.selected;
+    if (previous) {
+      this.closing = /* @__PURE__ */ new Set([...this.closing, previous]);
+      setTimeout(() => {
+        const closing = new Set(this.closing);
+        closing.delete(previous);
+        this.closing = closing;
+      }, UNFOLD_MS + 100);
+    }
+    this.selectedAt = Date.now();
     this.selected = key;
     this.featured = null;
     const position = key ? this.view?.items.get(key)?.point : null;
     if (position) this.map?.reveal([position.lon, position.lat]);
     this.renderRoot.querySelector(".panel")?.scrollTo({ top: 0 });
-    this.scrollToSelected = fromMap;
+    this.fitSelected = key !== null;
   }
-  /** Scrolls the list, and only the list, so the selected row starts at its top. */
-  revealRow() {
+  /**
+   * Scrolls the list, and only the list, as little as it takes for the selected row to fit unfolded, or to its top
+   * when it can't fit. It scrolls while the row unfolds, so the row's size is worked out from what it will be: the
+   * row and its details in full, and a row above it that is folding away at the same time as already gone. The
+   * browser stops a scroll at the end of the list as it is when the scroll starts, before the row has grown, so it
+   * is called again once the row has unfolded.
+   */
+  fitRow() {
     const rows = this.renderRoot.querySelector(".rows");
-    const row = this.selected ? rows?.querySelector(`[data-key="${CSS.escape(this.selected)}"]`) : null;
-    if (!rows || !row) return;
-    rows.scrollTo({ top: row.offsetTop - rows.offsetTop, behavior: "smooth" });
+    const find = (key) => key ? rows?.querySelector(`.item[data-key="${CSS.escape(key)}"]`) : null;
+    const item = find(this.selected);
+    if (!rows || !item) return;
+    const view = rows.getBoundingClientRect();
+    const box = item.getBoundingClientRect();
+    let shrinks = 0;
+    for (const key of this.closing) {
+      const closing = find(key);
+      if (key !== this.selected && closing && closing.getBoundingClientRect().top < box.top) {
+        shrinks += closing.querySelector(".unfold").getBoundingClientRect().height;
+      }
+    }
+    const top = box.top - shrinks;
+    const height = item.querySelector(".row").getBoundingClientRect().height + (item.querySelector(".unfold-body")?.scrollHeight ?? 0);
+    let by2 = 0;
+    if (top + height > view.bottom) by2 = top + height - view.bottom;
+    if (top - by2 < view.top) by2 = top - view.top;
+    if (Math.abs(by2) >= 1) rows.scrollBy({ top: by2, behavior: "smooth" });
+  }
+  /** Fits the selected row again when its content grows soon after it was opened: rows loaded, a picture in. */
+  fitSoon() {
+    if (Date.now() - this.selectedAt > FIT_GROWTH_MS) return;
+    void this.updateComplete.then(() => this.fitRow());
   }
   buildView() {
     const view = {
@@ -34297,7 +34419,6 @@ MapFeedCard.styles = [
                 width: 100%;
                 padding: 11px 16px;
                 border: none;
-                border-bottom: 1px solid var(--divider-color);
                 background: none;
                 color: var(--primary-text-color);
                 font: inherit;
@@ -34339,6 +34460,18 @@ MapFeedCard.styles = [
                     grid-template-columns: auto minmax(0, 1fr);
                     padding: 10px 12px;
                 }
+                ha-card .unfold-body {
+                    padding: 0 12px 12px;
+                }
+                /* Two columns would leave the value a letter wide; the label goes above its value instead. Through ha-card,
+                   so it outranks the table's own rule further down. */
+                ha-card .table {
+                    grid-template-columns: minmax(0, 1fr);
+                    row-gap: 0;
+                }
+                ha-card .table dd + dt {
+                    margin-top: 8px;
+                }
                 .row-value {
                     grid-column: 2;
                     white-space: normal;
@@ -34362,14 +34495,38 @@ MapFeedCard.styles = [
                     grid-column: 1;
                 }
             }
-            .open {
-                padding: 12px 16px 14px 13px;
-                border-left: 3px solid var(--item-color);
+            .item {
                 border-bottom: 1px solid var(--divider-color);
-                background: color-mix(in srgb, var(--primary-text-color) 5%, transparent);
+                transition: background-color 220ms ease;
             }
-            .open .head {
-                cursor: pointer;
+            /* Marked by a tint and a strip drawn inside, so the row's text keeps its size and its place. */
+            .item.open {
+                background: color-mix(in srgb, var(--primary-text-color) 5%, transparent);
+                box-shadow: inset 3px 0 0 var(--item-color);
+            }
+            .unfold {
+                display: grid;
+                grid-template-rows: 0fr;
+                transition: grid-template-rows 220ms ease;
+            }
+            .item.open .unfold {
+                grid-template-rows: 1fr;
+            }
+            .unfold-inner {
+                overflow: hidden;
+                min-height: 0;
+            }
+            .unfold-body {
+                padding: 0 16px 14px;
+            }
+            .unfold-body > :first-child {
+                margin-top: 0;
+            }
+            @media (prefers-reduced-motion: reduce) {
+                .item,
+                .unfold {
+                    transition: none;
+                }
             }
 
             .legend {
@@ -34696,6 +34853,9 @@ __decorateClass([
 __decorateClass([
   r5()
 ], MapFeedCard.prototype, "sortKey", 2);
+__decorateClass([
+  r5()
+], MapFeedCard.prototype, "closing", 2);
 __decorateClass([
   e5(".map")
 ], MapFeedCard.prototype, "mapElement", 2);

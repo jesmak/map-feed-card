@@ -73,7 +73,7 @@ Each feed in `entities` can have options of its own:
 | `area_color`        | string  |          | The area's colour, as a hex colour. By default a blue that suits the theme                   |
 | `labels`            | boolean | `false`  | Show each item's name beside its marker                                                      |
 
-Every option is in the card's visual editor.
+Every option is in the card's visual editor, which offers each feed only the options that make sense for its [type](docs/map-feed-format.md#feed-type), such as no delays for bird sightings.
 
 ## What it shows
 
@@ -92,8 +92,7 @@ tag, such as an endangered species' status. Notices are highlighted below them. 
 
 **The list**, with `list: true`, shows every item as a row: a title, a line under it and a value, such as a delay or
 a distance. A feed can say what the list can be sorted by, such as delay and number for trains, and the order is chosen
-on the card. Tapping a row opens it in place to its details and moves the map to it, and tapping a marker opens its
-row.
+on the card. Tapping a row unfolds its details beneath it and moves the map to it, and tapping it again folds them away. Tapping a marker opens its row. Above the list is the number of items, with the sensor's name when the card shows one feed.
 
 **The legend** over the map explains the colours: the delay classes with `color_by: delay`, the feed's own colours
 when it explains them, and otherwise the kinds on the map when there is more than one. With `color_by: delay`, only trains, public transport and anything the feed gives a delay or

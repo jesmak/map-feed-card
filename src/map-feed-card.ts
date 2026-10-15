@@ -24,7 +24,7 @@ import {
     type LegendEntry,
 } from "./feed";
 import type { HomeAssistant } from "./hass";
-import { rowOf, sortOptions, sortRows, startingSort } from "./list";
+import { rowOf, sortOptions, sortRows, startingSort, type Row } from "./list";
 import { browserLanguage, translate } from "./localize/localize";
 import { FeedMap, type DrawnArea, type DrawnPoint, type DrawnShape, type MapContent } from "./map";
 import { ensureToken } from "./map-tiles";
@@ -37,6 +37,12 @@ declare const __CARD_VERSION__: string;
 
 /** How often the ages in the details are redrawn, between the feeds' own updates. */
 const TICK_MS = 30_000;
+
+/** How long a row's details take to unfold or fold away, as in the styles. */
+const UNFOLD_MS = 220;
+
+/** How long after a row was opened content that grows is still fitted into view. */
+const FIT_GROWTH_MS = 3000;
 
 /** From this width the details go beside the map instead of below it. */
 const WIDE_PX = 640;
@@ -88,6 +94,11 @@ export class MapFeedCard extends LitElement {
     @state() private wide = false;
     /** The list's order as chosen on the card; undefined until someone chooses. */
     @state() private sortKey?: string | null;
+    /** The row whose details are folding away. */
+    /** The rows whose details are folding away; several, when rows are tapped one after another. */
+    @state() private closing: ReadonlySet<string> = new Set();
+    /** When the selection changed, so content that grows soon after is fitted, but not once the list has been scrolled away. */
+    private selectedAt = 0;
     @query(".map") private mapElement?: HTMLElement;
 
     private map?: FeedMap;
@@ -97,8 +108,8 @@ export class MapFeedCard extends LitElement {
     private readonly loader = new DetailLoader();
     private ticker?: ReturnType<typeof setInterval>;
     private resizer?: ResizeObserver;
-    /** Set when a marker is tapped, so the list scrolls to its row once it is drawn. */
-    private scrollToSelected = false;
+    /** Set when something is selected, so the list scrolls its row into view once it is drawn. */
+    private fitSelected = false;
 
     public static getConfigElement(): HTMLElement {
         return document.createElement("map-feed-card-editor");
@@ -178,7 +189,10 @@ export class MapFeedCard extends LitElement {
         const view = this.view;
         const selected = this.selected ? view?.items.get(this.selected) : undefined;
         if (selected?.point?.detailAction) {
-            this.loader.load(selected.point, this.hass, selected.feed.entity, () => this.requestUpdate());
+            this.loader.load(selected.point, this.hass, selected.feed.entity, () => {
+                this.requestUpdate();
+                this.fitSoon();
+            });
         }
         const { list, title } = this.options;
         // Wide, the list has a header of its own beside the map, and the title moves there.
@@ -208,8 +222,9 @@ export class MapFeedCard extends LitElement {
         `;
     }
 
-    private details(selected: ViewItem): TemplateResult {
+    private details(selected: ViewItem, row?: Row): TemplateResult {
         return renderDetails({
+            row,
             item: selected.item,
             point: selected.point,
             color: selected.color,
@@ -231,8 +246,12 @@ export class MapFeedCard extends LitElement {
             this.language(),
         );
         const counts = new Set(lists.map((list) => list.count));
-        const count =
+        const number =
             counts.size === 1 && lists[0]?.count ? `${entries.length} ${lists[0].count}` : this.text("list.count", { n: entries.length });
+        // A single feed says what the items are, by its sensor's name.
+        const feeds = this.options!.feeds;
+        const name = feeds.length === 1 ? this.hass?.states[feeds[0]!.entity]?.attributes?.friendly_name : undefined;
+        const count = typeof name === "string" && name ? `${name} · ${number}` : number;
         return html`<div class="list">
             <div class="list-head">
                 ${title ? html`<h1 class="list-title">${title}</h1>` : html`<span class="count">${count}</span>`}
@@ -252,15 +271,38 @@ export class MapFeedCard extends LitElement {
             </div>
             <div class="rows">
                 ${view?.problems.map((problem) => html`<div class="problem">${problem}</div>`)}
-                ${entries.map((entry) => (entry.key === this.selected ? this.openRow(entry) : this.row(entry)))}
+                ${entries.map((entry) => this.listItem(entry))}
             </div>
         </div>`;
     }
 
-    private row(entry: ViewItem & { key: string }): TemplateResult {
+    /**
+     * A row, and under it its details, which unfold when the row is selected and fold away when it no longer is. The
+     * row itself stays as it is, so nothing in the list moves but the details.
+     */
+    private listItem(entry: ViewItem & { key: string }): TemplateResult {
+        const open = entry.key === this.selected;
+        const shown = open || this.closing.has(entry.key);
         const row = rowOf(entry.item, entry.point, (key, values) => this.text(key, values));
+        return html`<div class="item ${open ? "open" : ""}" data-key=${entry.key} style="--item-color:${entry.color}">
+            ${this.row(entry, row, open)}
+            <div class="unfold" @transitionend=${(event: TransitionEvent) => open && event.target === event.currentTarget && this.fitRow()}>
+                <div class="unfold-inner">
+                    ${
+                        shown
+                            ? html`<div class="unfold-body" @load=${{ handleEvent: () => open && this.fitSoon(), capture: true }}>
+                                  ${this.details(entry, row)}
+                              </div>`
+                            : nothing
+                    }
+                </div>
+            </div>
+        </div>`;
+    }
+
+    private row(entry: ViewItem & { key: string }, row: Row, open: boolean): TemplateResult {
         const valueStyle = row.valueIsDelay ? `color:color-mix(in srgb, ${entry.color} 70%, var(--primary-text-color))` : "";
-        return html`<button class="row" data-key=${entry.key} @click=${() => this.select(entry.key)}>
+        return html`<button class="row" aria-expanded=${open ? "true" : "false"} @click=${() => this.select(open ? null : entry.key)}>
             ${
                 entry.point?.badge
                     ? html`<span class="chip" style="background:${entry.color};color:${textOn(entry.color)}">${entry.point.badge}</span>`
@@ -274,22 +316,10 @@ export class MapFeedCard extends LitElement {
         </button>`;
     }
 
-    /** The selected row, opened in place to its details; its head closes it again. */
-    private openRow(entry: ViewItem & { key: string }): TemplateResult {
-        return html`<div
-            class="open"
-            data-key=${entry.key}
-            style="--item-color:${entry.color}"
-            @click=${(event: Event) => (event.target as Element).closest(".head") && this.select(null)}
-        >
-            ${this.details(entry)}
-        </div>`;
-    }
-
     protected updated(): void {
-        if (this.scrollToSelected) {
-            this.scrollToSelected = false;
-            this.revealRow();
+        if (this.fitSelected) {
+            this.fitSelected = false;
+            this.fitRow();
         }
         if (!this.map && !this.mapStarting && this.mapElement && this.hass && this.options) void this.startMap();
         if (!this.map || !this.view) return;
@@ -306,7 +336,7 @@ export class MapFeedCard extends LitElement {
 
     private async startMap(): Promise<void> {
         this.mapStarting = true;
-        const map = new FeedMap(this.mapElement!, this.options!.mapStyle, this.dark(), this.themeColors(), (key) => this.select(key, true));
+        const map = new FeedMap(this.mapElement!, this.options!.mapStyle, this.dark(), this.themeColors(), (key) => this.select(key));
         try {
             await ensureToken(this.hass!);
             await map.init();
@@ -326,23 +356,61 @@ export class MapFeedCard extends LitElement {
         }
     }
 
-    /** fromMap: a marker or shape was tapped, so the list scrolls to its row; a row tapped moves the map instead. */
-    private select(key: string | null, fromMap = false): void {
+    private select(key: string | null): void {
         if (key === this.selected) return;
+        // The row being closed keeps its details until they have folded away.
+        const previous = this.selected;
+        if (previous) {
+            this.closing = new Set([...this.closing, previous]);
+            setTimeout(() => {
+                const closing = new Set(this.closing);
+                closing.delete(previous);
+                this.closing = closing;
+                // A little after the fold has ended, so a late frame doesn't drop the details while they still show.
+            }, UNFOLD_MS + 100);
+        }
+        this.selectedAt = Date.now();
         this.selected = key;
         this.featured = null;
         const position = key ? this.view?.items.get(key)?.point : null;
         if (position) this.map?.reveal([position.lon, position.lat]);
         this.renderRoot.querySelector(".panel")?.scrollTo({ top: 0 });
-        this.scrollToSelected = fromMap;
+        this.fitSelected = key !== null;
     }
 
-    /** Scrolls the list, and only the list, so the selected row starts at its top. */
-    private revealRow(): void {
+    /**
+     * Scrolls the list, and only the list, as little as it takes for the selected row to fit unfolded, or to its top
+     * when it can't fit. It scrolls while the row unfolds, so the row's size is worked out from what it will be: the
+     * row and its details in full, and a row above it that is folding away at the same time as already gone. The
+     * browser stops a scroll at the end of the list as it is when the scroll starts, before the row has grown, so it
+     * is called again once the row has unfolded.
+     */
+    private fitRow(): void {
         const rows = this.renderRoot.querySelector<HTMLElement>(".rows");
-        const row = this.selected ? rows?.querySelector<HTMLElement>(`[data-key="${CSS.escape(this.selected)}"]`) : null;
-        if (!rows || !row) return;
-        rows.scrollTo({ top: row.offsetTop - rows.offsetTop, behavior: "smooth" });
+        const find = (key: string | null) => (key ? rows?.querySelector<HTMLElement>(`.item[data-key="${CSS.escape(key)}"]`) : null);
+        const item = find(this.selected);
+        if (!rows || !item) return;
+        const view = rows.getBoundingClientRect();
+        const box = item.getBoundingClientRect();
+        let shrinks = 0;
+        for (const key of this.closing) {
+            const closing = find(key);
+            if (key !== this.selected && closing && closing.getBoundingClientRect().top < box.top) {
+                shrinks += closing.querySelector(".unfold")!.getBoundingClientRect().height;
+            }
+        }
+        const top = box.top - shrinks;
+        const height = item.querySelector(".row")!.getBoundingClientRect().height + (item.querySelector(".unfold-body")?.scrollHeight ?? 0);
+        let by = 0;
+        if (top + height > view.bottom) by = top + height - view.bottom;
+        if (top - by < view.top) by = top - view.top;
+        if (Math.abs(by) >= 1) rows.scrollBy({ top: by, behavior: "smooth" });
+    }
+
+    /** Fits the selected row again when its content grows soon after it was opened: rows loaded, a picture in. */
+    private fitSoon(): void {
+        if (Date.now() - this.selectedAt > FIT_GROWTH_MS) return;
+        void this.updateComplete.then(() => this.fitRow());
     }
 
     private buildView(): View {
@@ -626,7 +694,6 @@ export class MapFeedCard extends LitElement {
                 width: 100%;
                 padding: 11px 16px;
                 border: none;
-                border-bottom: 1px solid var(--divider-color);
                 background: none;
                 color: var(--primary-text-color);
                 font: inherit;
@@ -668,6 +735,18 @@ export class MapFeedCard extends LitElement {
                     grid-template-columns: auto minmax(0, 1fr);
                     padding: 10px 12px;
                 }
+                ha-card .unfold-body {
+                    padding: 0 12px 12px;
+                }
+                /* Two columns would leave the value a letter wide; the label goes above its value instead. Through ha-card,
+                   so it outranks the table's own rule further down. */
+                ha-card .table {
+                    grid-template-columns: minmax(0, 1fr);
+                    row-gap: 0;
+                }
+                ha-card .table dd + dt {
+                    margin-top: 8px;
+                }
                 .row-value {
                     grid-column: 2;
                     white-space: normal;
@@ -691,14 +770,38 @@ export class MapFeedCard extends LitElement {
                     grid-column: 1;
                 }
             }
-            .open {
-                padding: 12px 16px 14px 13px;
-                border-left: 3px solid var(--item-color);
+            .item {
                 border-bottom: 1px solid var(--divider-color);
-                background: color-mix(in srgb, var(--primary-text-color) 5%, transparent);
+                transition: background-color 220ms ease;
             }
-            .open .head {
-                cursor: pointer;
+            /* Marked by a tint and a strip drawn inside, so the row's text keeps its size and its place. */
+            .item.open {
+                background: color-mix(in srgb, var(--primary-text-color) 5%, transparent);
+                box-shadow: inset 3px 0 0 var(--item-color);
+            }
+            .unfold {
+                display: grid;
+                grid-template-rows: 0fr;
+                transition: grid-template-rows 220ms ease;
+            }
+            .item.open .unfold {
+                grid-template-rows: 1fr;
+            }
+            .unfold-inner {
+                overflow: hidden;
+                min-height: 0;
+            }
+            .unfold-body {
+                padding: 0 16px 14px;
+            }
+            .unfold-body > :first-child {
+                margin-top: 0;
+            }
+            @media (prefers-reduced-motion: reduce) {
+                .item,
+                .unfold {
+                    transition: none;
+                }
             }
 
             .legend {

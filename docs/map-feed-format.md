@@ -11,6 +11,7 @@ The keywords **MUST**, **SHOULD** and **MAY** are used as described in
 
 - [Overview](#overview)
 - [Entity](#entity)
+  - [Feed type](#feed-type)
   - [Legend](#legend)
   - [List](#list)
 - [Features](#features)
@@ -56,6 +57,7 @@ anything that changes on its own, such as "2 min ago".
 | state              | integer  | **MUST** | Number of items. The source decides what an item is. Usually it is the number of Point features.                               |
 | `map_feed_version` | integer  | **MUST** | `1`. The card uses this to recognise a feed.                                                                                   |
 | `geojson`          | object   | **MUST** | A GeoJSON `FeatureCollection` object (not a JSON string).                                                                      |
+| `feed_type`        | string   | SHOULD   | What the feed is about, `ship`, `train`, `transit`, `road`, `nature` or `other`. See [feed type](#feed-type).                  |
 | `attribution`      | string   | SHOULD   | Data credit, added to the map's attribution line. Required when the data licence asks for credit.                              |
 | `area`             | object   | MAY      | `{"center": [lat, lon], "radius_km": 15}` or `{"bbox": [south, west, north, east]}`. Drawn by the card when `show_area` is on. |
 | `updated`          | ISO 8601 | SHOULD   | When the source last fetched successfully.                                                                                     |
@@ -64,6 +66,16 @@ anything that changes on its own, such as "2 min ago".
 
 Note that `area` uses latitude first, like the rest of Home Assistant, while GeoJSON coordinates use
 longitude first.
+
+### Feed type
+
+`feed_type` says what the feed is about, in the same families as the [kinds](#kinds) of its items, `ship`, `train`,
+`transit`, `road`, `nature` or `other`. A feed has one type even when its items are of several kinds, such as road works,
+accidents and announcements in a feed of traffic messages, which is `road`.
+
+The card's editor offers a feed only the options that make sense for it. Delay colours are for trains and public
+transport, and an age limit for anything with positions, which leaves out sightings that the source already limits by
+their age. A feed without a type, or with one the card doesn't know, is offered every option.
 
 ### Legend
 
