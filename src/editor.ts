@@ -66,7 +66,8 @@ function feedSchema(fields: string[], text: (key: string) => string) {
         },
         late_minutes: MINUTES,
         very_late_minutes: MINUTES,
-        max_age_minutes: MINUTES,
+        // The card refuses 0, which would hide everything.
+        max_age_minutes: { number: { ...MINUTES.number, min: 1 } },
         labels: { boolean: {} },
         show_area: { boolean: {} },
         area_color: { text: {} },
@@ -74,7 +75,7 @@ function feedSchema(fields: string[], text: (key: string) => string) {
     return fields.map((name) => ({ name, selector: selectors[name] }));
 }
 
-function schema(hass: HomeAssistant, text: (key: string) => string, entities: FeedEntry[]) {
+function schema(hass: HomeAssistant, text: (key: string) => string, entities: FeedEntry[], sort: unknown) {
     const feeds = Object.values(hass.states)
         .filter((entity) => isMapFeed(entity))
         .map((entity) => entity!.entity_id);
@@ -124,21 +125,24 @@ function schema(hass: HomeAssistant, text: (key: string) => string, entities: Fe
         ...sortField(
             hass,
             entities.map((entry) => String(entry.entity ?? "")),
+            sort,
         ),
     ];
 }
 
 /** The orders the chosen feeds offer, read from the feeds themselves; nothing to choose when they offer none. */
-function sortField(hass: HomeAssistant, entities: string[]) {
+function sortField(hass: HomeAssistant, entities: string[], sort: unknown) {
     const lists = entities.flatMap((entity) => {
         const result = readFeed(hass.states[entity]);
         return result.status === "ok" ? [result.feed.list] : [];
     });
-    const options = sortOptions(lists);
-    if (!options.length) return [];
-    return [
-        { name: "sort", selector: { select: { mode: "dropdown", options: options.map(({ key, label }) => ({ value: key, label })) } } },
-    ];
+    const options = sortOptions(lists).map(({ key, label }) => ({ value: key, label }));
+    // One order is no choice: the list is sorted by it all the same. One set anyway, perhaps for a feed no longer on
+    // the card, is still shown, so it can be cleared.
+    const set = typeof sort === "string" && sort !== "";
+    if (options.length < 2 && !set) return [];
+    if (set && !options.some((option) => option.value === sort)) options.push({ value: sort, label: sort });
+    return [{ name: "sort", selector: { select: { mode: "dropdown", options } } }];
 }
 
 /** A feed with nothing but its sensor is written as the plain entity id, so the configuration stays short. */
@@ -182,7 +186,7 @@ export class MapFeedCardEditor extends LitElement {
             <ha-form
                 .hass=${this.hass}
                 .data=${{ ...CARD_DEFAULTS, ...this.config, entities, ...sections }}
-                .schema=${schema(this.hass, (key) => this.text(key), entities)}
+                .schema=${schema(this.hass, (key) => this.text(key), entities, this.config.sort)}
                 .computeLabel=${(entry: SchemaEntry) => this.text(`editor.${entry.name}`)}
                 .computeHelper=${(entry: SchemaEntry) => this.helper(entry.name)}
                 @value-changed=${this.valueChanged}

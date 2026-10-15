@@ -302,6 +302,18 @@ describe("readFeed: legend and tags", () => {
     });
 });
 
+describe("readFeed: area", () => {
+    it("takes only an area the map can draw", () => {
+        const area = (value: unknown) => okFeed(feedState("sensor.x", [], { area: value })).area;
+        expect(area({ center: [61.0, 28.2], radius_km: 15 })).toEqual({ type: "circle", lat: 61.0, lon: 28.2, radiusKm: 15 });
+        // Longitude first, as GeoJSON writes it, puts the latitude out of range.
+        expect(area({ center: [120.5, 30.2], radius_km: 15 })).toBeNull();
+        expect(area({ center: [61.0, 28.2], radius_km: 5000 })).toBeNull();
+        expect(area({ bbox: [60.9, 27.9, 61.2, 28.5] })).toMatchObject({ type: "bbox" });
+        expect(area({ bbox: [60.9, 27.9, 95, 28.5] })).toBeNull();
+    });
+});
+
 describe("readFeed: type", () => {
     it("reads the feed's type, and nothing it doesn't know", () => {
         expect(okFeed(feedState("sensor.birds", [], { feed_type: "nature" })).type).toBe("nature");

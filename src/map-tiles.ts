@@ -23,7 +23,18 @@ const REFRESH_MS = 20 * 60 * 1000;
 /** Right after a restart the WebSocket can be up before the proxy has registered its command. */
 const RETRY_DELAYS_MS = [0, 500, 1500, 4000];
 
-export class MapTilesError extends Error {}
+/**
+ * Why the map can't be drawn, which the card tells the viewer in their language: no WebGL, no map tiles from Home
+ * Assistant (too old, or the proxy is down), or the style couldn't be loaded. The message is for the console.
+ */
+export class MapError extends Error {
+    constructor(
+        readonly reason: "webgl" | "tiles" | "style",
+        message: string,
+    ) {
+        super(message);
+    }
+}
 
 /** One token for every card on the page, as the frontend's own maps share theirs. */
 let token: string | undefined;
@@ -75,7 +86,7 @@ function onReconnect(): void {
 
 async function fetchToken(conn: HassConnection): Promise<string> {
     const result = await conn.sendMessagePromise<{ token?: unknown }>({ type: "map_tiles/access_token" });
-    if (typeof result?.token !== "string") throw new MapTilesError("map_tiles/access_token returned no token");
+    if (typeof result?.token !== "string") throw new MapError("tiles", "map_tiles/access_token returned no token");
     return result.token;
 }
 
@@ -89,7 +100,8 @@ async function fetchWithRetries(): Promise<string> {
             lastError = error;
         }
     }
-    throw new MapTilesError(
+    throw new MapError(
+        "tiles",
         `Home Assistant's map tiles aren't available (${describe(lastError)}). The card needs Home Assistant 2026.9 or newer.`,
     );
 }
@@ -141,7 +153,7 @@ export async function loadStyle(
             console.warn(`map-feed-card: the ${palette} map style couldn't take the theme's colours`, error);
         }
     }
-    throw new MapTilesError(`The ${palette} map style couldn't be built`);
+    throw new MapError("style", `The ${palette} map style couldn't be built`);
 }
 
 function buildStyle(palette: string, urls: Record<string, unknown>, colors: Record<string, string> | null): StyleSpecification {
@@ -149,7 +161,7 @@ function buildStyle(palette: string, urls: Record<string, unknown>, colors: Reco
     const style = osm(options as Parameters<typeof osm>[0]) as unknown as StyleSpecification;
     const sources = Object.values(style.sources) as unknown as Record<string, unknown>[];
     // The builder points its one source at VersaTiles' own servers; the tiles must come through Home Assistant.
-    if (sources.length !== 1) throw new MapTilesError(`The ${palette} map style has ${sources.length} tile sources, expected one`);
+    if (sources.length !== 1) throw new MapError("style", `The ${palette} map style has ${sources.length} tile sources, expected one`);
     for (const field of ["tiles", "attribution", "bounds", "minzoom", "maxzoom", "scheme"]) delete sources[0]![field];
     sources[0]!.url = `${PROXY_PATH}/tilejson.json`;
     return style;
@@ -165,7 +177,7 @@ function withAbsoluteSprite(style: StyleSpecification): StyleSpecification {
 
 async function fetchJson<T>(path: string): Promise<T> {
     const response = await fetch(`${origin}${path}`);
-    if (!response.ok) throw new MapTilesError(`${path} answered ${response.status}`);
+    if (!response.ok) throw new MapError("style", `${path} answered ${response.status}`);
     return (await response.json()) as T;
 }
 

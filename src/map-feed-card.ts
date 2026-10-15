@@ -14,8 +14,10 @@ import {
     boundsOf,
     readFeed,
     areaOutline,
+    hasDetails,
     isMapFeed,
     kindFamily,
+    shapePositions,
     type FeedImage,
     type FeedItem,
     type FeedList,
@@ -27,10 +29,10 @@ import type { HomeAssistant } from "./hass";
 import { rowOf, sortOptions, sortRows, startingSort, type Row } from "./list";
 import { browserLanguage, translate } from "./localize/localize";
 import { FeedMap, type DrawnArea, type DrawnPoint, type DrawnShape, type MapContent } from "./map";
-import { ensureToken } from "./map-tiles";
+import { ensureToken, MapError } from "./map-tiles";
 import { readThemeColors } from "./map-theme";
 import { parseOptions, type CardOptions, type FeedOptions } from "./options";
-import { areaColor, canBeLate, DELAY_COLORS, pointColor, shapeColor, textOn } from "./style";
+import { areaColor, canBeLate, DELAY_COLORS, delayClass, escapeHtml, pointColor, shapeColor, textOn } from "./style";
 
 /** Replaced at build time with the version in package.json. */
 declare const __CARD_VERSION__: string;
@@ -94,9 +96,10 @@ export class MapFeedCard extends LitElement {
     @state() private wide = false;
     /** The list's order as chosen on the card; undefined until someone chooses. */
     @state() private sortKey?: string | null;
-    /** The row whose details are folding away. */
     /** The rows whose details are folding away; several, when rows are tapped one after another. */
     @state() private closing: ReadonlySet<string> = new Set();
+    /** The theme's map colours, and the theme they were read for. */
+    private theme?: { key: string; colors: Record<string, string> | null };
     /** When the selection changed, so content that grows soon after is fitted, but not once the list has been scrolled away. */
     private selectedAt = 0;
     @query(".map") private mapElement?: HTMLElement;
@@ -142,13 +145,15 @@ export class MapFeedCard extends LitElement {
 
     public connectedCallback(): void {
         super.connectedCallback();
-        this.ticker = setInterval(() => this.selected && this.requestUpdate(), TICK_MS);
+        // Ages are drawn in the details, and in every row of the list, so they are redrawn between the feeds' updates.
+        this.ticker = setInterval(() => (this.selected || this.options?.list) && this.requestUpdate(), TICK_MS);
         this.resizer = new ResizeObserver(([entry]) => {
             this.wide = (entry?.contentRect.width ?? 0) >= WIDE_PX;
             this.map?.resize();
         });
         this.resizer.observe(this);
         // A card moved on the page, as the dashboard's edit mode does, lost its map; shouldUpdate would wait for a feed to change.
+        this.mapError = "";
         this.requestUpdate();
     }
 
@@ -256,7 +261,7 @@ export class MapFeedCard extends LitElement {
             <div class="list-head">
                 ${title ? html`<h1 class="list-title">${title}</h1>` : html`<span class="count">${count}</span>`}
                 ${
-                    options.length
+                    options.length > 1
                         ? html`<label class="sort">
                               <select
                                   aria-label=${this.text("list.sort")}
@@ -264,6 +269,9 @@ export class MapFeedCard extends LitElement {
                               >
                                   ${options.map((option) => html`<option value=${option.key} ?selected=${option.key === key}>${option.label}</option>`)}
                               </select>
+                              <span class="sort-label" aria-hidden="true"
+                                  >${options.find((option) => option.key === key)?.label ?? ""}</span
+                              >
                               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
                           </label>`
                         : nothing
@@ -321,7 +329,8 @@ export class MapFeedCard extends LitElement {
             this.fitSelected = false;
             this.fitRow();
         }
-        if (!this.map && !this.mapStarting && this.mapElement && this.hass && this.options) void this.startMap();
+        // A map that failed isn't tried again on every update of a feed, only when the card is connected again.
+        if (!this.map && !this.mapStarting && !this.mapError && this.mapElement && this.hass && this.options) void this.startMap();
         if (!this.map || !this.view) return;
         void this.map.setStyle(this.options!.mapStyle, this.dark(), this.themeColors());
         this.map.update({ ...this.view.content, selected: this.selected });
@@ -349,7 +358,7 @@ export class MapFeedCard extends LitElement {
             this.requestUpdate();
         } catch (error) {
             map.destroy();
-            this.mapError = error instanceof Error ? error.message : String(error);
+            this.mapError = this.text(`map_error.${error instanceof MapError ? error.reason : "style"}`);
             console.error("map-feed-card:", error);
         } finally {
             this.mapStarting = false;
@@ -439,42 +448,52 @@ export class MapFeedCard extends LitElement {
             const { points, shapes, area, attribution, list } = result.feed;
             view.lists.push(list);
             const pointKeys = new Map<string, DrawnPoint>();
+            const tooOld = (item: FeedItem) =>
+                feed.maxAgeMinutes !== null && item.updatedMs !== null && now - item.updatedMs > feed.maxAgeMinutes * 60_000;
+            /** What frames this feed when the card opens: its area, or without one everything in it. */
+            const extent: LngLat[] = [];
             let byDelay = false;
             let ownColours = false;
+            const delays = new Set<string>();
             for (const point of points) {
-                if (feed.maxAgeMinutes !== null && point.updatedMs !== null && now - point.updatedMs > feed.maxAgeMinutes * 60_000)
-                    continue;
+                if (tooOld(point)) continue;
                 const drawn: DrawnPoint = {
                     key: `${feed.entity}|${point.id}`,
                     point,
                     color: pointColor(point, feed.colorBy, feed.delayThresholds),
                     label: feed.labels ? point.label || point.name : "",
                 };
-                if (feed.colorBy === "delay" && canBeLate(point)) byDelay = true;
-                else {
+                if (feed.colorBy === "delay" && canBeLate(point)) {
+                    byDelay = true;
+                    delays.add(delayClass(point, feed.delayThresholds));
+                } else {
                     ownColours = true;
                     if (!result.feed.legend.length && point.color === null) addKind(point, drawn.color);
                 }
                 pointKeys.set(point.id, drawn);
                 view.content.points.push(drawn);
                 view.items.set(drawn.key, { item: point, point, color: drawn.color, feed, list });
-                view.extent.push([point.lon, point.lat]);
+                extent.push([point.lon, point.lat]);
             }
             for (const shape of shapes) {
                 const owner = shape.pointId ? pointKeys.get(shape.pointId) : undefined;
-                // A shape whose point was hidden by its age goes with it.
+                // A shape whose point was hidden by its age goes with it; one of its own, by its own age.
                 if (shape.pointId && !owner && points.some((point) => point.id === shape.pointId)) continue;
+                if (!owner && tooOld(shape)) continue;
                 const key = `${feed.entity}|${shape.id}`;
+                // A shape of its own with nothing to show, such as a nameless maintenance route, is drawn but not offered.
+                const selectable = owner !== undefined || hasDetails(shape);
                 const drawn: DrawnShape = {
                     key,
-                    selects: owner?.key ?? key,
+                    selects: owner?.key ?? (selectable ? key : ""),
                     shape,
                     color: owner?.color ?? shapeColor(shape),
                     name: shape.name || owner?.point.name || "",
                 };
                 view.content.shapes.push(drawn);
+                extent.push(...shapePositions(shape));
                 if (!owner) {
-                    view.items.set(key, { item: shape, point: null, color: drawn.color, feed, list });
+                    if (selectable) view.items.set(key, { item: shape, point: null, color: drawn.color, feed, list });
                     ownColours = true;
                     if (!result.feed.legend.length && shape.color === null) addKind(shape, drawn.color);
                 }
@@ -482,10 +501,11 @@ export class MapFeedCard extends LitElement {
             if (area && feed.showArea)
                 view.content.areas.push({ area, color: feed.areaColor ?? areaColor(this.dark()) } satisfies DrawnArea);
             // The feed's area frames the map best; without one, everything in the feed does.
-            if (area) view.extent.push(...areaOutline(area));
-            if (attribution) view.content.attributions.push(attribution);
+            view.extent.push(...(area ? areaOutline(area) : extent));
+            // MapLibre reads an attribution as HTML; a feed's is text, as everything in it is.
+            if (attribution) view.content.attributions.push(escapeHtml(attribution));
             // The delay classes explain what is coloured by delay, the feed's legend what keeps the feed's own colours.
-            for (const legend of [byDelay ? this.delayLegend(feed) : [], ownColours ? result.feed.legend : []]) {
+            for (const legend of [byDelay ? this.delayLegend(feed, delays) : [], ownColours ? result.feed.legend : []]) {
                 const signature = JSON.stringify(legend);
                 if (legend.length && !legends.has(signature)) {
                     legends.add(signature);
@@ -500,12 +520,15 @@ export class MapFeedCard extends LitElement {
     }
 
     /** The card's own legend for colour by delay, with the feed's thresholds. */
-    private delayLegend(feed: FeedOptions): LegendEntry[] {
+    /** The delay classes, and the two greys only when the map has something cancelled or without a delay. */
+    private delayLegend(feed: FeedOptions, shown: ReadonlySet<string>): LegendEntry[] {
         const [late, veryLate] = feed.delayThresholds;
         return [
             { color: DELAY_COLORS.on_time, label: this.text("legend.on_time") },
             { color: DELAY_COLORS.late, label: this.text("legend.late", { n: late }) },
             { color: DELAY_COLORS.very_late, label: this.text("legend.late", { n: veryLate }) },
+            ...(shown.has("cancelled") ? [{ color: DELAY_COLORS.cancelled, label: this.text("legend.cancelled") }] : []),
+            ...(shown.has("unknown") ? [{ color: DELAY_COLORS.unknown, label: this.text("legend.unknown") }] : []),
         ];
     }
 
@@ -522,8 +545,13 @@ export class MapFeedCard extends LitElement {
 
     /** Read inside the card's shadow root: a probe in the card's own light DOM isn't rendered, so the browser computes nothing for it. */
     private themeColors(): Record<string, string> | null {
+        // Read again only when the theme changes: reading takes a probe in the page per colour.
+        const theme = `${this.hass?.themes?.theme}|${this.hass?.selectedTheme?.theme}|${this.dark()}`;
+        if (theme === this.theme?.key) return this.theme.colors;
         const card = this.renderRoot?.querySelector?.("ha-card");
-        return card instanceof HTMLElement ? readThemeColors(card) : null;
+        if (!(card instanceof HTMLElement)) return null;
+        this.theme = { key: theme, colors: readThemeColors(card) };
+        return this.theme.colors;
     }
 
     private dark(): boolean {
@@ -640,35 +668,50 @@ export class MapFeedCard extends LitElement {
                 font-size: 13px;
                 color: var(--secondary-text-color);
             }
+            /* The pill shows its own label, centred the same in every browser. The native select lies over it unseen,
+               so a tap still opens the system's own menu, and keyboards and screen readers get a real select. */
             .sort {
                 position: relative;
                 display: flex;
                 align-items: center;
+                gap: 6px;
                 flex: 0 1 auto;
                 min-width: 0;
-                margin-left: auto;
-            }
-            .sort select {
-                appearance: none;
-                min-width: 0;
-                max-width: 100%;
-                text-overflow: ellipsis;
                 height: 32px;
-                padding: 0 30px 0 12px;
+                box-sizing: border-box;
+                margin-left: auto;
+                padding: 0 10px 0 12px;
                 border-radius: 16px;
                 border: 1px solid var(--divider-color);
-                background: transparent;
                 color: var(--primary-text-color);
-                font: 500 13px var(--ha-font-family-body, Roboto, sans-serif);
+                font: 500 13px/1 var(--ha-font-family-body, Roboto, sans-serif);
                 cursor: pointer;
+            }
+            .sort:focus-within {
+                outline: 2px solid var(--primary-color);
+                outline-offset: 1px;
+            }
+            .sort-label {
+                min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .sort select {
+                position: absolute;
+                inset: 0;
+                width: 100%;
+                height: 100%;
+                opacity: 0;
+                cursor: pointer;
+                font: inherit;
             }
             .sort select option {
                 color: var(--primary-text-color);
                 background: var(--card-background-color);
             }
             .sort svg {
-                position: absolute;
-                right: 10px;
+                flex: none;
                 width: 14px;
                 height: 14px;
                 pointer-events: none;

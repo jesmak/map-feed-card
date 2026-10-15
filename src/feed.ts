@@ -465,19 +465,27 @@ function readDetailAction(value: unknown): DetailAction | null {
 }
 
 /** Note that `area` is latitude first, like the rest of Home Assistant. */
+/** A feed covers a local area; anything wider than this is a mistake, such as metres written as kilometres. */
+const MAX_RADIUS_KM = 1000;
+
+/**
+ * An area only when it is one the map can draw. A centre written longitude first, as GeoJSON has it, would put the
+ * latitude out of range, and the map couldn't frame it.
+ */
 function readArea(value: unknown): FeedArea | null {
     if (!isRecord(value)) return null;
+    const latitude = (n: number | null): n is number => n !== null && Math.abs(n) <= 90;
+    const longitude = (n: number | null): n is number => n !== null && Math.abs(n) <= 180;
     if (Array.isArray(value.bbox)) {
-        const [south, west, north, east] = value.bbox.map(number);
-        if (south != null && west != null && north != null && east != null && south < north && west < east) {
+        const [south = null, west = null, north = null, east = null] = value.bbox.map(number);
+        if (latitude(south) && longitude(west) && latitude(north) && longitude(east) && south < north && west < east) {
             return { type: "bbox", south, west, north, east };
         }
         return null;
     }
-    const center = Array.isArray(value.center) ? value.center.map(number) : [];
+    const [lat = null, lon = null] = Array.isArray(value.center) ? value.center.map(number) : [];
     const radiusKm = number(value.radius_km);
-    const [lat, lon] = center;
-    if (lat != null && lon != null && radiusKm !== null && radiusKm > 0) {
+    if (latitude(lat) && longitude(lon) && radiusKm !== null && radiusKm > 0 && radiusKm <= MAX_RADIUS_KM) {
         return { type: "circle", lat, lon, radiusKm };
     }
     return null;
@@ -553,6 +561,18 @@ export function areaOutline(area: FeedArea): LngLat[] {
             Math.atan2(Math.sin(bearing) * Math.sin(angular) * Math.cos(lat), Math.cos(angular) - Math.sin(lat) * Math.sin(pointLat));
         return [(pointLon * 180) / Math.PI, (pointLat * 180) / Math.PI] as LngLat;
     });
+}
+
+/** Whether an item has anything for its details to show besides its colour. */
+export function hasDetails(item: FeedItem): boolean {
+    return Boolean(
+        item.name || item.subtitle || item.footer || item.link || item.details.length || item.notices.length || item.images.length,
+    );
+}
+
+/** Every position of a line's or polygon's outline. */
+export function shapePositions(shape: FeedShape): LngLat[] {
+    return shape.geometry.type === "line" ? shape.geometry.paths.flat() : shape.geometry.polygons.flat(2);
 }
 
 /** The bounds of every position given, or null when there are none. */

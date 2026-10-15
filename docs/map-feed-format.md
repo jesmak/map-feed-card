@@ -88,7 +88,7 @@ their age. A feed without a type, or with one the card doesn't know, is offered 
 
 A feed that colours its items with `color` says what the colours mean, since the card can't. Each entry is a CSS hex
 `color` and a `label`, and entries without both are left out. The card shows the legend over the map. Without one, it
-shows its own when it colours by delay.
+shows its own, the delay classes when it colours by delay, and the kinds on the map when there is more than one.
 
 ### List
 
@@ -123,8 +123,7 @@ A sort key:
 | `order`    | string | MAY      | `asc` (the default) or `desc`.                                                                          |
 
 Numbers sort as numbers, ISO 8601 times as times and everything else as text, in the feed's language. Items without
-the property come last, in the feed's order. Without sort keys, the list keeps the feed's order. The user can change
-the order on the card, and the card's `sort` option picks the one it starts in.
+the property come last, in the feed's order. Without sort keys, the list keeps the feed's order. When there is more than one, the user can change the order on the card, and the card's `sort` option picks the one it starts in.
 
 ## Features
 

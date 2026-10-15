@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { HomeAssistant } from "../src/hass";
-import { feedState, shipFeature, trainFeature } from "./support/fakes";
+import { feedState, roadworkLine, shipFeature, trainFeature } from "./support/fakes";
 
 // happy-dom has no WebGL, and the tile proxy is Home Assistant's; the card is tested without its map.
 const drawn = vi.hoisted(() => ({ updates: [] as Array<Record<string, unknown>>, fits: 0 }));
@@ -136,6 +136,54 @@ describe("map-feed-card", () => {
         document.body.innerHTML = "";
         const ships = await mount({ entities: ["sensor.ships"] }, { "sensor.ships": feedState("sensor.ships", [shipFeature()]) });
         expect(ships.shadowRoot!.querySelector(".legend")).toBeNull();
+    });
+
+    it("offers a choice of order only when the feeds offer more than one", async () => {
+        const key = (name: string) => ({ key: name, label: name, property: name });
+        const one = await mount(
+            { list: true, entities: ["sensor.buses"] },
+            { "sensor.buses": feedState("sensor.buses", [trainFeature()], { list: { sort: [key("line")] } }) },
+        );
+        expect(one.shadowRoot!.querySelector(".sort")).toBeNull();
+
+        document.body.innerHTML = "";
+        const two = await mount(
+            { list: true, entities: ["sensor.trains"] },
+            { "sensor.trains": feedState("sensor.trains", [trainFeature()], { list: { sort: [key("delay"), key("number")] } }) },
+        );
+        expect(two.shadowRoot!.querySelectorAll(".sort option")).toHaveLength(2);
+    });
+
+    it("hands the map a feed's attribution as text, never as markup", async () => {
+        await mount(
+            { entities: ["sensor.trains"] },
+            { "sensor.trains": feedState("sensor.trains", [trainFeature()], { attribution: '<img src="http://tracker.example/p.gif">' }) },
+        );
+        const [attribution] = drawn.updates.at(-1)!.attributions as string[];
+        expect(attribution).not.toContain("<");
+        expect(attribution).toMatch(/^&#60;img/);
+    });
+
+    it("frames a feed of lines by its lines, and offers only those that have something to show", async () => {
+        const route = roadworkLine({ point: undefined, kind: "road.maintenance_track" });
+        const named = { ...roadworkLine({ point: undefined, name: "Road 6" }), id: "road:6" };
+        const card = await mount(
+            { list: true, entities: ["sensor.routes"] },
+            { "sensor.routes": feedState("sensor.routes", [route, named]) },
+        );
+        expect(drawn.fits).toBe(1);
+        expect(drawn.updates.at(-1)!.shapes).toHaveLength(2);
+        expect([...card.shadowRoot!.querySelectorAll(".row-title")].map((title) => title.textContent)).toEqual(["Road 6"]);
+    });
+
+    it("explains a cancelled train's grey in the delay legend", async () => {
+        const card = await mount(
+            { entities: [{ entity: "sensor.trains", color_by: "delay" }] },
+            { "sensor.trains": feedState("sensor.trains", [trainFeature({ cancelled: true })]) },
+        );
+        const labels = [...card.shadowRoot!.querySelectorAll(".legend span")].map((entry) => entry.textContent!.trim());
+        expect(labels).toContain("cancelled");
+        expect(labels).not.toContain("no delay information");
     });
 
     it("says which feeds it can't draw", async () => {

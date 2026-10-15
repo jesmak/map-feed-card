@@ -21,7 +21,8 @@
     "legend": {
         "on_time": "on time",
         "late": "{n}+ min",
-        "cancelled": "cancelled"
+        "cancelled": "cancelled",
+        "unknown": "no delay information"
     },
     "editor": {
         "title": "Title",
@@ -95,5 +96,10 @@
         "family_transit": "Public transport",
         "family_road": "Road",
         "family_other": "Other"
+    },
+    "map_error": {
+        "webgl": "This browser can't draw the map, as it has no WebGL 2.",
+        "tiles": "Home Assistant's map tiles aren't available. The card needs Home Assistant 2026.9 or newer.",
+        "style": "The map couldn't be loaded. Check the errors in the browser's console."
     }
 }

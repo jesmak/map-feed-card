@@ -44,21 +44,21 @@ make one, give its repository the topic too. A template entity can write the for
 3. Add a new resource with the path `/local/map-feed-card.js` and type JavaScript
 4. Refresh your browser
 
-The card needs Home Assistant 2026.9 or newer, which serves the map tiles it draws.
+The card needs Home Assistant 2026.9.3 or newer. Home Assistant serves the map tiles it draws since 2026.9.
 
 ## Options
 
-| Name          | Type    | Default   | Description                                                                                    |
-| ------------- | ------- | --------- | ---------------------------------------------------------------------------------------------- |
-| `type`        | string  | required  | `custom:map-feed-card`                                                                         |
-| `entities`    | list    | required  | Map feed sensors, drawn on the same map, as entity ids or with their options below             |
-| `title`       | string  |           | Shown at the top of the card                                                                   |
-| `map_style`   | string  | `default` | Home Assistant's map style, `default`, `colorful`, `natural`, `muted`, `gray` or `toner`       |
-| `map_height`  | number  | `300`     | The map's height in pixels. When the card is wide, the details beside it are as tall           |
-| `legend`      | boolean | `true`    | Show what the colours mean, over the map                                                       |
-| `list`        | boolean | `false`   | Show the items as a list beside or below the map, the selected one opened in place             |
-| `list_height` | number  | `450`     | The list's height in pixels below the map. Beside the map, the list is as tall as the map      |
-| `sort`        | string  |           | The order the list starts in, one of the orders the feeds offer. It can be changed on the card |
+| Name          | Type    | Default   | Description                                                                                                        |
+| ------------- | ------- | --------- | ------------------------------------------------------------------------------------------------------------------ |
+| `type`        | string  | required  | `custom:map-feed-card`                                                                                             |
+| `entities`    | list    | required  | Map feed sensors, drawn on the same map, as entity ids or with their options below                                 |
+| `title`       | string  |           | Shown at the top of the card                                                                                       |
+| `map_style`   | string  | `default` | Home Assistant's map style, `default`, `colorful`, `natural`, `muted`, `gray` or `toner`                           |
+| `map_height`  | number  | `300`     | The map's height in pixels. When the card is wide, the details beside it are as tall                               |
+| `legend`      | boolean | `true`    | Show what the colours mean, over the map                                                                           |
+| `list`        | boolean | `false`   | Show the items as a list beside or below the map, the selected one opened in place                                 |
+| `list_height` | number  | `450`     | The list's height in pixels below the map. Beside the map, the list is as tall as the map                          |
+| `sort`        | string  |           | The order the list starts in, one of the orders the feeds offer. With more than one, it can be changed on the card |
 
 Each feed in `entities` can have options of its own:
 
@@ -91,8 +91,7 @@ such as the species seen at a place, are a list with the pictures, and rows with
 tag, such as an endangered species' status. Notices are highlighted below them. Tapping a picture shows it large.
 
 **The list**, with `list: true`, shows every item as a row: a title, a line under it and a value, such as a delay or
-a distance. A feed can say what the list can be sorted by, such as delay and number for trains, and the order is chosen
-on the card. Tapping a row unfolds its details beneath it and moves the map to it, and tapping it again folds them away. Tapping a marker opens its row. Above the list is the number of items, with the sensor's name when the card shows one feed.
+a distance. A feed can say what the list can be sorted by, such as delay and number for trains, and the order is chosen on the card when there is more than one. Tapping a row unfolds its details beneath it and brings its marker into view, and tapping it again folds them away. Tapping a marker opens its row. Above the list is the number of items, with the sensor's name when the card shows one feed.
 
 **The legend** over the map explains the colours: the delay classes with `color_by: delay`, the feed's own colours
 when it explains them, and otherwise the kinds on the map when there is more than one. With `color_by: delay`, only trains, public transport and anything the feed gives a delay or

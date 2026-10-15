@@ -9,7 +9,7 @@ import type { FilterSpecification, GeoJSONSource, MapLayerMouseEvent, StyleSpeci
 import workerSource from "maplibre-gl/dist/maplibre-gl-worker.mjs?raw";
 
 import { areaOutline, type FeedArea, type FeedPoint, type FeedShape, type LngLat } from "./feed";
-import { loadStyle, onTokenChange, refreshToken, transformRequest } from "./map-tiles";
+import { loadStyle, MapError, onTokenChange, refreshToken, transformRequest } from "./map-tiles";
 import type { MapStyle } from "./options";
 import { escapeHtml, markerHtml, textOn } from "./style";
 
@@ -104,7 +104,7 @@ export class FeedMap {
     /** Throws when the map can't be drawn: no WebGL, or no tiles from Home Assistant. */
     async init(): Promise<void> {
         if (!document.createElement("canvas").getContext("webgl2")) {
-            throw new Error("This browser can't draw the map: WebGL 2 is not available");
+            throw new MapError("webgl", "WebGL 2 is not available");
         }
         ensureWorker();
         const style = await loadStyle(this.style, this.dark, this.theme);
@@ -145,6 +145,8 @@ export class FeedMap {
         // A new style drops every source and layer, so they are added again whenever one has loaded.
         map.on("style.load", () => this.addLayers());
         map.on("click", (event) => this.click(event));
+        // Marks the map drawn, for whatever waits for it, such as the README's screenshots; MapLibre says so only in an event.
+        map.on("idle", () => (this.container.dataset.mapReady = ""));
         // A line's or an area's name follows the pointer; touch has no hover, and a tap shows the details anyway.
         const tooltip = new Popup({ closeButton: false, closeOnClick: false, className: "feed-tooltip", offset: 12 });
         for (const layer of TAP_LAYERS) {
@@ -163,6 +165,7 @@ export class FeedMap {
     async setStyle(style: MapStyle, dark: boolean, theme: Record<string, string> | null, force = false): Promise<void> {
         const same = style === this.style && dark === this.dark && JSON.stringify(theme) === JSON.stringify(this.theme);
         if (!this.map || (!force && same)) return;
+        delete this.container.dataset.mapReady;
         this.style = style;
         this.dark = dark;
         this.theme = theme;
@@ -353,7 +356,9 @@ export class FeedMap {
         // A marker's own click handler selects it; the click still reaches the map, which must not undo that.
         if ((event.originalEvent.target as Element | null)?.closest?.(".feed-marker")) return;
         const hit = this.map?.queryRenderedFeatures(event.point, { layers: TAP_LAYERS }).at(-1);
-        this.onSelect(typeof hit?.properties?.selects === "string" ? hit.properties.selects : null);
+        // A shape with nothing to show has no key to select, and a tap on it is a tap on the map.
+        const selects = hit?.properties?.selects;
+        this.onSelect(typeof selects === "string" && selects !== "" ? selects : null);
     }
 
     private updateAttribution(): void {

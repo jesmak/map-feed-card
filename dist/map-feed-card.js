@@ -1029,19 +1029,21 @@ function readDetailAction(value) {
   if (!match) return null;
   return { domain: match[1], service: match[2], data: isRecord(value.data) ? value.data : {} };
 }
+var MAX_RADIUS_KM = 1e3;
 function readArea(value) {
   if (!isRecord(value)) return null;
+  const latitude = (n6) => n6 !== null && Math.abs(n6) <= 90;
+  const longitude = (n6) => n6 !== null && Math.abs(n6) <= 180;
   if (Array.isArray(value.bbox)) {
-    const [south, west, north, east] = value.bbox.map(number);
-    if (south != null && west != null && north != null && east != null && south < north && west < east) {
+    const [south = null, west = null, north = null, east = null] = value.bbox.map(number);
+    if (latitude(south) && longitude(west) && latitude(north) && longitude(east) && south < north && west < east) {
       return { type: "bbox", south, west, north, east };
     }
     return null;
   }
-  const center = Array.isArray(value.center) ? value.center.map(number) : [];
+  const [lat = null, lon = null] = Array.isArray(value.center) ? value.center.map(number) : [];
   const radiusKm = number(value.radius_km);
-  const [lat, lon] = center;
-  if (lat != null && lon != null && radiusKm !== null && radiusKm > 0) {
+  if (latitude(lat) && longitude(lon) && radiusKm !== null && radiusKm > 0 && radiusKm <= MAX_RADIUS_KM) {
     return { type: "circle", lat, lon, radiusKm };
   }
   return null;
@@ -1092,6 +1094,14 @@ function areaOutline(area) {
     const pointLon = area.lon * Math.PI / 180 + Math.atan2(Math.sin(bearing) * Math.sin(angular) * Math.cos(lat), Math.cos(angular) - Math.sin(lat) * Math.sin(pointLat));
     return [pointLon * 180 / Math.PI, pointLat * 180 / Math.PI];
   });
+}
+function hasDetails(item) {
+  return Boolean(
+    item.name || item.subtitle || item.footer || item.link || item.details.length || item.notices.length || item.images.length
+  );
+}
+function shapePositions(shape) {
+  return shape.geometry.type === "line" ? shape.geometry.paths.flat() : shape.geometry.polygons.flat(2);
 }
 function boundsOf(positions) {
   if (positions.length === 0) return null;
@@ -1433,7 +1443,8 @@ var en_default = {
   legend: {
     on_time: "on time",
     late: "{n}+ min",
-    cancelled: "cancelled"
+    cancelled: "cancelled",
+    unknown: "no delay information"
   },
   editor: {
     title: "Title",
@@ -1507,6 +1518,11 @@ var en_default = {
     family_transit: "Public transport",
     family_road: "Road",
     family_other: "Other"
+  },
+  map_error: {
+    webgl: "This browser can't draw the map, as it has no WebGL 2.",
+    tiles: "Home Assistant's map tiles aren't available. The card needs Home Assistant 2026.9 or newer.",
+    style: "The map couldn't be loaded. Check the errors in the browser's console."
   }
 };
 
@@ -1534,7 +1550,8 @@ var fi_default = {
   legend: {
     on_time: "ajallaan",
     late: "{n}+ min",
-    cancelled: "peruttu"
+    cancelled: "peruttu",
+    unknown: "ei my\xF6h\xE4stymistietoa"
   },
   editor: {
     title: "Otsikko",
@@ -1608,6 +1625,11 @@ var fi_default = {
     family_transit: "Joukkoliikenne",
     family_road: "Tieliikenne",
     family_other: "Muu"
+  },
+  map_error: {
+    webgl: "T\xE4m\xE4 selain ei pysty piirt\xE4m\xE4\xE4n karttaa, koska siin\xE4 ei ole WebGL 2:ta.",
+    tiles: "Home Assistantin karttatiilet eiv\xE4t ole saatavilla. Kortti tarvitsee Home Assistantin version 2026.9 tai uudemman.",
+    style: "Karttaa ei saatu ladattua. Tarkista virheet selaimen konsolista."
   }
 };
 
@@ -1805,14 +1827,15 @@ function feedSchema(fields, text2) {
     },
     late_minutes: MINUTES,
     very_late_minutes: MINUTES,
-    max_age_minutes: MINUTES,
+    // The card refuses 0, which would hide everything.
+    max_age_minutes: { number: { ...MINUTES.number, min: 1 } },
     labels: { boolean: {} },
     show_area: { boolean: {} },
     area_color: { text: {} }
   };
   return fields.map((name) => ({ name, selector: selectors[name] }));
 }
-function schema(hass, text2, entities) {
+function schema(hass, text2, entities, sort) {
   const feeds = Object.values(hass.states).filter((entity) => isMapFeed(entity)).map((entity) => entity.entity_id);
   return [
     { name: "title", selector: { text: {} } },
@@ -1859,20 +1882,21 @@ function schema(hass, text2, entities) {
     { name: "list_height", selector: { number: { min: 100, max: 1200, step: 10, mode: "box", unit_of_measurement: "px" } } },
     ...sortField(
       hass,
-      entities.map((entry) => String(entry.entity ?? ""))
+      entities.map((entry) => String(entry.entity ?? "")),
+      sort
     )
   ];
 }
-function sortField(hass, entities) {
+function sortField(hass, entities, sort) {
   const lists = entities.flatMap((entity) => {
     const result = readFeed(hass.states[entity]);
     return result.status === "ok" ? [result.feed.list] : [];
   });
-  const options = sortOptions(lists);
-  if (!options.length) return [];
-  return [
-    { name: "sort", selector: { select: { mode: "dropdown", options: options.map(({ key, label }) => ({ value: key, label })) } } }
-  ];
+  const options = sortOptions(lists).map(({ key, label }) => ({ value: key, label }));
+  const set = typeof sort === "string" && sort !== "";
+  if (options.length < 2 && !set) return [];
+  if (set && !options.some((option) => option.value === sort)) options.push({ value: sort, label: sort });
+  return [{ name: "sort", selector: { select: { mode: "dropdown", options } } }];
 }
 function compactFeeds(entries) {
   return entries.filter((entry) => entry.entity).map((entry) => {
@@ -1907,7 +1931,7 @@ var MapFeedCardEditor = class extends i4 {
             <ha-form
                 .hass=${this.hass}
                 .data=${{ ...CARD_DEFAULTS, ...this.config, entities, ...sections }}
-                .schema=${schema(this.hass, (key) => this.text(key), entities)}
+                .schema=${schema(this.hass, (key) => this.text(key), entities, this.config.sort)}
                 .computeLabel=${(entry) => this.text(`editor.${entry.name}`)}
                 .computeHelper=${(entry) => this.helper(entry.name)}
                 @value-changed=${this.valueChanged}
@@ -33467,7 +33491,11 @@ var PROXY_PATH = "/api/map_tiles";
 var TOKEN_HEADER = "X-Map-Tiles-Token";
 var REFRESH_MS = 20 * 60 * 1e3;
 var RETRY_DELAYS_MS = [0, 500, 1500, 4e3];
-var MapTilesError = class extends Error {
+var MapError = class extends Error {
+  constructor(reason, message) {
+    super(message);
+    this.reason = reason;
+  }
 };
 var token;
 var origin = "";
@@ -33508,7 +33536,7 @@ function onReconnect() {
 }
 async function fetchToken(conn) {
   const result = await conn.sendMessagePromise({ type: "map_tiles/access_token" });
-  if (typeof result?.token !== "string") throw new MapTilesError("map_tiles/access_token returned no token");
+  if (typeof result?.token !== "string") throw new MapError("tiles", "map_tiles/access_token returned no token");
   return result.token;
 }
 async function fetchWithRetries() {
@@ -33521,7 +33549,8 @@ async function fetchWithRetries() {
       lastError = error;
     }
   }
-  throw new MapTilesError(
+  throw new MapError(
+    "tiles",
     `Home Assistant's map tiles aren't available (${describe(lastError)}). The card needs Home Assistant 2026.9 or newer.`
   );
 }
@@ -33554,13 +33583,13 @@ async function loadStyle(style, dark, themeColors = null) {
       console.warn(`map-feed-card: the ${palette} map style couldn't take the theme's colours`, error);
     }
   }
-  throw new MapTilesError(`The ${palette} map style couldn't be built`);
+  throw new MapError("style", `The ${palette} map style couldn't be built`);
 }
 function buildStyle(palette, urls, colors) {
   const options = { theme: palette, urls, ...colors && Object.keys(colors).length ? { colors } : {} };
   const style = osm2(options);
   const sources = Object.values(style.sources);
-  if (sources.length !== 1) throw new MapTilesError(`The ${palette} map style has ${sources.length} tile sources, expected one`);
+  if (sources.length !== 1) throw new MapError("style", `The ${palette} map style has ${sources.length} tile sources, expected one`);
   for (const field of ["tiles", "attribution", "bounds", "minzoom", "maxzoom", "scheme"]) delete sources[0][field];
   sources[0].url = `${PROXY_PATH}/tilejson.json`;
   return style;
@@ -33573,7 +33602,7 @@ function withAbsoluteSprite(style) {
 }
 async function fetchJson(path) {
   const response = await fetch(`${origin}${path}`);
-  if (!response.ok) throw new MapTilesError(`${path} answered ${response.status}`);
+  if (!response.ok) throw new MapError("style", `${path} answered ${response.status}`);
   return await response.json();
 }
 function describe(error) {
@@ -33612,7 +33641,7 @@ var FeedMap = class {
   /** Throws when the map can't be drawn: no WebGL, or no tiles from Home Assistant. */
   async init() {
     if (!document.createElement("canvas").getContext("webgl2")) {
-      throw new Error("This browser can't draw the map: WebGL 2 is not available");
+      throw new MapError("webgl", "WebGL 2 is not available");
     }
     ensureWorker();
     const style = await loadStyle(this.style, this.dark, this.theme);
@@ -33647,6 +33676,7 @@ var FeedMap = class {
     });
     map.on("style.load", () => this.addLayers());
     map.on("click", (event) => this.click(event));
+    map.on("idle", () => this.container.dataset.mapReady = "");
     const tooltip = new jF({ closeButton: false, closeOnClick: false, className: "feed-tooltip", offset: 12 });
     for (const layer of TAP_LAYERS) {
       map.on("mousemove", layer, (event) => {
@@ -33662,6 +33692,7 @@ var FeedMap = class {
   async setStyle(style, dark, theme, force = false) {
     const same = style === this.style && dark === this.dark && JSON.stringify(theme) === JSON.stringify(this.theme);
     if (!this.map || !force && same) return;
+    delete this.container.dataset.mapReady;
     this.style = style;
     this.dark = dark;
     this.theme = theme;
@@ -33831,7 +33862,8 @@ var FeedMap = class {
   click(event) {
     if (event.originalEvent.target?.closest?.(".feed-marker")) return;
     const hit = this.map?.queryRenderedFeatures(event.point, { layers: TAP_LAYERS }).at(-1);
-    this.onSelect(typeof hit?.properties?.selects === "string" ? hit.properties.selects : null);
+    const selects = hit?.properties?.selects;
+    this.onSelect(typeof selects === "string" && selects !== "" ? selects : null);
   }
   updateAttribution() {
     const text2 = this.content.attributions.join(" \xB7 ");
@@ -33923,12 +33955,13 @@ var MapFeedCard = class extends i4 {
   }
   connectedCallback() {
     super.connectedCallback();
-    this.ticker = setInterval(() => this.selected && this.requestUpdate(), TICK_MS);
+    this.ticker = setInterval(() => (this.selected || this.options?.list) && this.requestUpdate(), TICK_MS);
     this.resizer = new ResizeObserver(([entry]) => {
       this.wide = (entry?.contentRect.width ?? 0) >= WIDE_PX;
       this.map?.resize();
     });
     this.resizer.observe(this);
+    this.mapError = "";
     this.requestUpdate();
   }
   /** A card leaves the page when the dashboard changes view; its map is drawn again when it comes back. */
@@ -34015,13 +34048,16 @@ var MapFeedCard = class extends i4 {
     return b2`<div class="list">
             <div class="list-head">
                 ${title ? b2`<h1 class="list-title">${title}</h1>` : b2`<span class="count">${count}</span>`}
-                ${options.length ? b2`<label class="sort">
+                ${options.length > 1 ? b2`<label class="sort">
                               <select
                                   aria-label=${this.text("list.sort")}
                                   @change=${(event) => this.sortKey = event.target.value}
                               >
                                   ${options.map((option) => b2`<option value=${option.key} ?selected=${option.key === key}>${option.label}</option>`)}
                               </select>
+                              <span class="sort-label" aria-hidden="true"
+                                  >${options.find((option) => option.key === key)?.label ?? ""}</span
+                              >
                               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
                           </label>` : A}
             </div>
@@ -34066,7 +34102,7 @@ var MapFeedCard = class extends i4 {
       this.fitSelected = false;
       this.fitRow();
     }
-    if (!this.map && !this.mapStarting && this.mapElement && this.hass && this.options) void this.startMap();
+    if (!this.map && !this.mapStarting && !this.mapError && this.mapElement && this.hass && this.options) void this.startMap();
     if (!this.map || !this.view) return;
     void this.map.setStyle(this.options.mapStyle, this.dark(), this.themeColors());
     this.map.update({ ...this.view.content, selected: this.selected });
@@ -34093,7 +34129,7 @@ var MapFeedCard = class extends i4 {
       this.requestUpdate();
     } catch (error) {
       map.destroy();
-      this.mapError = error instanceof Error ? error.message : String(error);
+      this.mapError = this.text(`map_error.${error instanceof MapError ? error.reason : "style"}`);
       console.error("map-feed-card:", error);
     } finally {
       this.mapStarting = false;
@@ -34176,50 +34212,57 @@ var MapFeedCard = class extends i4 {
       const { points, shapes, area, attribution, list } = result.feed;
       view.lists.push(list);
       const pointKeys = /* @__PURE__ */ new Map();
+      const tooOld = (item) => feed.maxAgeMinutes !== null && item.updatedMs !== null && now - item.updatedMs > feed.maxAgeMinutes * 6e4;
+      const extent = [];
       let byDelay = false;
       let ownColours = false;
+      const delays = /* @__PURE__ */ new Set();
       for (const point of points) {
-        if (feed.maxAgeMinutes !== null && point.updatedMs !== null && now - point.updatedMs > feed.maxAgeMinutes * 6e4)
-          continue;
+        if (tooOld(point)) continue;
         const drawn = {
           key: `${feed.entity}|${point.id}`,
           point,
           color: pointColor(point, feed.colorBy, feed.delayThresholds),
           label: feed.labels ? point.label || point.name : ""
         };
-        if (feed.colorBy === "delay" && canBeLate(point)) byDelay = true;
-        else {
+        if (feed.colorBy === "delay" && canBeLate(point)) {
+          byDelay = true;
+          delays.add(delayClass(point, feed.delayThresholds));
+        } else {
           ownColours = true;
           if (!result.feed.legend.length && point.color === null) addKind(point, drawn.color);
         }
         pointKeys.set(point.id, drawn);
         view.content.points.push(drawn);
         view.items.set(drawn.key, { item: point, point, color: drawn.color, feed, list });
-        view.extent.push([point.lon, point.lat]);
+        extent.push([point.lon, point.lat]);
       }
       for (const shape of shapes) {
         const owner = shape.pointId ? pointKeys.get(shape.pointId) : void 0;
         if (shape.pointId && !owner && points.some((point) => point.id === shape.pointId)) continue;
+        if (!owner && tooOld(shape)) continue;
         const key = `${feed.entity}|${shape.id}`;
+        const selectable = owner !== void 0 || hasDetails(shape);
         const drawn = {
           key,
-          selects: owner?.key ?? key,
+          selects: owner?.key ?? (selectable ? key : ""),
           shape,
           color: owner?.color ?? shapeColor(shape),
           name: shape.name || owner?.point.name || ""
         };
         view.content.shapes.push(drawn);
+        extent.push(...shapePositions(shape));
         if (!owner) {
-          view.items.set(key, { item: shape, point: null, color: drawn.color, feed, list });
+          if (selectable) view.items.set(key, { item: shape, point: null, color: drawn.color, feed, list });
           ownColours = true;
           if (!result.feed.legend.length && shape.color === null) addKind(shape, drawn.color);
         }
       }
       if (area && feed.showArea)
         view.content.areas.push({ area, color: feed.areaColor ?? areaColor(this.dark()) });
-      if (area) view.extent.push(...areaOutline(area));
-      if (attribution) view.content.attributions.push(attribution);
-      for (const legend of [byDelay ? this.delayLegend(feed) : [], ownColours ? result.feed.legend : []]) {
+      view.extent.push(...area ? areaOutline(area) : extent);
+      if (attribution) view.content.attributions.push(escapeHtml(attribution));
+      for (const legend of [byDelay ? this.delayLegend(feed, delays) : [], ownColours ? result.feed.legend : []]) {
         const signature = JSON.stringify(legend);
         if (legend.length && !legends.has(signature)) {
           legends.add(signature);
@@ -34232,12 +34275,15 @@ var MapFeedCard = class extends i4 {
     return view;
   }
   /** The card's own legend for colour by delay, with the feed's thresholds. */
-  delayLegend(feed) {
+  /** The delay classes, and the two greys only when the map has something cancelled or without a delay. */
+  delayLegend(feed, shown) {
     const [late, veryLate] = feed.delayThresholds;
     return [
       { color: DELAY_COLORS.on_time, label: this.text("legend.on_time") },
       { color: DELAY_COLORS.late, label: this.text("legend.late", { n: late }) },
-      { color: DELAY_COLORS.very_late, label: this.text("legend.late", { n: veryLate }) }
+      { color: DELAY_COLORS.very_late, label: this.text("legend.late", { n: veryLate }) },
+      ...shown.has("cancelled") ? [{ color: DELAY_COLORS.cancelled, label: this.text("legend.cancelled") }] : [],
+      ...shown.has("unknown") ? [{ color: DELAY_COLORS.unknown, label: this.text("legend.unknown") }] : []
     ];
   }
   legend(entries) {
@@ -34251,8 +34297,12 @@ var MapFeedCard = class extends i4 {
   }
   /** Read inside the card's shadow root: a probe in the card's own light DOM isn't rendered, so the browser computes nothing for it. */
   themeColors() {
+    const theme = `${this.hass?.themes?.theme}|${this.hass?.selectedTheme?.theme}|${this.dark()}`;
+    if (theme === this.theme?.key) return this.theme.colors;
     const card = this.renderRoot?.querySelector?.("ha-card");
-    return card instanceof HTMLElement ? readThemeColors(card) : null;
+    if (!(card instanceof HTMLElement)) return null;
+    this.theme = { key: theme, colors: readThemeColors(card) };
+    return this.theme.colors;
   }
   dark() {
     return this.hass?.themes?.darkMode === true;
@@ -34365,35 +34415,50 @@ MapFeedCard.styles = [
                 font-size: 13px;
                 color: var(--secondary-text-color);
             }
+            /* The pill shows its own label, centred the same in every browser. The native select lies over it unseen,
+               so a tap still opens the system's own menu, and keyboards and screen readers get a real select. */
             .sort {
                 position: relative;
                 display: flex;
                 align-items: center;
+                gap: 6px;
                 flex: 0 1 auto;
                 min-width: 0;
-                margin-left: auto;
-            }
-            .sort select {
-                appearance: none;
-                min-width: 0;
-                max-width: 100%;
-                text-overflow: ellipsis;
                 height: 32px;
-                padding: 0 30px 0 12px;
+                box-sizing: border-box;
+                margin-left: auto;
+                padding: 0 10px 0 12px;
                 border-radius: 16px;
                 border: 1px solid var(--divider-color);
-                background: transparent;
                 color: var(--primary-text-color);
-                font: 500 13px var(--ha-font-family-body, Roboto, sans-serif);
+                font: 500 13px/1 var(--ha-font-family-body, Roboto, sans-serif);
                 cursor: pointer;
+            }
+            .sort:focus-within {
+                outline: 2px solid var(--primary-color);
+                outline-offset: 1px;
+            }
+            .sort-label {
+                min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .sort select {
+                position: absolute;
+                inset: 0;
+                width: 100%;
+                height: 100%;
+                opacity: 0;
+                cursor: pointer;
+                font: inherit;
             }
             .sort select option {
                 color: var(--primary-text-color);
                 background: var(--card-background-color);
             }
             .sort svg {
-                position: absolute;
-                right: 10px;
+                flex: none;
                 width: 14px;
                 height: 14px;
                 pointer-events: none;

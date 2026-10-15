@@ -21,7 +21,8 @@
     "legend": {
         "on_time": "ajallaan",
         "late": "{n}+ min",
-        "cancelled": "peruttu"
+        "cancelled": "peruttu",
+        "unknown": "ei myöhästymistietoa"
     },
     "editor": {
         "title": "Otsikko",
@@ -95,5 +96,10 @@
         "family_transit": "Joukkoliikenne",
         "family_road": "Tieliikenne",
         "family_other": "Muu"
+    },
+    "map_error": {
+        "webgl": "Tämä selain ei pysty piirtämään karttaa, koska siinä ei ole WebGL 2:ta.",
+        "tiles": "Home Assistantin karttatiilet eivät ole saatavilla. Kortti tarvitsee Home Assistantin version 2026.9 tai uudemman.",
+        "style": "Karttaa ei saatu ladattua. Tarkista virheet selaimen konsolista."
     }
 }
