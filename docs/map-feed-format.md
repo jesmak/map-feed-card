@@ -12,8 +12,10 @@ The keywords **MUST**, **SHOULD** and **MAY** are used as described in
 - [Overview](#overview)
 - [Entity](#entity)
   - [Legend](#legend)
+  - [List](#list)
 - [Features](#features)
 - [Feature properties](#feature-properties)
+  - [A row in the list](#a-row-in-the-list)
 - [Lines and polygons](#lines-and-polygons)
 - [Rules for sources](#rules-for-sources)
 - [Examples](#examples)
@@ -32,6 +34,8 @@ sensor.ships_near_the_cabin
    ├─ attribution         "Fintraffic / digitraffic.fi, CC BY 4.0"
    ├─ area                {center, radius_km} | {bbox}
    ├─ updated             ISO 8601, last successful fetch
+   ├─ legend              what the feed's own colours mean
+   ├─ list                how the card's list can be sorted
    └─ geojson             GeoJSON FeatureCollection
       └─ features[]
          ├─ id            "ship:230113940"
@@ -56,6 +60,7 @@ anything that changes on its own, such as "2 min ago".
 | `area`             | object   | MAY      | `{"center": [lat, lon], "radius_km": 15}` or `{"bbox": [south, west, north, east]}`. Drawn by the card when `show_area` is on. |
 | `updated`          | ISO 8601 | SHOULD   | When the source last fetched successfully.                                                                                     |
 | `legend`           | object[] | MAY      | What the feed's own colours mean, in its own language. See [legend](#legend).                                                  |
+| `list`             | object   | MAY      | How the card's list of items can be sorted, and what an item is called. See [list](#list).                                     |
 
 Note that `area` uses latitude first, like the rest of Home Assistant, while GeoJSON coordinates use
 longitude first.
@@ -72,6 +77,42 @@ longitude first.
 A feed that colours its items with `color` says what the colours mean, since the card can't. Each entry is a CSS hex
 `color` and a `label`, and entries without both are left out. The card shows the legend over the map. Without one, it
 shows its own when it colours by delay.
+
+### List
+
+The card can show the items as a list beside or below the map. A feed says what the list can be sorted by, since
+only the feed knows what makes sense, such as delay and train number for trains, or distance and freshness for bird
+sightings.
+
+```json
+{
+  "sort": [
+    { "key": "distance", "label": "Distance", "property": "distance_km" },
+    { "key": "recent", "label": "Most recent", "property": "updated", "order": "desc" }
+  ],
+  "default": "distance",
+  "count": "sites"
+}
+```
+
+| Field     | Type     | Required | Meaning                                                                                         |
+| --------- | -------- | -------- | ----------------------------------------------------------------------------------------------- |
+| `sort`    | object[] | MAY      | The orders the list offers, each a sort key (below).                                            |
+| `default` | string   | MAY      | The `key` of the order the list starts in. Defaults to the first sort key.                      |
+| `count`   | string   | MAY      | What the items are called in the count above the list, in the feed's language, such as `sites`. |
+
+A sort key:
+
+| Field      | Type   | Required | Meaning                                                                                                 |
+| ---------- | ------ | -------- | ------------------------------------------------------------------------------------------------------- |
+| `key`      | string | **MUST** | Identifies the order, so the card's `sort` option can name it. Stable between updates.                  |
+| `label`    | string | **MUST** | Shown in the list's sort menu, in the feed's language.                                                  |
+| `property` | string | **MUST** | The feature property to sort by. Any property, including one of the source's own such as `distance_km`. |
+| `order`    | string | MAY      | `asc` (the default) or `desc`.                                                                          |
+
+Numbers sort as numbers, ISO 8601 times as times and everything else as text, in the feed's language. Items without
+the property come last, in the feed's order. Without sort keys, the list keeps the feed's order. The user can change
+the order on the card, and the card's `sort` option picks the one it starts in.
 
 ## Features
 
@@ -104,8 +145,9 @@ shows its own when it colours by delay.
 | `link`          | object   | MAY      | A link at the end of the details, such as the item's page on the source's site. See [links](#links).                                      |
 | `opacity`       | number   | MAY      | 0–1, how strongly the item is drawn. Defaults to 1. See [opacity](#opacity).                                                              |
 | `point`         | string   | MAY      | The `id` of the Point feature a line or polygon belongs to.                                                                               |
+| `list`          | object   | MAY      | The item's row in the card's list, where its name and subtitle aren't the best fit. See [a row in the list](#a-row-in-the-list).          |
 
-Properties the card doesn't know are ignored.
+Properties the card doesn't know are ignored, apart from a feed's own properties that a [sort key](#list) names.
 
 ### Kinds
 
@@ -231,6 +273,25 @@ The card calls only an action of the integration that created the feed entity, s
 viewer's rights, so a feed can't make the viewer run anything else, such as a script. A template entity's feed can't
 use detail actions. The rows are loaded once per item and action, and a failed load is tried again the next time the
 item is selected.
+
+### A row in the list
+
+In the card's list, an item is a row with a title, a text under it and a value on the right. Without `list`, the title is
+the item's `name`, the text its `subtitle`, and the value its delay, or the age of its position or update. A train whose
+badge already says its name has its route, the `subtitle`, as the title instead.
+
+```json
+{ "title": "Joensuu → Helsinki", "text": "Past Kouvola", "value": "3.9 km" }
+```
+
+| Field   | Type   | Required | Meaning                                                                |
+| ------- | ------ | -------- | ---------------------------------------------------------------------- |
+| `title` | string | MAY      | The row's title.                                                       |
+| `text`  | string | MAY      | The line under the title. An empty string leaves it out.               |
+| `value` | string | MAY      | Shown on the right, such as a distance. An empty string leaves it out. |
+
+Each field replaces only its own part, so a feed can give a bird sighting's distance as the `value` and keep the rest.
+The value of something late takes its delay's colour, everything else the secondary text colour.
 
 ## Lines and polygons
 

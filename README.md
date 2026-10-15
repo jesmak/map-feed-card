@@ -48,14 +48,17 @@ The card needs Home Assistant 2026.9 or newer, which serves the map tiles it dra
 
 ## Options
 
-| Name         | Type    | Default   | Description                                                                              |
-| ------------ | ------- | --------- | ---------------------------------------------------------------------------------------- |
-| `type`       | string  | required  | `custom:map-feed-card`                                                                   |
-| `entities`   | list    | required  | Map feed sensors, drawn on the same map, as entity ids or with their options below       |
-| `title`      | string  |           | Shown at the top of the card                                                             |
-| `map_style`  | string  | `default` | Home Assistant's map style, `default`, `colorful`, `natural`, `muted`, `gray` or `toner` |
-| `map_height` | number  | `300`     | The map's height in pixels. When the card is wide, the details beside it are as tall     |
-| `legend`     | boolean | `true`    | Show what the colours mean, over the map                                                 |
+| Name          | Type    | Default   | Description                                                                                    |
+| ------------- | ------- | --------- | ---------------------------------------------------------------------------------------------- |
+| `type`        | string  | required  | `custom:map-feed-card`                                                                         |
+| `entities`    | list    | required  | Map feed sensors, drawn on the same map, as entity ids or with their options below             |
+| `title`       | string  |           | Shown at the top of the card                                                                   |
+| `map_style`   | string  | `default` | Home Assistant's map style, `default`, `colorful`, `natural`, `muted`, `gray` or `toner`       |
+| `map_height`  | number  | `300`     | The map's height in pixels. When the card is wide, the details beside it are as tall           |
+| `legend`      | boolean | `true`    | Show what the colours mean, over the map                                                       |
+| `list`        | boolean | `false`   | Show the items as a list beside or below the map, the selected one opened in place             |
+| `list_height` | number  | `450`     | The list's height in pixels below the map. Beside the map, the list is as tall as the map      |
+| `sort`        | string  |           | The order the list starts in, one of the orders the feeds offer. It can be changed on the card |
 
 Each feed in `entities` can have options of its own:
 
@@ -68,6 +71,7 @@ Each feed in `entities` can have options of its own:
 | `max_age_minutes`   | number  |          | Hide items whose position is older than this                                                 |
 | `show_area`         | boolean | `false`  | Draw the area the feed covers, as a dashed outline                                           |
 | `area_color`        | string  |          | The area's colour, as a hex colour. By default a blue that suits the theme                   |
+| `labels`            | boolean | `false`  | Show each item's name beside its marker                                                      |
 
 Every option is in the card's visual editor.
 
@@ -76,8 +80,9 @@ Every option is in the card's visual editor.
 **The map** shows each item where it is. Something with a known heading has an arrow pointing where it is going, and
 an item with a short label, such as a train's number, shows it in the marker. Road works, road cameras and birds have
 symbols of their own. Lines and areas, such as a road under construction or the stretch a snow plough has cleared, are
-drawn in their item's colour, and tapping one selects it. When the card opens, the map shows the feeds' areas, or
-everything in them when they have none.
+drawn in their item's colour, and tapping one selects it. Pointing at a line or an area shows its name, and with
+`labels` every marker has its name beside it. When the card opens, the map shows the feeds' areas, or everything in
+them when they have none. The map follows the theme, light or dark, and takes the map colours a theme sets with `--ha-color-map-*` variables, as Home Assistant's own map does.
 
 **The details** of the item tapped open in the panel. The title is the item's name, or a train's route when its
 marker already shows its number. Under it, something that moves has a status line with its delay, its speed and how
@@ -85,11 +90,16 @@ old its position is, coloured by the delay. Then come the item's details, drawn 
 such as the species seen at a place, are a list with the pictures, and rows without one a table. A row can carry a
 tag, such as an endangered species' status. Notices are highlighted below them. Tapping a picture shows it large.
 
-**The legend** over the map explains the colours: the delay classes with `color_by: delay`, and the feed's own colours
-when it explains them. With `color_by: delay`, only trains, public transport and anything the feed gives a delay or
+**The list**, with `list: true`, shows every item as a row: a title, a line under it and a value, such as a delay or
+a distance. A feed can say what the list can be sorted by, such as delay and number for trains, and the order is chosen
+on the card. Tapping a row opens it in place to its details and moves the map to it, and tapping a marker opens its
+row.
+
+**The legend** over the map explains the colours: the delay classes with `color_by: delay`, the feed's own colours
+when it explains them, and otherwise the kinds on the map when there is more than one. With `color_by: delay`, only trains, public transport and anything the feed gives a delay or
 marks cancelled are coloured by their delay. Everything else, such as birds or road works, keeps its own colour.
 
-When the card is at least 640 pixels wide, the details sit beside the map instead of below it.
+When the card is at least 640 pixels wide, the details or the list sit beside the map instead of below it.
 
 ## Examples
 
@@ -113,6 +123,18 @@ entities:
   - entity: sensor.ships_near_the_harbour
     show_area: true
   - sensor.road_works_example_town
+```
+
+Bird sightings as a list beside the map, nearest first, with each place's name on the map:
+
+```yaml
+type: custom:map-feed-card
+title: Birds
+list: true
+sort: distance
+entities:
+  - entity: sensor.birds_near_example_town
+    labels: true
 ```
 
 ## Data
@@ -152,6 +174,8 @@ card stays one file.
 | `src/feed.ts`             | Reading the feeds                            |
 | `src/map.ts`              | The map, its markers, lines and areas        |
 | `src/map-tiles.ts`        | Home Assistant's map tiles and styles        |
+| `src/map-theme.ts`        | Home Assistant's map colours and themes      |
+| `src/list.ts`             | The list's rows and orders                   |
 | `src/details.ts`          | The details panel                            |
 | `src/style.ts`            | Colours and markers                          |
 | `src/localize/languages/` | The card's texts, one JSON file per language |
@@ -169,7 +193,10 @@ Hey dude! Help me out for a couple of :beers: or a :coffee:!
 The map is drawn with [MapLibre GL JS](https://maplibre.org/) (BSD 3-Clause, see
 [LICENSE-maplibre-gl](LICENSE-maplibre-gl)), and its styles are built with
 [VersaTiles style](https://github.com/versatiles-org/versatiles-style) (MIT, see
-[LICENSE-versatiles-style](LICENSE-versatiles-style)), both bundled with the card.
+[LICENSE-versatiles-style](LICENSE-versatiles-style)), both bundled with the card. Home Assistant's map colours and
+the table of its themes' map colours come from the [Home Assistant frontend](https://github.com/home-assistant/frontend)
+(Apache 2.0, see [LICENSE-home-assistant-frontend](LICENSE-home-assistant-frontend)), so the card's map looks like
+Home Assistant's own.
 
 ## License
 

@@ -20,7 +20,9 @@ export interface HomeAssistant {
     connection: HassConnection;
     /** `hassUrl` is where the instance is, which isn't this page's origin when the dashboard is cast. */
     auth?: { data?: { hassUrl?: string } };
-    themes?: { darkMode?: boolean };
+    /** `theme` is the default theme; `selectedTheme` the viewer's own choice, null when they follow the default. */
+    themes?: { darkMode?: boolean; theme?: string };
+    selectedTheme?: { theme?: string } | null;
     language?: string;
     locale?: { language?: string };
     callService(

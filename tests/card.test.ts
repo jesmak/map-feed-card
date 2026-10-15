@@ -125,6 +125,19 @@ describe("map-feed-card", () => {
         expect(trains.shadowRoot!.querySelector(".legend")!.textContent).not.toContain("Harbour");
     });
 
+    it("explains its kind colours when the map has more than one kind and the feed no legend", async () => {
+        const mixed = await mount(
+            { entities: ["sensor.mixed"] },
+            { "sensor.mixed": feedState("sensor.mixed", [trainFeature(), shipFeature(), shipFeature({ color: "#123456" })]) },
+        );
+        const labels = [...mixed.shadowRoot!.querySelectorAll(".legend span")].map((entry) => entry.textContent!.trim());
+        expect(labels).toEqual(["Long-distance train", "Pilot boat"]);
+
+        document.body.innerHTML = "";
+        const ships = await mount({ entities: ["sensor.ships"] }, { "sensor.ships": feedState("sensor.ships", [shipFeature()]) });
+        expect(ships.shadowRoot!.querySelector(".legend")).toBeNull();
+    });
+
     it("says which feeds it can't draw", async () => {
         const card = await mount(
             { entities: ["sensor.gone", "sensor.plain"] },

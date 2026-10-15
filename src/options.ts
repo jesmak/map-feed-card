@@ -12,6 +12,7 @@ const COLOR_BY: readonly ColorBy[] = ["kind", "delay"];
 
 export const DEFAULT_DELAY_THRESHOLDS: [number, number] = [3, 10];
 export const DEFAULT_MAP_HEIGHT = 300;
+export const DEFAULT_LIST_HEIGHT = 450;
 
 const ENTITY_ID = /^[a-z_]+\.[a-z0-9_]+$/;
 
@@ -26,6 +27,8 @@ export interface FeedOptions {
     showArea: boolean;
     /** null = the theme's own, from style.ts. */
     areaColor: string | null;
+    /** Draw each marker's label or name beside it. */
+    labels: boolean;
 }
 
 export interface CardOptions {
@@ -34,6 +37,11 @@ export interface CardOptions {
     mapStyle: MapStyle;
     mapHeight: number;
     legend: boolean;
+    list: boolean;
+    /** The list's height below the map; beside it, the list is as tall as the map. */
+    listHeight: number;
+    /** The sort key the list starts in; null = the first feed's default. */
+    sort: string | null;
 }
 
 export function parseOptions(raw: unknown): CardOptions {
@@ -48,8 +56,11 @@ export function parseOptions(raw: unknown): CardOptions {
         title: typeof config.title === "string" ? config.title : "",
         feeds,
         mapStyle: parseMapStyle(config.map_style),
-        mapHeight: parseMapHeight(config.map_height),
+        mapHeight: parseHeight(config.map_height, DEFAULT_MAP_HEIGHT, "map_height"),
         legend: config.legend !== false,
+        list: config.list === true,
+        listHeight: parseHeight(config.list_height, DEFAULT_LIST_HEIGHT, "list_height"),
+        sort: typeof config.sort === "string" && config.sort.trim() ? config.sort.trim() : null,
     };
 }
 
@@ -65,6 +76,7 @@ function parseFeed(options: Record<string, unknown>): FeedOptions {
         maxAgeMinutes: parseMaxAge(options.max_age_minutes),
         showArea: options.show_area === true,
         areaColor: parseAreaColor(options.area_color),
+        labels: options.labels === true,
     };
 }
 
@@ -74,11 +86,11 @@ function parseMapStyle(value: unknown): MapStyle {
     throw new Error(`map_style must be one of ${MAP_STYLES.join(", ")}`);
 }
 
-function parseMapHeight(value: unknown): number {
-    if (value === undefined) return DEFAULT_MAP_HEIGHT;
+function parseHeight(value: unknown, fallback: number, name: string): number {
+    if (value === undefined) return fallback;
     const height = number(value);
     if (height !== null && height >= 100) return height;
-    throw new Error("map_height must be a number of pixels, at least 100");
+    throw new Error(`${name} must be a number of pixels, at least 100`);
 }
 
 function parseColorBy(value: unknown): ColorBy {

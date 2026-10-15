@@ -302,6 +302,52 @@ describe("readFeed: legend and tags", () => {
     });
 });
 
+describe("readFeed: list", () => {
+    const list = {
+        sort: [
+            { key: "distance", label: "Distance", property: "distance_km" },
+            { key: "recent", label: "Most recent", property: "updated", order: "desc" },
+            { key: "distance", label: "Again", property: "other" },
+            { key: "broken", label: "No property" },
+            { key: "proto", label: "Prototype", property: "constructor" },
+        ],
+        default: "missing",
+        count: "sites",
+    };
+
+    it("reads sort keys, leaving out duplicates and keys without a property, and falls back to the first key", () => {
+        const feed = okFeed(feedState("sensor.birds", [], { list }));
+        expect(feed.list.sort.map((key) => [key.key, key.property, key.descending])).toEqual([
+            ["distance", "distance_km", false],
+            ["recent", "updated", true],
+            ["proto", "constructor", false],
+        ]);
+        expect(feed.list.defaultKey).toBe("distance");
+        expect(feed.list.count).toBe("sites");
+        expect(okFeed(feedState("sensor.birds", [])).list).toEqual({ sort: [], defaultKey: null, count: "" });
+    });
+
+    it("keeps the values sort keys name, as numbers, times or text, and never a prototype's", () => {
+        const feed = okFeed(
+            feedState(
+                "sensor.birds",
+                [shipFeature({ distance_km: 3.9, updated: "2026-10-12T07:30:00Z", list: { title: "Kaislalahti", text: "" } })],
+                {
+                    list,
+                },
+            ),
+        );
+        const [point] = feed.points;
+        expect(point!.sortValues).toEqual({ distance_km: 3.9, updated: Date.parse("2026-10-12T07:30:00Z") });
+        expect(point!.listRow).toEqual({ title: "Kaislalahti", text: "", value: null });
+    });
+
+    it("reads a row's parts only as text", () => {
+        const feed = okFeed(feedState("sensor.x", [shipFeature({ list: { title: { html: "<b>" }, value: 3.9 } })]));
+        expect(feed.points[0]!.listRow).toEqual({ title: null, text: null, value: "3.9" });
+    });
+});
+
 describe("geometry", () => {
     it("outlines a bbox as a closed ring", () => {
         expect(areaOutline({ type: "bbox", south: 60, west: 27, north: 61, east: 28 })).toEqual([

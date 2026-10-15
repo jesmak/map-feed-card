@@ -3,10 +3,11 @@ import { LitElement, html, nothing } from "lit";
 import type { TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
-import { isMapFeed } from "./feed";
+import { isMapFeed, readFeed } from "./feed";
 import type { HomeAssistant } from "./hass";
 import { browserLanguage, translate } from "./localize/localize";
-import { DEFAULT_DELAY_THRESHOLDS, DEFAULT_MAP_HEIGHT, MAP_STYLES } from "./options";
+import { sortOptions } from "./list";
+import { DEFAULT_DELAY_THRESHOLDS, DEFAULT_LIST_HEIGHT, DEFAULT_MAP_HEIGHT, MAP_STYLES } from "./options";
 
 interface SchemaEntry {
     name: string;
@@ -15,15 +16,22 @@ interface SchemaEntry {
 type FeedEntry = Record<string, unknown> & { entity?: string };
 
 /** Shown in the form but left out of the configuration. */
-const CARD_DEFAULTS: Record<string, unknown> = { map_style: "default", map_height: DEFAULT_MAP_HEIGHT, legend: true };
+const CARD_DEFAULTS: Record<string, unknown> = {
+    map_style: "default",
+    map_height: DEFAULT_MAP_HEIGHT,
+    legend: true,
+    list: false,
+    list_height: DEFAULT_LIST_HEIGHT,
+};
 const FEED_DEFAULTS: Record<string, unknown> = {
     color_by: "kind",
     late_minutes: DEFAULT_DELAY_THRESHOLDS[0],
     very_late_minutes: DEFAULT_DELAY_THRESHOLDS[1],
     show_area: false,
+    labels: false,
 };
 
-function schema(hass: HomeAssistant, text: (key: string) => string) {
+function schema(hass: HomeAssistant, text: (key: string) => string, entities: string[]) {
     const feeds = Object.values(hass.states)
         .filter((entity) => isMapFeed(entity))
         .map((entity) => entity!.entity_id);
@@ -51,6 +59,7 @@ function schema(hass: HomeAssistant, text: (key: string) => string) {
                         late_minutes: { label: text("editor.late_minutes"), selector: minutes },
                         very_late_minutes: { label: text("editor.very_late_minutes"), selector: minutes },
                         max_age_minutes: { label: text("editor.max_age_minutes"), selector: minutes },
+                        labels: { label: text("editor.labels"), selector: { boolean: {} } },
                         show_area: { label: text("editor.show_area"), selector: { boolean: {} } },
                         area_color: { label: text("editor.area_color"), selector: { text: {} } },
                     },
@@ -71,6 +80,22 @@ function schema(hass: HomeAssistant, text: (key: string) => string) {
                 { name: "legend", selector: { boolean: {} } },
             ],
         },
+        { name: "list", selector: { boolean: {} } },
+        { name: "list_height", selector: { number: { min: 100, max: 1200, step: 10, mode: "box", unit_of_measurement: "px" } } },
+        ...sortField(hass, entities),
+    ];
+}
+
+/** The orders the chosen feeds offer, read from the feeds themselves; nothing to choose when they offer none. */
+function sortField(hass: HomeAssistant, entities: string[]) {
+    const lists = entities.flatMap((entity) => {
+        const result = readFeed(hass.states[entity]);
+        return result.status === "ok" ? [result.feed.list] : [];
+    });
+    const options = sortOptions(lists);
+    if (!options.length) return [];
+    return [
+        { name: "sort", selector: { select: { mode: "dropdown", options: options.map(({ key, label }) => ({ value: key, label })) } } },
     ];
 }
 
@@ -110,7 +135,11 @@ export class MapFeedCardEditor extends LitElement {
             <ha-form
                 .hass=${this.hass}
                 .data=${{ ...CARD_DEFAULTS, ...this.config, entities }}
-                .schema=${schema(this.hass, (key) => this.text(key))}
+                .schema=${schema(
+                    this.hass,
+                    (key) => this.text(key),
+                    entities.map((entry) => String(entry.entity ?? "")),
+                )}
                 .computeLabel=${(entry: SchemaEntry) => this.text(`editor.${entry.name}`)}
                 .computeHelper=${(entry: SchemaEntry) => this.helper(entry.name)}
                 @value-changed=${this.valueChanged}

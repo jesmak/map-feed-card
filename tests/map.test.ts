@@ -36,7 +36,7 @@ vi.mock("maplibre-gl", () => {
         }
         remove() {}
     }
-    return { Map: FakeMap, Marker, AttributionControl: class {}, NavigationControl: class {}, setWorkerUrl: noop };
+    return { Map: FakeMap, Marker, Popup: class {}, AttributionControl: class {}, NavigationControl: class {}, setWorkerUrl: noop };
 });
 vi.mock("maplibre-gl/dist/maplibre-gl-worker.mjs?raw", () => ({ default: "" }));
 vi.mock("../src/map-tiles", () => ({
@@ -72,6 +72,8 @@ function ship(overrides: Partial<FeedPoint> = {}): FeedPoint {
         badge: "",
         label: "",
         detailAction: null,
+        listRow: { title: null, text: null, value: null },
+        sortValues: {},
         ...overrides,
     };
 }
@@ -80,7 +82,7 @@ describe("map markers", () => {
     it("keeps MapLibre's own classes when a marker changes", async () => {
         vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({} as RenderingContext);
         const container = document.createElement("div");
-        const map = new FeedMap(container, "default", true, () => undefined);
+        const map = new FeedMap(container, "default", true, null, () => undefined);
         await map.init();
         const draw = (point: FeedPoint, selected: string | null) =>
             map.update({ points: [{ key: "a", point, color: "#1565c0" }], shapes: [], areas: [], attributions: [], selected });
@@ -99,7 +101,7 @@ describe("map markers", () => {
 
     it("fades a marker through MapLibre, which owns the element's opacity", async () => {
         vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({} as RenderingContext);
-        const map = new FeedMap(document.createElement("div"), "default", true, () => undefined);
+        const map = new FeedMap(document.createElement("div"), "default", true, null, () => undefined);
         await map.init();
         map.update({
             points: [{ key: "a", point: ship({ opacity: 0.55 }), color: "#1565c0" }],
@@ -111,5 +113,23 @@ describe("map markers", () => {
         const marker = map["markers"].get("a")!.element;
         expect(marker.dataset.opacity).toBe("0.55");
         expect(marker.style.opacity).toBe("");
+    });
+
+    it("draws a label beside the marker, escaped", async () => {
+        vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({} as RenderingContext);
+        const map = new FeedMap(document.createElement("div"), "default", true, null, () => undefined);
+        await map.init();
+        const point = ship({ heading: null, stationary: true });
+        map.update({
+            points: [{ key: "a", point, color: "#1565c0", label: "<b>KUMMELI</b>" }],
+            shapes: [],
+            areas: [],
+            attributions: [],
+            selected: null,
+        });
+        const marker = map["markers"].get("a")!.element;
+        expect(marker.querySelector(".marker-label")!.textContent).toBe("<b>KUMMELI</b>");
+        expect(marker.querySelector("b")).toBeNull();
+        expect(marker.classList.contains("plain")).toBe(true);
     });
 });

@@ -7,6 +7,8 @@
  * it changes, the card shows an error in place of the map rather than an empty one.
  */
 import { osm } from "@versatiles/style";
+
+import { HA_MAP_COLORS, HA_MAP_COLORS_DARK, withLatinLabels } from "./map-theme";
 import type { RequestParameters, StyleSpecification } from "maplibre-gl";
 
 import type { HassConnection, HomeAssistant } from "./hass";
@@ -113,19 +115,38 @@ export function transformRequest(url: string): RequestParameters {
 }
 
 /**
- * The style for a map: Home Assistant's own default as it ships it (its own colours on `colorful`), or one of the
- * other palettes built here the way the frontend builds them, from @versatiles/style against the proxy's tiles and Home Assistant's glyphs and sprites.
+ * The style for a map: Home Assistant's own default as it ships it (its own colours on `colorful`), or one built here
+ * the way the frontend builds it, from @versatiles/style against the proxy's tiles and Home Assistant's glyphs and
+ * sprites. A theme's map colours (map-theme.ts) are painted over the style, the default included.
  */
-export async function loadStyle(style: MapStyle, dark: boolean): Promise<StyleSpecification> {
-    const built =
-        style === "default"
-            ? await fetchJson<StyleSpecification>(`/static/map/${dark ? "dark" : "light"}.json`)
-            : buildStyle(style + (dark ? "-dark" : ""), await fetchJson<Record<string, unknown>>("/static/map/urls.json"));
-    return withAbsoluteSprite(built);
+export async function loadStyle(
+    style: MapStyle,
+    dark: boolean,
+    themeColors: Record<string, string> | null = null,
+): Promise<StyleSpecification> {
+    if (style === "default" && !themeColors) {
+        return withAbsoluteSprite(await fetchJson<StyleSpecification>(`/static/map/${dark ? "dark" : "light"}.json`));
+    }
+    const base = style === "default" ? (dark ? HA_MAP_COLORS_DARK : HA_MAP_COLORS) : null;
+    const urls = await fetchJson<Record<string, unknown>>("/static/map/urls.json");
+    const palette = (style === "default" ? "colorful" : style) + (dark ? "-dark" : "");
+    // The builder throws on a colour it can't read, and a theme is no reason to lose the map: without the theme's
+    // colours, and then without any, it is the style as Home Assistant has it.
+    const attempts = [{ ...base, ...themeColors }, ...(base ? [base] : []), null];
+    for (const colors of attempts) {
+        try {
+            return withAbsoluteSprite(withLatinLabels(buildStyle(palette, urls, colors)));
+        } catch (error) {
+            if (!colors) throw error;
+            console.warn(`map-feed-card: the ${palette} map style couldn't take the theme's colours`, error);
+        }
+    }
+    throw new MapTilesError(`The ${palette} map style couldn't be built`);
 }
 
-function buildStyle(palette: string, urls: Record<string, unknown>): StyleSpecification {
-    const style = osm({ theme: palette, urls } as Parameters<typeof osm>[0]) as unknown as StyleSpecification;
+function buildStyle(palette: string, urls: Record<string, unknown>, colors: Record<string, string> | null): StyleSpecification {
+    const options = { theme: palette, urls, ...(colors && Object.keys(colors).length ? { colors } : {}) };
+    const style = osm(options as Parameters<typeof osm>[0]) as unknown as StyleSpecification;
     const sources = Object.values(style.sources) as unknown as Record<string, unknown>[];
     // The builder points its one source at VersaTiles' own servers; the tiles must come through Home Assistant.
     if (sources.length !== 1) throw new MapTilesError(`The ${palette} map style has ${sources.length} tile sources, expected one`);

@@ -62,6 +62,32 @@ export interface LegendEntry {
     label: string;
 }
 
+/** An order the feed offers for the card's list. */
+export interface SortKey {
+    key: string;
+    label: string;
+    property: string;
+    descending: boolean;
+}
+
+export interface FeedList {
+    sort: SortKey[];
+    /** The key the list starts in; null when the feed has no sort keys. */
+    defaultKey: string | null;
+    /** What the feed calls its items, or '' for the card's own word. */
+    count: string;
+}
+
+/** The parts of an item's row in the list that the feed gives; null leaves the card's own. */
+export interface ListRow {
+    title: string | null;
+    text: string | null;
+    value: string | null;
+}
+
+/** A value to sort by: a number, a time as milliseconds, or text. */
+export type SortValue = number | string;
+
 /**
  * What points and shapes have in common: everything their details show.
  * Optional values are null, '' or [] when the feed leaves them out.
@@ -81,6 +107,9 @@ export interface FeedItem {
     link: FeedLink | null;
     /** How strongly the item is drawn, MIN_OPACITY–1; 1 when the feed leaves it out. */
     opacity: number;
+    listRow: ListRow;
+    /** The values of the properties the feed's sort keys name, by property. */
+    sortValues: Record<string, SortValue>;
 }
 
 /** [longitude, latitude], as GeoJSON and MapLibre have it. */
@@ -113,6 +142,7 @@ export interface Feed {
     attribution: string;
     area: FeedArea | null;
     legend: LegendEntry[];
+    list: FeedList;
     points: FeedPoint[];
     shapes: FeedShape[];
     /** Features that were left out because they were invalid. */
@@ -152,10 +182,13 @@ export function readFeed(state: HassEntity | undefined): FeedResult {
     // A template may write the version as text, as with the GeoJSON.
     if (number(version) !== SUPPORTED_FEED_VERSION) return { status: "unsupported_version", version };
 
+    const list = readList(attributes.list);
+    const sortProperties = [...new Set(list.sort.map((key) => key.property))];
     const feed: Feed = {
         attribution: text(attributes.attribution),
         area: readArea(attributes.area),
         legend: readLegend(attributes.legend),
+        list,
         points: [],
         shapes: [],
         skipped: 0,
@@ -168,11 +201,11 @@ export function readFeed(state: HassEntity | undefined): FeedResult {
             return;
         }
         if (geometry.type === "Point") {
-            const point = readPoint(feature, geometry);
+            const point = readPoint(feature, geometry, sortProperties);
             if (point) feed.points.push(point);
             else feed.skipped += 1;
         } else {
-            const shape = readShape(feature, geometry, index);
+            const shape = readShape(feature, geometry, index, sortProperties);
             if (shape) feed.shapes.push(shape);
             else feed.skipped += 1;
         }
@@ -216,7 +249,7 @@ function featuresOf(value: unknown): unknown[] {
 }
 
 /** The properties every feature can have, points and shapes alike. */
-function readItem(id: string, props: Record<string, unknown>, fallbackName: string): FeedItem {
+function readItem(id: string, props: Record<string, unknown>, fallbackName: string, sortProperties: string[]): FeedItem {
     return {
         id,
         name: text(props.name) || fallbackName,
@@ -230,10 +263,12 @@ function readItem(id: string, props: Record<string, unknown>, fallbackName: stri
         images: readImages(props.images),
         link: readLink(props.link),
         opacity: readOpacity(props.opacity),
+        listRow: readListRow(props.list),
+        sortValues: readSortValues(props, sortProperties),
     };
 }
 
-function readPoint(feature: Record<string, unknown>, geometry: Record<string, unknown>): FeedPoint | null {
+function readPoint(feature: Record<string, unknown>, geometry: Record<string, unknown>, sortProperties: string[]): FeedPoint | null {
     const id = identifier(feature.id);
     const position = readPosition(geometry.coordinates);
     if (!id || !position) return null;
@@ -241,7 +276,7 @@ function readPoint(feature: Record<string, unknown>, geometry: Record<string, un
     const props = propertiesOf(feature);
     const heading = number(props.heading);
     return {
-        ...readItem(id, props, id),
+        ...readItem(id, props, id, sortProperties),
         lon: position[0],
         lat: position[1],
         heading: heading === null ? null : ((heading % 360) + 360) % 360,
@@ -255,12 +290,17 @@ function readPoint(feature: Record<string, unknown>, geometry: Record<string, un
     };
 }
 
-function readShape(feature: Record<string, unknown>, geometry: Record<string, unknown>, index: number): FeedShape | null {
+function readShape(
+    feature: Record<string, unknown>,
+    geometry: Record<string, unknown>,
+    index: number,
+    sortProperties: string[],
+): FeedShape | null {
     const shapeGeometry = readShapeGeometry(geometry);
     if (!shapeGeometry) return null;
     const props = propertiesOf(feature);
     return {
-        ...readItem(identifier(feature.id) || `shape:${index}`, props, ""),
+        ...readItem(identifier(feature.id) || `shape:${index}`, props, "", sortProperties),
         geometry: shapeGeometry,
         pointId: identifier(props.point),
     };
@@ -335,6 +375,52 @@ function readLegend(value: unknown): LegendEntry[] {
         const label = text(entry.label);
         return entryColor && label ? [{ color: entryColor, label }] : [];
     });
+}
+
+function readList(value: unknown): FeedList {
+    const list: FeedList = { sort: [], defaultKey: null, count: "" };
+    if (!isRecord(value)) return list;
+    const seen = new Set<string>();
+    for (const entry of Array.isArray(value.sort) ? value.sort : []) {
+        if (!isRecord(entry)) continue;
+        const key = text(entry.key);
+        const label = text(entry.label);
+        const property = text(entry.property);
+        if (!key || !label || !property || seen.has(key)) continue;
+        seen.add(key);
+        list.sort.push({ key, label, property, descending: entry.order === "desc" });
+    }
+    const defaultKey = text(value.default);
+    list.defaultKey = seen.has(defaultKey) ? defaultKey : (list.sort[0]?.key ?? null);
+    list.count = text(value.count);
+    return list;
+}
+
+function readListRow(value: unknown): ListRow {
+    if (!isRecord(value)) return { title: null, text: null, value: null };
+    const part = (part: unknown): string | null => (typeof part === "string" || typeof part === "number" ? text(part) : null);
+    return { title: part(value.title) || null, text: part(value.text), value: part(value.value) };
+}
+
+/** A date-time as ISO 8601 writes it; anything else that Date.parse would accept is left as text. */
+const ISO_TIME = /^\d{4}-\d{2}-\d{2}T/;
+
+function readSortValues(props: Record<string, unknown>, properties: string[]): Record<string, SortValue> {
+    const values: Record<string, SortValue> = {};
+    for (const property of properties) {
+        // Only the feature's own properties, never what an object answers from its prototype.
+        if (!Object.hasOwn(props, property)) continue;
+        const value = props[property];
+        if (typeof value === "number") {
+            if (Number.isFinite(value)) values[property] = value;
+        } else if (typeof value === "string" && value !== "") {
+            const parsed = ISO_TIME.test(value) ? time(value) : null;
+            values[property] = parsed ?? value;
+        } else if (typeof value === "boolean") {
+            values[property] = value ? 1 : 0;
+        }
+    }
+    return values;
 }
 
 /** Anything fainter would be hard to find, and nothing on the map should be impossible to tap. */

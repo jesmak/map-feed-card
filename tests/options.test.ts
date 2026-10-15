@@ -14,11 +14,15 @@ describe("parseOptions", () => {
                     maxAgeMinutes: null,
                     showArea: false,
                     areaColor: null,
+                    labels: false,
                 },
             ],
             mapStyle: "default",
             mapHeight: 300,
             legend: true,
+            list: false,
+            listHeight: 450,
+            sort: null,
         });
     });
 
@@ -31,6 +35,15 @@ describe("parseOptions", () => {
         });
         expect(feeds[0]).toMatchObject({ colorBy: "delay", delayThresholds: [2, 15], maxAgeMinutes: 10 });
         expect(feeds[1]).toMatchObject({ showArea: true, areaColor: "#ff6f00" });
+    });
+
+    it("reads the list's options", () => {
+        expect(parseOptions({ entities: ["sensor.birds"], list: true, list_height: 600, sort: " distance " })).toMatchObject({
+            list: true,
+            listHeight: 600,
+            sort: "distance",
+        });
+        expect(() => parseOptions({ entities: ["sensor.birds"], list_height: 50 })).toThrow(/list_height/);
     });
 
     it("refuses what it can't draw, saying what is wrong", () => {

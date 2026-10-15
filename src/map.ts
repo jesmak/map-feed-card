@@ -2,7 +2,7 @@
  * The map: MapLibre on Home Assistant's base map (map-tiles.ts), with the feeds' points as HTML markers and their
  * lines, polygons and areas as layers of their own on top.
  */
-import { AttributionControl, Map as MapLibreMap, Marker, NavigationControl, setWorkerUrl } from "maplibre-gl";
+import { AttributionControl, Map as MapLibreMap, Marker, NavigationControl, Popup, setWorkerUrl } from "maplibre-gl";
 import type { FeatureCollection } from "geojson";
 import type { GeoJSONSource, MapLayerMouseEvent, StyleSpecification } from "maplibre-gl";
 // The worker is carried as text and started from a blob, so the card stays one file, as HACS installs it.
@@ -11,13 +11,15 @@ import workerSource from "maplibre-gl/dist/maplibre-gl-worker.mjs?raw";
 import { areaOutline, type FeedArea, type FeedPoint, type FeedShape, type LngLat } from "./feed";
 import { loadStyle, onTokenChange, refreshToken, transformRequest } from "./map-tiles";
 import type { MapStyle } from "./options";
-import { markerHtml, textOn } from "./style";
+import { escapeHtml, markerHtml, textOn } from "./style";
 
 /** A point as the card wants it drawn. `key` is unique across the card's feeds. */
 export interface DrawnPoint {
     key: string;
     point: FeedPoint;
     color: string;
+    /** Text beside the marker, or '' for none. */
+    label?: string;
 }
 
 export interface DrawnShape {
@@ -26,6 +28,8 @@ export interface DrawnShape {
     selects: string;
     shape: FeedShape;
     color: string;
+    /** Shown on hover: the shape's own name, or its point's. */
+    name: string;
 }
 
 export interface DrawnArea {
@@ -78,6 +82,8 @@ export class FeedMap {
     private attributionText = "";
     private style: MapStyle;
     private dark: boolean;
+    /** The theme's map colours (map-theme.ts), or null for none. */
+    private theme: Record<string, string> | null;
     private refused = false;
     private lastRecovery = 0;
     private unsubscribe?: () => void;
@@ -87,10 +93,12 @@ export class FeedMap {
         private readonly container: HTMLElement,
         style: MapStyle,
         dark: boolean,
+        theme: Record<string, string> | null,
         private readonly onSelect: (key: string | null) => void,
     ) {
         this.style = style;
         this.dark = dark;
+        this.theme = theme;
     }
 
     /** Throws when the map can't be drawn: no WebGL, or no tiles from Home Assistant. */
@@ -99,7 +107,7 @@ export class FeedMap {
             throw new Error("This browser can't draw the map: WebGL 2 is not available");
         }
         ensureWorker();
-        const style = await loadStyle(this.style, this.dark);
+        const style = await loadStyle(this.style, this.dark, this.theme);
         if (this.destroyed) return;
 
         const map = new MapLibreMap({
@@ -131,13 +139,20 @@ export class FeedMap {
         this.unsubscribe = onTokenChange(() => {
             if (!this.refused) return;
             this.refused = false;
-            void this.setStyle(this.style, this.dark, true);
+            void this.setStyle(this.style, this.dark, this.theme, true);
         });
 
         // A new style drops every source and layer, so they are added again whenever one has loaded.
         map.on("style.load", () => this.addLayers());
         map.on("click", (event) => this.click(event));
+        // A line's or an area's name follows the pointer; touch has no hover, and a tap shows the details anyway.
+        const tooltip = new Popup({ closeButton: false, closeOnClick: false, className: "feed-tooltip", offset: 12 });
         for (const layer of TAP_LAYERS) {
+            map.on("mousemove", layer, (event) => {
+                const name = event.features?.[0]?.properties?.name;
+                if (typeof name === "string" && name) tooltip.setLngLat(event.lngLat).setText(name).addTo(map);
+            });
+            map.on("mouseleave", layer, () => tooltip.remove());
             map.on("mouseenter", layer, () => (map.getCanvas().style.cursor = "pointer"));
             map.on("mouseleave", layer, () => (map.getCanvas().style.cursor = ""));
         }
@@ -145,12 +160,16 @@ export class FeedMap {
         await new Promise<void>((resolve) => (map.isStyleLoaded() ? resolve() : map.once("style.load", () => resolve())));
     }
 
-    async setStyle(style: MapStyle, dark: boolean, force = false): Promise<void> {
-        if (!this.map || (!force && style === this.style && dark === this.dark)) return;
+    async setStyle(style: MapStyle, dark: boolean, theme: Record<string, string> | null, force = false): Promise<void> {
+        const same = style === this.style && dark === this.dark && JSON.stringify(theme) === JSON.stringify(this.theme);
+        if (!this.map || (!force && same)) return;
         this.style = style;
         this.dark = dark;
-        const loaded: StyleSpecification = await loadStyle(style, dark);
-        if (!this.destroyed && style === this.style && dark === this.dark) this.map.setStyle(loaded, { diff: false });
+        this.theme = theme;
+        const loaded: StyleSpecification = await loadStyle(style, dark, theme);
+        // Only the newest request is drawn, when several were made while styles were loading.
+        if (!this.destroyed && style === this.style && dark === this.dark && theme === this.theme)
+            this.map.setStyle(loaded, { diff: false });
     }
 
     update(content: MapContent): void {
@@ -194,7 +213,9 @@ export class FeedMap {
         const seen = new Set<string>();
         for (const drawn of this.content.points) {
             seen.add(drawn.key);
-            const { html, shape } = markerHtml(drawn.point);
+            const marker = markerHtml(drawn.point);
+            const { shape } = marker;
+            const html = drawn.label ? `${marker.html}<span class="marker-label">${escapeHtml(drawn.label)}</span>` : marker.html;
             const selected = drawn.key === this.content.selected;
             const existing = this.markers.get(drawn.key);
             const entry = existing ?? this.createMarker(drawn.key);
@@ -209,7 +230,7 @@ export class FeedMap {
                 element.classList.add(shape);
                 entry.shape = shape;
             }
-            element.classList.toggle("plain", !html);
+            element.classList.toggle("plain", !marker.html);
             element.classList.toggle("selected", selected);
             element.style.background = drawn.color;
             element.style.color = textOn(drawn.color);
@@ -282,7 +303,7 @@ export class FeedMap {
         const selected = this.content.selected;
         shapes.setData({
             type: "FeatureCollection",
-            features: this.content.shapes.map(({ key, selects, shape, color }) => ({
+            features: this.content.shapes.map(({ key, selects, shape, color, name: shapeName }) => ({
                 type: "Feature",
                 geometry:
                     shape.geometry.type === "line"
@@ -292,6 +313,7 @@ export class FeedMap {
                     key,
                     selects,
                     color,
+                    name: shapeName,
                     width: lineWidth(shape.kind),
                     opacity: shape.kind === "road.maintenance_track" ? shape.opacity * 0.5 : shape.opacity,
                     selected: selects === selected || key === selected,
