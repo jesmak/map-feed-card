@@ -1,0 +1,49 @@
+{
+    "common": {
+        "name": "Karttasyöte",
+        "description": "Junat, laivat, bussit, tietyöt, linnut ja muut karttasyötteen kohteet Home Assistantin omalla kartalla",
+        "select_hint": "Valitse kohde kartalta nähdäksesi sen tarkemmat tiedot.",
+        "no_entity": "Entiteettiä ei löydy:",
+        "not_a_feed": "ei ole karttasyöte",
+        "unavailable": "ei ole juuri nyt saatavilla",
+        "unsupported_version": "käyttää karttasyötteen uudempaa versiota. Päivitä kortti.",
+        "loading": "Ladataan…",
+        "cancelled": "Peruttu",
+        "on_time": "ajallaan",
+        "late": "{n} min myöhässä",
+        "early": "{n} min etuajassa",
+        "just_now": "juuri nyt",
+        "min_ago": "{n} min sitten",
+        "hours_ago": "{n} t sitten",
+        "days_ago": "{n} pv sitten",
+        "close_image": "Sulje kuva"
+    },
+    "legend": {
+        "on_time": "ajallaan",
+        "late": "{n}+ min",
+        "cancelled": "peruttu"
+    },
+    "editor": {
+        "title": "Otsikko",
+        "entities": "Karttasyötteet",
+        "entities_helper": "Karttasyötemuotoa kirjoittavat sensorit, piirretään samalle kartalle",
+        "entity": "Karttasyötteen sensori",
+        "color_by": "Väri",
+        "color_by_kind": "Tyypin mukaan",
+        "color_by_delay": "Myöhästymisen mukaan",
+        "late_minutes": "Myöhässä alkaen (min)",
+        "very_late_minutes": "Paljon myöhässä alkaen (min)",
+        "max_age_minutes": "Piilota sijainnit, jotka ovat vanhempia kuin (min)",
+        "show_area": "Näytä syötteen alue",
+        "area_color": "Alueen väri",
+        "map_style": "Kartan tyyli",
+        "map_style_default": "Home Assistant",
+        "map_style_colorful": "Värikäs",
+        "map_style_natural": "Luonto",
+        "map_style_muted": "Hillitty",
+        "map_style_gray": "Harmaa",
+        "map_style_toner": "Suuri kontrasti",
+        "map_height": "Kartan korkeus (px)",
+        "legend": "Näytä selite"
+    }
+}

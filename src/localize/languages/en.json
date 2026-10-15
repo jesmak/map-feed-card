@@ -1,0 +1,49 @@
+{
+    "common": {
+        "name": "Map feed",
+        "description": "Trains, ships, buses, road works, birds and anything else from a map feed, on Home Assistant's own map",
+        "select_hint": "Select an item on the map to see more about it.",
+        "no_entity": "Entity not found:",
+        "not_a_feed": "is not a map feed",
+        "unavailable": "is not available right now",
+        "unsupported_version": "uses a newer version of the map feed format. Update the card.",
+        "loading": "Loading…",
+        "cancelled": "Cancelled",
+        "on_time": "on time",
+        "late": "{n} min late",
+        "early": "{n} min early",
+        "just_now": "just now",
+        "min_ago": "{n} min ago",
+        "hours_ago": "{n} h ago",
+        "days_ago": "{n} d ago",
+        "close_image": "Close the picture"
+    },
+    "legend": {
+        "on_time": "on time",
+        "late": "{n}+ min",
+        "cancelled": "cancelled"
+    },
+    "editor": {
+        "title": "Title",
+        "entities": "Map feeds",
+        "entities_helper": "Sensors that write the map feed format, drawn on the same map",
+        "entity": "Map feed sensor",
+        "color_by": "Colour by",
+        "color_by_kind": "Kind",
+        "color_by_delay": "Delay",
+        "late_minutes": "Late from (min)",
+        "very_late_minutes": "Very late from (min)",
+        "max_age_minutes": "Hide positions older than (min)",
+        "show_area": "Show the feed's area",
+        "area_color": "Area colour",
+        "map_style": "Map style",
+        "map_style_default": "Home Assistant",
+        "map_style_colorful": "Colourful",
+        "map_style_natural": "Natural",
+        "map_style_muted": "Muted",
+        "map_style_gray": "Grey",
+        "map_style_toner": "High contrast",
+        "map_height": "Map height (px)",
+        "legend": "Show a legend"
+    }
+}
