@@ -49,6 +49,8 @@ export interface FeedImage {
     caption: string;
     /** When the picture was taken, in milliseconds since the epoch. */
     takenMs: number | null;
+    /** The page the picture links to, always an https URL, or null. */
+    link: string | null;
 }
 
 export interface FeedLink {
@@ -63,7 +65,7 @@ export interface LegendEntry {
 }
 
 /** What a feed is about, as the format's kind families; the editor offers only the options that make sense for it. */
-export const FEED_TYPES = ["ship", "train", "transit", "road", "nature", "other"] as const;
+export const FEED_TYPES = ["ship", "train", "transit", "air", "road", "nature", "other"] as const;
 export type FeedType = (typeof FEED_TYPES)[number];
 
 /** An order the feed offers for the card's list. */
@@ -80,6 +82,8 @@ export interface FeedList {
     defaultKey: string | null;
     /** What the feed calls its items, or '' for the card's own word. */
     count: string;
+    /** What the feed calls one item, or '' to use `count` for one too. */
+    countOne: string;
 }
 
 /** The parts of an item's row in the list that the feed gives; null leaves the card's own. */
@@ -146,6 +150,8 @@ export interface Feed {
     /** null when the feed doesn't say, or says something the card doesn't know. */
     type: FeedType | null;
     attribution: string;
+    /** The page the attribution links to, always an https URL, or ''. */
+    attributionUrl: string;
     area: FeedArea | null;
     legend: LegendEntry[];
     list: FeedList;
@@ -193,6 +199,8 @@ export function readFeed(state: HassEntity | undefined): FeedResult {
     const feed: Feed = {
         type: (FEED_TYPES as readonly unknown[]).includes(attributes.feed_type) ? (attributes.feed_type as FeedType) : null,
         attribution: text(attributes.attribution),
+        attributionUrl:
+            typeof attributes.attribution_url === "string" && isHttpsUrl(attributes.attribution_url) ? attributes.attribution_url : "",
         area: readArea(attributes.area),
         legend: readLegend(attributes.legend),
         list,
@@ -357,7 +365,8 @@ function readImages(value: unknown): FeedImage[] {
 /** Only https URLs are accepted: the URL ends up in an img tag. */
 function readImage(item: unknown): FeedImage | null {
     if (!isRecord(item) || typeof item.url !== "string" || !isHttpsUrl(item.url)) return null;
-    return { url: item.url, caption: text(item.caption), takenMs: time(item.time) };
+    const link = typeof item.link === "string" && isHttpsUrl(item.link) ? item.link : null;
+    return { url: item.url, caption: text(item.caption), takenMs: time(item.time), link };
 }
 
 /** Only https URLs are accepted: the URL ends up in a link. Without a label, the link shows the site's name. */
@@ -385,7 +394,7 @@ function readLegend(value: unknown): LegendEntry[] {
 }
 
 function readList(value: unknown): FeedList {
-    const list: FeedList = { sort: [], defaultKey: null, count: "" };
+    const list: FeedList = { sort: [], defaultKey: null, count: "", countOne: "" };
     if (!isRecord(value)) return list;
     const seen = new Set<string>();
     for (const entry of Array.isArray(value.sort) ? value.sort : []) {
@@ -400,6 +409,7 @@ function readList(value: unknown): FeedList {
     const defaultKey = text(value.default);
     list.defaultKey = seen.has(defaultKey) ? defaultKey : (list.sort[0]?.key ?? null);
     list.count = text(value.count);
+    list.countOne = text(value.count_one);
     return list;
 }
 
@@ -493,7 +503,7 @@ function readArea(value: unknown): FeedArea | null {
 
 /* ---------------- kinds ---------------- */
 
-export type KindFamily = "ship" | "train" | "transit" | "road" | "other";
+export type KindFamily = "ship" | "train" | "transit" | "air" | "road" | "other";
 
 const TRANSIT_KINDS: ReadonlySet<string> = new Set(["bus", "tram", "metro", "ferry"]);
 
@@ -511,6 +521,7 @@ export function kindFamily(kind: string): KindFamily {
     const prefix = kind.split(".", 1)[0];
     if (prefix === "ship") return "ship";
     if (prefix === "train") return "train";
+    if (prefix === "air") return "air";
     if (prefix === "road") return "road";
     if (TRANSIT_KINDS.has(kind)) return "transit";
     return "other";
@@ -522,7 +533,7 @@ export function kindFamily(kind: string): KindFamily {
  */
 export function isMoving(kind: string): boolean {
     const family = kindFamily(kind);
-    return family === "ship" || family === "train" || family === "transit" || kind === "road.maintenance";
+    return family === "ship" || family === "train" || family === "transit" || family === "air" || kind === "road.maintenance";
 }
 
 export type MarkerSymbol = "warning" | "camera" | "bird" | null;

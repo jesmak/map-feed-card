@@ -1,6 +1,6 @@
 # Map feed card
 
-Home Assistant dashboard card that draws map feeds, such as trains, ships, buses, road works and birds, on Home
+Home Assistant dashboard card that draws map feeds, such as trains, ships, buses, aircraft, road works and birds, on Home
 Assistant's own map, with the selected item's details beside it.
 
 [![GitHub Release][releases-shield]][releases] [![GitHub Release Date][release-date-shield]][releases] [![HACS][hacs-shield]][hacs] [![License][license-shield]](LICENSE)
@@ -15,7 +15,7 @@ Assistant's own map, with the selected item's details beside it.
 ## What is it?
 
 A custom card for things that have a position and change, such as the trains on a stretch of track, the ships near a
-harbour, the buses of a line, road works and road cameras, or the places where birds were seen this week. Each one is a marker
+harbour, the aircraft overhead, the buses of a line, road works and road cameras, or the places where birds were seen this week. Each one is a marker
 on the map, coloured by its kind or by how late it is. Tap one, and its details open in a panel below the map, or
 beside it when the card is wide. They show its status, its details as a table or a list of pictures, notices,
 pictures and a link to the source.
@@ -30,6 +30,7 @@ writes it:
   weather stations and road cameras in Finland.
 - [Digitransit Live](https://github.com/jesmak/digitransit_live): buses, trams and metros in Finland.
 - [Birds Nearby](https://github.com/jesmak/birds_nearby): recent bird sightings near home, from eBird.
+- [ADS-B Live](https://github.com/jesmak/adsb_live): aircraft from your own ADS-B receiver, and from adsb.fi.
 
 Integrations that write the format carry the GitHub topic
 [`map-feed-card-source`](https://github.com/topics/map-feed-card-source), so that's where to look for more. If you
@@ -86,10 +87,11 @@ Every option is in the card's visual editor, which offers each feed only the opt
 
 **The map** shows each item where it is. Something with a known heading has an arrow pointing where it is going, and
 an item with a short label, such as a train's number, shows it in the marker. Road works, road cameras and birds have
-symbols of their own. Lines and areas, such as a road under construction or the stretch a snow plough has cleared, are
+symbols of their own, and an aircraft is the silhouette of its kind, such as a light aircraft, an airliner or a
+helicopter, turned the way it flies. Lines and areas, such as a road under construction or the stretch a snow plough has cleared, are
 drawn in their item's colour, and tapping one selects it. Pointing at a line or an area shows its name, and with
 `labels` every marker has its name beside it. When the card opens, the map shows the feeds' areas, or everything in
-them when they have none. The map follows the theme, light or dark, and takes the map colours a theme sets with `--ha-color-map-*` variables, as Home Assistant's own map does.
+them when they have none. The map follows the theme, light or dark, and takes the map colours a theme sets with `--ha-color-map-*` variables, as Home Assistant's own map does. Its corner credits each feed's source, with a link when the feed gives one.
 
 <p>
 <img src="https://raw.githubusercontent.com/jesmak/map-feed-card/main/docs/images/road-traffic-light.png#gh-light-mode-only" width="830" alt="Road works, an announcement and a snow plough on a map, with the road works' stretch drawn as a line and a legend of their kinds">
@@ -100,7 +102,7 @@ them when they have none. The map follows the theme, light or dark, and takes th
 marker already shows its number. Under it, something that moves has a status line with its delay, its speed and how
 old its position is, coloured by the delay. Then come the item's details, drawn by their shape. Rows with a picture,
 such as the species seen at a place, are a list with the pictures, and rows without one a table. A row can carry a
-tag, such as an endangered species' status. Notices are highlighted below them. Tapping a picture shows it large.
+tag, such as an endangered species' status. Notices are highlighted below them. Tapping a picture shows it large, or opens its page when the feed links it there, as a photo's terms may ask.
 
 **The list**, with `list: true`, shows every item as a row: a title, a line under it and a value, such as a delay or
 a distance. A feed can say what the list can be sorted by, such as delay and number for trains, and the order is chosen on the card when there is more than one. Tapping a row unfolds its details beneath it and brings its marker into view, and tapping it again folds them away. Tapping a marker opens its row. Above the list is the number of items, with the sensor's name when the card shows one feed.

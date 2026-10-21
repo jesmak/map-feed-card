@@ -259,21 +259,38 @@ function valueOf(row: DetailRow): string {
     return row.unit ? `${row.value} ${row.unit}` : row.value;
 }
 
+/** A picture with a link opens its page, as some sources' terms ask of the picture itself; others are shown large. */
 function picture(image: FeedImage, onImage: (image: FeedImage | null) => void, text: Text): TemplateResult {
     const age = formatAge(image.takenMs, text);
     return html`<figure>
-        <button class="picture" @click=${() => onImage(image)} aria-label=${image.caption || ""}>
-            <img src=${image.url} alt="" loading="lazy" />
-        </button>
+        ${
+            image.link
+                ? linkedPicture(image, "lazy")
+                : html`<button class="picture" @click=${() => onImage(image)} aria-label=${image.caption || ""}>
+                      <img src=${image.url} alt="" loading="lazy" />
+                  </button>`
+        }
         ${image.caption || age ? html`<figcaption>${[image.caption, age].filter(Boolean).join(" · ")}</figcaption>` : nothing}
     </figure>`;
 }
 
+/** A row's picture tapped large. With a link the picture opens its page, so closing it takes a button of its own. */
 function featuredImage(image: FeedImage, onImage: (image: FeedImage | null) => void, text: Text): TemplateResult {
     return html`<figure class="featured">
-        <button class="picture" @click=${() => onImage(null)} aria-label=${text("common.close_image")}>
-            <img src=${image.url} alt=${image.caption} />
-        </button>
+        ${
+            image.link
+                ? html`${linkedPicture(image, "eager")}
+                      <button class="close" @click=${() => onImage(null)} aria-label=${text("common.close_image")}>×</button>`
+                : html`<button class="picture" @click=${() => onImage(null)} aria-label=${text("common.close_image")}>
+                      <img src=${image.url} alt=${image.caption} />
+                  </button>`
+        }
         ${image.caption ? html`<figcaption>${image.caption}</figcaption>` : nothing}
     </figure>`;
+}
+
+function linkedPicture(image: FeedImage, loading: "lazy" | "eager"): TemplateResult {
+    return html`<a class="picture linked" href=${image.link!} target="_blank" rel="noopener noreferrer" aria-label=${image.caption || ""}>
+        <img src=${image.url} alt="" loading=${loading} />
+    </a>`;
 }

@@ -92,3 +92,14 @@ function compare(a: SortValue, b: SortValue, collator: Intl.Collator): number {
     if (typeof b === "number") return 1;
     return collator.compare(a, b);
 }
+
+/**
+ * The count above the list, in the feeds' own word when they all use the same one, else in the card's. One item takes
+ * the singular, the feed's `count_one` or the card's own, as languages such as Finnish write "1 kohde" but "2 kohdetta".
+ */
+export function countText(n: number, lists: FeedList[], text: Text): string {
+    const words = new Set(lists.map((list) => `${list.count}|${list.countOne}`));
+    const list = lists[0];
+    if (words.size === 1 && list?.count) return `${n} ${n === 1 && list.countOne ? list.countOne : list.count}`;
+    return text(n === 1 ? "list.count_one" : "list.count", { n });
+}

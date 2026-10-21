@@ -115,6 +115,25 @@ describe("map markers", () => {
         expect(marker.style.opacity).toBe("");
     });
 
+    it("draws an aircraft as its silhouette in its colour, with no disc behind it, and a ship as a disc again", async () => {
+        vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({} as RenderingContext);
+        const map = new FeedMap(document.createElement("div"), "default", true, null, () => undefined);
+        await map.init();
+        const draw = (point: FeedPoint) =>
+            map.update({ points: [{ key: "a", point, color: "#9b36f2" }], shapes: [], areas: [], attributions: [], selected: null });
+        draw(ship({ kind: "air.large", heading: 94 }));
+        const marker = map["markers"].get("a")!.element;
+        expect(marker.classList.contains("silhouette")).toBe(true);
+        expect(marker.style.background).toBe("");
+        expect(marker.style.color).toBe("#9b36f2");
+        expect(marker.querySelector("svg.silhouette")).not.toBeNull();
+
+        draw(ship());
+        expect(marker.classList.contains("silhouette")).toBe(false);
+        expect(marker.classList.contains("disc")).toBe(true);
+        expect(marker.style.background).toBe("#9b36f2");
+    });
+
     it("draws a label beside the marker, escaped", async () => {
         vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({} as RenderingContext);
         const map = new FeedMap(document.createElement("div"), "default", true, null, () => undefined);

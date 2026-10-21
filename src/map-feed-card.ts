@@ -26,7 +26,7 @@ import {
     type LegendEntry,
 } from "./feed";
 import type { HomeAssistant } from "./hass";
-import { rowOf, sortOptions, sortRows, startingSort, type Row } from "./list";
+import { countText, rowOf, sortOptions, sortRows, startingSort, type Row } from "./list";
 import { browserLanguage, translate } from "./localize/localize";
 import { FeedMap, type DrawnArea, type DrawnPoint, type DrawnShape, type MapContent } from "./map";
 import { ensureToken, MapError } from "./map-tiles";
@@ -205,7 +205,7 @@ export class MapFeedCard extends LitElement {
         const titleInList = list && this.wide && title !== "";
         return html`
             <ha-card
-                class=${classMap({ wide: this.wide, "with-list": list })}
+                class=${classMap({ wide: this.wide, "with-list": list, dark: this.dark() })}
                 style="--map-height:${this.options.mapHeight}px;--list-height:${this.options.listHeight}px"
             >
                 ${title && !titleInList ? html`<h1 class="card-title">${title}</h1>` : nothing}
@@ -257,9 +257,7 @@ export class MapFeedCard extends LitElement {
             key,
             this.language(),
         );
-        const counts = new Set(lists.map((list) => list.count));
-        const number =
-            counts.size === 1 && lists[0]?.count ? `${entries.length} ${lists[0].count}` : this.text("list.count", { n: entries.length });
+        const number = countText(entries.length, lists, (key, values) => this.text(key, values));
         // A single feed says what the items are, by its sensor's name.
         const feeds = this.options!.feeds;
         const name = feeds.length === 1 ? this.hass?.states[feeds[0]!.entity]?.attributes?.friendly_name : undefined;
@@ -455,7 +453,7 @@ export class MapFeedCard extends LitElement {
                 view.problems.push(this.problem(feed.entity, result.status));
                 continue;
             }
-            const { points, shapes, area, attribution, list } = result.feed;
+            const { points, shapes, area, attribution, attributionUrl, list } = result.feed;
             view.lists.push(list);
             const pointKeys = new Map<string, DrawnPoint>();
             const tooOld = (item: FeedItem) =>
@@ -512,8 +510,14 @@ export class MapFeedCard extends LitElement {
                 view.content.areas.push({ area, color: feed.areaColor ?? areaColor(this.dark()) } satisfies DrawnArea);
             // The feed's area frames the map best; without one, everything in the feed does.
             view.extent.push(...(area ? areaOutline(area) : extent));
-            // MapLibre reads an attribution as HTML; a feed's is text, as everything in it is.
-            if (attribution) view.content.attributions.push(escapeHtml(attribution));
+            // MapLibre reads an attribution as HTML; a feed's is text, as everything in it is, and its link an https URL.
+            if (attribution) {
+                view.content.attributions.push(
+                    attributionUrl
+                        ? `<a href="${escapeHtml(attributionUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(attribution)}</a>`
+                        : escapeHtml(attribution),
+                );
+            }
             // The delay classes explain what is coloured by delay, the feed's legend what keeps the feed's own colours.
             for (const legend of [byDelay ? this.delayLegend(feed, delays) : [], ownColours ? result.feed.legend : []]) {
                 const signature = JSON.stringify(legend);
@@ -617,6 +621,10 @@ export class MapFeedCard extends LitElement {
                 display: flex;
                 flex-direction: column;
                 container: card / inline-size;
+                --silhouette-edge: #1c1c1c;
+            }
+            ha-card.dark {
+                --silhouette-edge: #e8e8e8;
             }
             .card-title {
                 margin: 0;
@@ -987,6 +995,32 @@ export class MapFeedCard extends LitElement {
                 width: 18px;
                 height: 18px;
             }
+            /* An aircraft: its silhouette alone, edged dark on a light map and light on a dark one. */
+            .feed-marker.silhouette {
+                width: 28px;
+                height: 28px;
+                border: none;
+                box-shadow: none;
+                background: none;
+                filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
+            }
+            .feed-marker.silhouette.selected {
+                width: 34px;
+                height: 34px;
+                border: none;
+                box-shadow: none;
+                filter: drop-shadow(0 0 1.5px #fff) drop-shadow(0 0 1.5px #fff) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
+            }
+            .feed-marker svg.silhouette {
+                width: 100%;
+                height: 100%;
+                overflow: visible;
+                fill: currentColor;
+                stroke: var(--silhouette-edge);
+                stroke-width: 4.3;
+                stroke-linejoin: round;
+                paint-order: stroke;
+            }
             .feed-marker .glyph {
                 width: 12px;
                 height: 12px;
@@ -1180,6 +1214,26 @@ export class MapFeedCard extends LitElement {
             }
             .featured .picture {
                 cursor: zoom-out;
+            }
+            .picture.linked {
+                cursor: pointer;
+            }
+            .featured {
+                position: relative;
+            }
+            .featured .close {
+                position: absolute;
+                top: 6px;
+                right: 6px;
+                width: 28px;
+                height: 28px;
+                padding: 0;
+                border: none;
+                border-radius: 50%;
+                font: 400 20px/28px var(--ha-font-family-body, Roboto, sans-serif);
+                color: #fff;
+                background: rgba(0, 0, 0, 0.55);
+                cursor: pointer;
             }
             figcaption {
                 margin-top: 4px;

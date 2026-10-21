@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Text } from "../src/details";
 import type { FeedItem, FeedList, FeedPoint } from "../src/feed";
-import { rowOf, sortOptions, sortRows, startingSort } from "../src/list";
+import { countText, rowOf, sortOptions, sortRows, startingSort } from "../src/list";
 
 const text: Text = (key, values = {}) => {
     const texts: Record<string, string> = {
@@ -11,6 +11,8 @@ const text: Text = (key, values = {}) => {
         "common.on_time": "on time",
         "common.cancelled": "cancelled",
         "list.delay": "{n} min",
+        "list.count": "{n} items",
+        "list.count_one": "{n} item",
     };
     return (texts[key] ?? key).replace(/\{(\w+)\}/g, (_, name: string) => String(values[name]));
 };
@@ -75,6 +77,25 @@ describe("rows", () => {
     });
 });
 
+describe("count", () => {
+    const list = (count: string, countOne: string): FeedList => ({ sort: [], defaultKey: null, count, countOne });
+
+    it("counts in the feed's word, with its singular for one", () => {
+        expect(countText(1, [list("ilma-alusta", "ilma-alus")], text)).toBe("1 ilma-alus");
+        expect(countText(2, [list("ilma-alusta", "ilma-alus")], text)).toBe("2 ilma-alusta");
+        expect(countText(0, [list("ilma-alusta", "ilma-alus")], text)).toBe("0 ilma-alusta");
+        expect(countText(1, [list("junaa", "")], text)).toBe("1 junaa");
+    });
+
+    it("counts in the card's own word, with its singular, when the feeds have none or differ", () => {
+        expect(countText(1, [list("", "")], text)).toBe("1 item");
+        expect(countText(3, [list("", "")], text)).toBe("3 items");
+        expect(countText(1, [list("ilma-alusta", "ilma-alus"), list("junaa", "juna")], text)).toBe("1 item");
+        expect(countText(2, [list("ilma-alusta", "ilma-alus"), list("ilma-alusta", "")], text)).toBe("2 items");
+        expect(countText(2, [list("ilma-alusta", "ilma-alus"), list("ilma-alusta", "ilma-alus")], text)).toBe("2 ilma-alusta");
+    });
+});
+
 describe("sorting", () => {
     const birds: FeedList = {
         sort: [
@@ -83,11 +104,13 @@ describe("sorting", () => {
         ],
         defaultKey: "distance",
         count: "",
+        countOne: "",
     };
     const trains: FeedList = {
         sort: [{ key: "number", label: "Number", property: "badge", descending: false }],
         defaultKey: "number",
         count: "",
+        countOne: "",
     };
     const entry = (name: string, list: FeedList, sortValues: FeedItem["sortValues"]) => ({ item: point({ name, sortValues }), list });
 
@@ -117,6 +140,6 @@ describe("sorting", () => {
         expect(sortOptions([birds, trains, birds]).map((option) => option.key)).toEqual(["distance", "recent", "number"]);
         expect(startingSort("number", [birds, trains])).toBe("number");
         expect(startingSort("missing", [birds, trains])).toBe("distance");
-        expect(startingSort(null, [{ sort: [], defaultKey: null, count: "" }])).toBeNull();
+        expect(startingSort(null, [{ sort: [], defaultKey: null, count: "", countOne: "" }])).toBeNull();
     });
 });

@@ -39,11 +39,21 @@ export const KIND_COLORS: Readonly<Record<string, string>> = {
     "road.condition.unknown": "#9e9e9e",
     "road.weather_station": "#0277bd",
     "road.camera": "#37474f",
+    "air.light": "#2e7d32",
+    "air.small": "#00838f",
+    "air.large": "#1565c0",
+    "air.heavy": "#6a1b9a",
+    "air.high_performance": "#c62828",
+    "air.rotorcraft": "#ef6c00",
+    "air.glider": "#f9a825",
+    "air.balloon": "#d81b60",
+    "air.drone": "#37474f",
+    "air.other": "#546e7a",
     bird: "#2e7d32",
     other: "#546e7a",
 };
 
-const FAMILY_COLORS = { ship: "#546e7a", train: "#546e7a", transit: "#00796b", road: "#546e7a", other: "#546e7a" } as const;
+const FAMILY_COLORS = { ship: "#546e7a", train: "#546e7a", transit: "#00796b", air: "#546e7a", road: "#546e7a", other: "#546e7a" } as const;
 
 export type DelayClass = "on_time" | "late" | "very_late" | "cancelled" | "unknown";
 
@@ -115,10 +125,33 @@ const WARNING = `<svg class="glyph" viewBox="-11 -11 22 22" aria-hidden="true"><
 const CAMERA = `<svg class="glyph" viewBox="-11 -9 22 18" aria-hidden="true"><rect x="-9" y="-5" width="18" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cy="1" r="3.2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>`;
 
 /**
- * The marker's inner HTML: a badge with its text, or a disc with an arrow, a symbol or nothing. Every value from the
- * feed is escaped.
+ * Aircraft from above, nose up, in a 100 × 100 box, filled with the marker's colour and edged with --silhouette-edge.
+ * Drawn for this card: tar1090's shapes are GPL.
  */
-export function markerHtml(point: FeedPoint): { html: string; shape: "badge" | "disc" } {
+const SILHOUETTES: Readonly<Record<string, string>> = {
+    "air.light": `<path d="M50 16 C53 16 54.5 20 54.5 26 L54.5 34 L96 34 L96 43 L54.5 43 L54 74 L67 76 L67 83 L50 82 L33 83 L33 76 L46 74 L45.5 43 L4 43 L4 34 L45.5 34 L45.5 26 C45.5 20 47 16 50 16 Z"/><rect x="39" y="11" width="22" height="4" rx="2"/>`,
+    "air.small": `<path d="M50 8 C53 8 54 12 54 18 L54 38 L95 40 L95 48 L54 50 L54 78 L68 82 L68 88 L50 86 L32 88 L32 82 L46 78 L46 50 L5 48 L5 40 L46 38 L46 18 C46 12 47 8 50 8 Z"/><ellipse cx="31" cy="38" rx="4.5" ry="10"/><ellipse cx="69" cy="38" rx="4.5" ry="10"/>`,
+    "air.large": `<path d="M50 8 C53 8 54.5 12 54.5 17 L54.5 37 L92 57 L92 64 L54.5 55 L54.5 76 L66 84 L66 89 L50 85.5 L34 89 L34 84 L45.5 76 L45.5 55 L8 64 L8 57 L45.5 37 L45.5 17 C45.5 12 47 8 50 8 Z"/>`,
+    "air.heavy": `<path d="M50 3 C54.5 3 56.5 8 56.5 15 L56.5 36 L97 61 L97 68 L56.5 57 L56.5 80 L71 89 L71 94 L50 90 L29 94 L29 89 L43.5 80 L43.5 57 L3 68 L3 61 L43.5 36 L43.5 15 C43.5 8 45.5 3 50 3 Z"/><ellipse cx="28" cy="52" rx="4" ry="7"/><ellipse cx="72" cy="52" rx="4" ry="7"/>`,
+    "air.high_performance": `<path d="M50 3 L54.5 20 L55.5 46 L89 70 L89 77 L56.5 71 L57.5 82 L69 92 L69 97 L50 93 L31 97 L31 92 L42.5 82 L43.5 71 L11 77 L11 70 L44.5 46 L45.5 20 Z"/>`,
+    "air.rotorcraft": `<ellipse cx="50" cy="42" rx="11" ry="16"/><rect x="47" y="54" width="6" height="34" rx="2"/><rect x="39" y="84" width="22" height="6" rx="2"/><rect x="47" y="2" width="6" height="80" rx="3" transform="rotate(45 50 42)"/><rect x="47" y="2" width="6" height="80" rx="3" transform="rotate(-45 50 42)"/>`,
+    "air.glider": `<path d="M50 24 C52 24 52.5 28 52.5 32 L52.5 38 L99 40.5 L99 44.5 L52.5 45 L52 80 L62 82 L62 86 L50 85 L38 86 L38 82 L48 80 L47.5 45 L1 44.5 L1 40.5 L47.5 38 L47.5 32 C47.5 28 48 24 50 24 Z"/>`,
+    "air.balloon": `<circle cx="50" cy="50" r="30"/><path d="M50 20 V80 M24 35 Q50 50 76 35 M24 65 Q50 50 76 65" fill="none" opacity="0.5"/>`,
+    "air.drone": `<path d="M24 24 L76 76 M76 24 L24 76" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round"/><circle cx="22" cy="22" r="13"/><circle cx="78" cy="22" r="13"/><circle cx="22" cy="78" r="13"/><circle cx="78" cy="78" r="13"/><rect x="40" y="40" width="20" height="20" rx="5"/>`,
+};
+
+/** An aircraft's silhouette, turned to its heading, or north when it has none. Kinds without a shape get an arrow. */
+function silhouette(point: FeedPoint): string | null {
+    const shape = Object.hasOwn(SILHOUETTES, point.kind) ? SILHOUETTES[point.kind] : undefined;
+    if (!shape) return null;
+    return `<svg class="silhouette" viewBox="0 0 100 100" style="transform:rotate(${Math.round(point.heading ?? 0)}deg)" aria-hidden="true">${shape}</svg>`;
+}
+
+/**
+ * The marker's inner HTML: a badge with its text, an aircraft's silhouette, or a disc with an arrow, a symbol or
+ * nothing. Every value from the feed is escaped.
+ */
+export function markerHtml(point: FeedPoint): { html: string; shape: "badge" | "disc" | "silhouette" } {
     const symbol = markerSymbol(point.kind);
     const moving = !point.stationary && point.heading !== null;
     if (point.badge) {
@@ -128,6 +161,8 @@ export function markerHtml(point: FeedPoint): { html: string; shape: "badge" | "
     if (symbol === "warning") return { html: WARNING, shape: "disc" };
     if (symbol === "camera") return { html: CAMERA, shape: "disc" };
     if (symbol === "bird") return { html: BIRD, shape: "disc" };
+    const aircraft = silhouette(point);
+    if (aircraft) return { html: aircraft, shape: "silhouette" };
     if (moving) return { html: ARROW(point.heading!), shape: "disc" };
     return { html: "", shape: "disc" };
 }

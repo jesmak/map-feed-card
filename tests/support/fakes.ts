@@ -110,3 +110,29 @@ export function cameraFeature(overrides: Record<string, unknown> = {}): Record<s
         },
     };
 }
+
+export function aircraftFeature(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+        type: "Feature",
+        id: "aircraft:4ca8e1",
+        geometry: { type: "Point", coordinates: [28.1, 61.1] },
+        properties: {
+            name: "XYZ123",
+            kind: "air.large",
+            updated: new Date().toISOString(),
+            heading: 94,
+            speed_kmh: 845,
+            color: "#9b36f2",
+            subtitle: "AIRBUS A-320",
+            images: [
+                {
+                    url: "https://example.org/photos/a320.jpg",
+                    caption: "Matti Meikäläinen",
+                    link: "https://example.org/photos/a320",
+                },
+            ],
+            footer: "ICAO 4CA8E1 · A3",
+            ...overrides,
+        },
+    };
+}

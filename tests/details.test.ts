@@ -114,7 +114,7 @@ describe("details under a list row", () => {
 
 describe("detail rows", () => {
     it("groups rows with and without a picture in the order they come", () => {
-        const image = { url: "https://example.com/a.jpg", caption: "", takenMs: null };
+        const image = { url: "https://example.com/a.jpg", caption: "", takenMs: null, link: null };
         const rows = [
             { label: "Waxwing", value: "24 birds", unit: "", image },
             { label: "Bullfinch", value: "3 birds", unit: "", image },
@@ -139,6 +139,20 @@ describe("markers and colours", () => {
         expect(markerHtml(point({ badge: "" })).html).toContain("arrow");
         expect(markerHtml(point({ badge: "", kind: "road.camera" })).html).toContain("<svg");
         expect(markerHtml(point({ badge: "", heading: null })).html).toBe("");
+    });
+
+    it("draws an aircraft as its kind's silhouette, turned to its heading or else north", () => {
+        const aircraft = point({ kind: "air.large", badge: "", heading: 94 });
+        expect(markerHtml(aircraft)).toEqual({ html: expect.stringContaining("rotate(94deg)"), shape: "silhouette" });
+        expect(markerHtml({ ...aircraft, heading: null }).html).toContain("rotate(0deg)");
+        expect(markerHtml({ ...aircraft, stationary: true }).shape).toBe("silhouette");
+        expect(markerHtml({ ...aircraft, kind: "air.rotorcraft" }).html).not.toBe(markerHtml(aircraft).html);
+    });
+
+    it("draws an aircraft it has no shape for as an arrow, and one with a badge as a badge", () => {
+        expect(markerHtml(point({ kind: "air.other", badge: "" }))).toEqual({ html: expect.stringContaining("arrow"), shape: "disc" });
+        expect(markerHtml(point({ kind: "air.constructor", badge: "" })).shape).toBe("disc");
+        expect(markerHtml(point({ kind: "air.large", badge: "FIN1" }))).toEqual({ html: expect.stringContaining("arrow"), shape: "badge" });
     });
 
     it("never takes a kind's colour from an object's prototype", () => {

@@ -57,8 +57,9 @@ anything that changes on its own, such as "2 min ago".
 | state              | integer  | **MUST** | Number of items. The source decides what an item is. Usually it is the number of Point features.                               |
 | `map_feed_version` | integer  | **MUST** | `1`. The card uses this to recognise a feed.                                                                                   |
 | `geojson`          | object   | **MUST** | A GeoJSON `FeatureCollection` object (not a JSON string).                                                                      |
-| `feed_type`        | string   | SHOULD   | What the feed is about, `ship`, `train`, `transit`, `road`, `nature` or `other`. See [feed type](#feed-type).                  |
+| `feed_type`        | string   | SHOULD   | What the feed is about, `ship`, `train`, `transit`, `air`, `road`, `nature` or `other`. See [feed type](#feed-type).           |
 | `attribution`      | string   | SHOULD   | Data credit, added to the map's attribution line. Required when the data licence asks for credit.                              |
+| `attribution_url`  | string   | MAY      | An `https` URL the attribution links to, when the data licence asks for a link. Any other URL is left out.                     |
 | `area`             | object   | MAY      | `{"center": [lat, lon], "radius_km": 15}` or `{"bbox": [south, west, north, east]}`. Drawn by the card when `show_area` is on. |
 | `updated`          | ISO 8601 | SHOULD   | When the source last fetched successfully.                                                                                     |
 | `legend`           | object[] | MAY      | What the feed's own colours mean, in its own language. See [legend](#legend).                                                  |
@@ -70,7 +71,7 @@ longitude first.
 ### Feed type
 
 `feed_type` says what the feed is about, in the same families as the [kinds](#kinds) of its items, `ship`, `train`,
-`transit`, `road`, `nature` or `other`. A feed has one type even when its items are of several kinds, such as road works,
+`transit`, `air`, `road`, `nature` or `other`. A feed has one type even when its items are of several kinds, such as road works,
 accidents and announcements in a feed of traffic messages, which is `road`.
 
 The card's editor offers a feed only the options that make sense for it. Delay colours are for trains and public
@@ -103,15 +104,17 @@ sightings.
     { "key": "recent", "label": "Most recent", "property": "updated", "order": "desc" }
   ],
   "default": "distance",
-  "count": "sites"
+  "count": "sites",
+  "count_one": "site"
 }
 ```
 
-| Field     | Type     | Required | Meaning                                                                                         |
-| --------- | -------- | -------- | ----------------------------------------------------------------------------------------------- |
-| `sort`    | object[] | MAY      | The orders the list offers, each a sort key (below).                                            |
-| `default` | string   | MAY      | The `key` of the order the list starts in. Defaults to the first sort key.                      |
-| `count`   | string   | MAY      | What the items are called in the count above the list, in the feed's language, such as `sites`. |
+| Field       | Type     | Required | Meaning                                                                                         |
+| ----------- | -------- | -------- | ----------------------------------------------------------------------------------------------- |
+| `sort`      | object[] | MAY      | The orders the list offers, each a sort key (below).                                            |
+| `default`   | string   | MAY      | The `key` of the order the list starts in. Defaults to the first sort key.                      |
+| `count`     | string   | MAY      | What the items are called in the count above the list, in the feed's language, such as `sites`. |
+| `count_one` | string   | MAY      | What one item is called, such as `site`. Without it, one item is counted with `count` too.      |
 
 A sort key:
 
@@ -166,18 +169,21 @@ Properties the card doesn't know are ignored, apart from a feed's own properties
 | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Ships   | `ship.cargo`, `ship.tanker`, `ship.passenger`, `ship.pilot`, `ship.tug`, `ship.fishing`, `ship.pleasure`, `ship.icebreaker`, `ship.other`                                                                                                                                                                   |
 | Trains  | `train.long_distance`, `train.commuter`, `train.cargo`, `train.other`                                                                                                                                                                                                                                       |
+| Air     | `air.light`, `air.small`, `air.large`, `air.heavy`, `air.high_performance`, `air.rotorcraft`, `air.glider`, `air.balloon`, `air.drone`, `air.other`                                                                                                                                                         |
 | Transit | `bus`, `tram`, `metro`, `ferry`                                                                                                                                                                                                                                                                             |
 | Road    | `road.roadwork`, `road.announcement`, `road.accident`, `road.weight_restriction`, `road.exempted_transport`, `road.maintenance`, `road.maintenance_track`, `road.condition.normal`, `road.condition.poor`, `road.condition.extremely_poor`, `road.condition.unknown`, `road.weather_station`, `road.camera` |
 | Nature  | `bird`                                                                                                                                                                                                                                                                                                      |
 | Other   | `other`                                                                                                                                                                                                                                                                                                     |
 
-An unknown kind is drawn as a grey arrow or dot. Within the ship or train family (`ship.hovercraft`), its details show
+An unknown kind is drawn as a grey arrow or dot. Within the ship, train or air family (`ship.hovercraft`), its details show
 speed and the position's age like the family's other kinds. Variations of the transit kinds, such as `bus.night`, have
 no family prefix and count as `other`.
 
 Road works, announcements, accidents, weight restrictions and exempted transports are drawn as a warning sign,
-`road.camera` as a camera, and `bird` as a bird. A bird's badge starts with a small bird. The details of something
-that moves (ships, trains, transit and `road.maintenance`) shows how old its position is. For everything else it
+`road.camera` as a camera, and `bird` as a bird. A bird's badge starts with a small bird. An aircraft is drawn as the
+silhouette of its kind, from above and turned to its heading (north when it has none), without a disc, and
+`air.other` as an arrow. An aircraft with a badge keeps the badge and its arrow. The details of something that moves
+(ships, trains, transit, aircraft and `road.maintenance`) shows how old its position is. For everything else it
 shows when the item was updated.
 
 ### Rows
@@ -238,11 +244,15 @@ comes from the source in its own words, so a feed can carry any data without a c
 }
 ```
 
-| Field     | Type     | Required | Meaning                                                   |
-| --------- | -------- | -------- | --------------------------------------------------------- |
-| `url`     | string   | **MUST** | An `https` URL. Images with any other URL are left out.   |
-| `caption` | string   | MAY      | Shown under the picture.                                  |
-| `time`    | ISO 8601 | MAY      | When the picture was taken. The card shows how old it is. |
+| Field     | Type     | Required | Meaning                                                                                    |
+| --------- | -------- | -------- | ------------------------------------------------------------------------------------------ |
+| `url`     | string   | **MUST** | An `https` URL. Images with any other URL are left out.                                    |
+| `caption` | string   | MAY      | Shown under the picture.                                                                   |
+| `time`    | ISO 8601 | MAY      | When the picture was taken. The card shows how old it is.                                  |
+| `link`    | string   | MAY      | An `https` URL the picture links to, such as the photo's page where its terms ask for one. |
+
+A picture with a `link` opens that page in a new tab instead of showing large. A row's picture still shows large
+first, and the large picture then opens the page, with a button to close it.
 
 The card shows at most six images per item, not counting the pictures on rows. Browsers cache pictures by URL, so a source whose picture changes
 behind the same address SHOULD add something that changes with it, such as the time the picture was taken.

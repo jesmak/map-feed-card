@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { areaOutline, boundsOf, readDetailRows, readFeed } from "../src/feed";
-import { cameraFeature, feedState, roadworkLine, shipFeature, trainFeature } from "./support/fakes";
+import { areaOutline, boundsOf, isMoving, kindFamily, readDetailRows, readFeed } from "../src/feed";
+import { aircraftFeature, cameraFeature, feedState, roadworkLine, shipFeature, trainFeature } from "./support/fakes";
 
 function okFeed(state: ReturnType<typeof feedState>) {
     const result = readFeed(state);
@@ -257,6 +257,7 @@ describe("readFeed: road features", () => {
                 url: "https://weathercam.digitraffic.fi/C0355801.jpg",
                 caption: "Imatralle",
                 takenMs: Date.parse("2026-09-15T11:47:33Z"),
+                link: null,
             },
         ]);
     });
@@ -275,7 +276,7 @@ describe("readDetailRows", () => {
             { label: "sinisorsa", value: "6", image: { url: "https://example.org/duck.jpg", caption: "Duck" } },
             { label: "naakka", value: "2", image: { url: "javascript:alert(1)" } },
         ]);
-        expect(pictured?.image).toEqual({ url: "https://example.org/duck.jpg", caption: "Duck", takenMs: null });
+        expect(pictured?.image).toEqual({ url: "https://example.org/duck.jpg", caption: "Duck", takenMs: null, link: null });
         expect(plain?.image).toBeUndefined();
     });
 });
@@ -344,7 +345,7 @@ describe("readFeed: list", () => {
         ]);
         expect(feed.list.defaultKey).toBe("distance");
         expect(feed.list.count).toBe("sites");
-        expect(okFeed(feedState("sensor.birds", [])).list).toEqual({ sort: [], defaultKey: null, count: "" });
+        expect(okFeed(feedState("sensor.birds", [])).list).toEqual({ sort: [], defaultKey: null, count: "", countOne: "" });
     });
 
     it("keeps the values sort keys name, as numbers, times or text, and never a prototype's", () => {
@@ -398,5 +399,46 @@ describe("geometry", () => {
             [28.1, 61.2],
         ]);
         expect(boundsOf([])).toBeNull();
+    });
+});
+
+describe("readFeed: aircraft", () => {
+    it("reads an air feed with its attribution's link and the singular of its count", () => {
+        const feed = okFeed(
+            feedState("sensor.aircraft", [aircraftFeature()], {
+                feed_type: "air",
+                attribution: "adsb.fi",
+                attribution_url: "https://adsb.fi/",
+                list: { count: "ilma-alusta", count_one: "ilma-alus" },
+            }),
+        );
+        expect(feed.type).toBe("air");
+        expect(feed.attributionUrl).toBe("https://adsb.fi/");
+        expect(feed.list.count).toBe("ilma-alusta");
+        expect(feed.list.countOne).toBe("ilma-alus");
+    });
+
+    it("keeps the attribution's link only with an https address", () => {
+        const feed = (url: unknown) => okFeed(feedState("sensor.aircraft", [], { attribution: "adsb.fi", attribution_url: url }));
+        expect(feed("http://adsb.fi/").attributionUrl).toBe("");
+        expect(feed("javascript:alert(1)").attributionUrl).toBe("");
+        expect(feed(42).attributionUrl).toBe("");
+        expect(feed("http://adsb.fi/").attribution).toBe("adsb.fi");
+    });
+
+    it("keeps a picture's link only with an https address", () => {
+        const images = (link: unknown) =>
+            okFeed(feedState("sensor.aircraft", [aircraftFeature({ images: [{ url: "https://example.org/a.jpg", link }] })])).points[0]!
+                .images[0]!.link;
+        expect(images("https://example.org/photos/a320")).toBe("https://example.org/photos/a320");
+        expect(images("javascript:alert(1)")).toBeNull();
+        expect(images(undefined)).toBeNull();
+    });
+
+    it("counts air kinds as a family that moves", () => {
+        expect(kindFamily("air.large")).toBe("air");
+        expect(kindFamily("air.hovercraft")).toBe("air");
+        expect(kindFamily("aircraft")).toBe("other");
+        expect(isMoving("air.balloon")).toBe(true);
     });
 });

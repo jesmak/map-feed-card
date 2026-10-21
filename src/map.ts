@@ -255,8 +255,9 @@ export class FeedMap {
             }
             element.classList.toggle("plain", !marker.html);
             element.classList.toggle("selected", selected);
-            element.style.background = drawn.color;
-            element.style.color = textOn(drawn.color);
+            // A silhouette is the aircraft itself, in its colour, with nothing behind it.
+            element.style.background = shape === "silhouette" ? "" : drawn.color;
+            element.style.color = shape === "silhouette" ? drawn.color : textOn(drawn.color);
             // MapLibre sets the element's opacity on every frame, so it is given to the marker instead.
             entry.marker.setOpacity(drawn.point.opacity);
             element.style.zIndex = selected ? "2" : "";

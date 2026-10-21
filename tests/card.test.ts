@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { HomeAssistant } from "../src/hass";
-import { feedState, roadworkLine, shipFeature, trainFeature } from "./support/fakes";
+import { aircraftFeature, feedState, roadworkLine, shipFeature, trainFeature } from "./support/fakes";
 
 // happy-dom has no WebGL, and the tile proxy is Home Assistant's; the card is tested without its map.
 const drawn = vi.hoisted(() => ({ updates: [] as Array<Record<string, unknown>>, fits: 0 }));
@@ -162,6 +162,48 @@ describe("map-feed-card", () => {
         const [attribution] = drawn.updates.at(-1)!.attributions as string[];
         expect(attribution).not.toContain("<");
         expect(attribution).toMatch(/^&#60;img/);
+    });
+
+    it("links a feed's attribution to its page, with both escaped", async () => {
+        await mount(
+            { entities: ["sensor.aircraft"] },
+            {
+                "sensor.aircraft": feedState("sensor.aircraft", [aircraftFeature()], {
+                    attribution: "adsb.fi <b>",
+                    attribution_url: 'https://adsb.fi/?a="x"',
+                }),
+            },
+        );
+        const [attribution] = drawn.updates.at(-1)!.attributions as string[];
+        expect(attribution).toBe(
+            '<a href="https://adsb.fi/?a=&#34;x&#34;" target="_blank" rel="noopener noreferrer">adsb.fi &#60;b&#62;</a>',
+        );
+    });
+
+    it("opens a linked picture's page instead of showing it large", async () => {
+        const card = await mount(
+            { entities: ["sensor.aircraft"] },
+            { "sensor.aircraft": feedState("sensor.aircraft", [aircraftFeature()]) },
+        );
+        (card as unknown as { select(key: string): void }).select("sensor.aircraft|aircraft:4ca8e1");
+        await card.updateComplete;
+        const link = card.shadowRoot!.querySelector<HTMLAnchorElement>("a.picture")!;
+        expect(link.getAttribute("href")).toBe("https://example.org/photos/a320");
+        expect(link.target).toBe("_blank");
+        expect(link.querySelector("img")!.getAttribute("src")).toBe("https://example.org/photos/a320.jpg");
+        expect(card.shadowRoot!.querySelector("button.picture")).toBeNull();
+    });
+
+    it("counts one item in the singular", async () => {
+        const card = await mount(
+            { list: true, entities: ["sensor.aircraft"] },
+            {
+                "sensor.aircraft": feedState("sensor.aircraft", [aircraftFeature()], {
+                    list: { count: "ilma-alusta", count_one: "ilma-alus" },
+                }),
+            },
+        );
+        expect(card.shadowRoot!.querySelector(".count")!.textContent).toBe("1 ilma-alus");
     });
 
     it("frames a feed of lines by its lines, and offers only those that have something to show", async () => {

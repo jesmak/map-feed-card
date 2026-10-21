@@ -1,4 +1,4 @@
-/*! map-feed-card 1.0.3 | MIT License */
+/*! map-feed-card 1.1.0 | MIT License */
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
@@ -780,7 +780,7 @@ var maplibre_gl_default = '.maplibregl-map{font:12px/20px Helvetica Neue,Arial,H
 var SUPPORTED_FEED_VERSION = 1;
 var MIN_OPACITY = 0.3;
 var MAX_IMAGES = 6;
-var FEED_TYPES = ["ship", "train", "transit", "road", "nature", "other"];
+var FEED_TYPES = ["ship", "train", "transit", "air", "road", "nature", "other"];
 var UNAVAILABLE_STATES = /* @__PURE__ */ new Set(["unavailable", "unknown"]);
 var HEX_COLOR = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
 var ACTION_NAME = /^([a-z0-9_]+)\.([a-z0-9_]+)$/;
@@ -800,6 +800,7 @@ function readFeed(state) {
   const feed = {
     type: FEED_TYPES.includes(attributes.feed_type) ? attributes.feed_type : null,
     attribution: text(attributes.attribution),
+    attributionUrl: typeof attributes.attribution_url === "string" && isHttpsUrl(attributes.attribution_url) ? attributes.attribution_url : "",
     area: readArea(attributes.area),
     legend: readLegend(attributes.legend),
     list,
@@ -939,7 +940,8 @@ function readImages(value) {
 }
 function readImage(item) {
   if (!isRecord(item) || typeof item.url !== "string" || !isHttpsUrl(item.url)) return null;
-  return { url: item.url, caption: text(item.caption), takenMs: time(item.time) };
+  const link = typeof item.link === "string" && isHttpsUrl(item.link) ? item.link : null;
+  return { url: item.url, caption: text(item.caption), takenMs: time(item.time), link };
 }
 function readLink(value) {
   if (!isRecord(value) || typeof value.url !== "string" || !isHttpsUrl(value.url)) return null;
@@ -962,7 +964,7 @@ function readLegend(value) {
   });
 }
 function readList(value) {
-  const list = { sort: [], defaultKey: null, count: "" };
+  const list = { sort: [], defaultKey: null, count: "", countOne: "" };
   if (!isRecord(value)) return list;
   const seen = /* @__PURE__ */ new Set();
   for (const entry of Array.isArray(value.sort) ? value.sort : []) {
@@ -977,6 +979,7 @@ function readList(value) {
   const defaultKey = text(value.default);
   list.defaultKey = seen.has(defaultKey) ? defaultKey : list.sort[0]?.key ?? null;
   list.count = text(value.count);
+  list.countOne = text(value.count_one);
   return list;
 }
 function readListRow(value) {
@@ -1060,13 +1063,14 @@ function kindFamily(kind) {
   const prefix = kind.split(".", 1)[0];
   if (prefix === "ship") return "ship";
   if (prefix === "train") return "train";
+  if (prefix === "air") return "air";
   if (prefix === "road") return "road";
   if (TRANSIT_KINDS.has(kind)) return "transit";
   return "other";
 }
 function isMoving(kind) {
   const family = kindFamily(kind);
-  return family === "ship" || family === "train" || family === "transit" || kind === "road.maintenance";
+  return family === "ship" || family === "train" || family === "transit" || family === "air" || kind === "road.maintenance";
 }
 function markerSymbol(kind) {
   if (WARNING_KINDS.has(kind)) return "warning";
@@ -1180,10 +1184,20 @@ var KIND_COLORS = {
   "road.condition.unknown": "#9e9e9e",
   "road.weather_station": "#0277bd",
   "road.camera": "#37474f",
+  "air.light": "#2e7d32",
+  "air.small": "#00838f",
+  "air.large": "#1565c0",
+  "air.heavy": "#6a1b9a",
+  "air.high_performance": "#c62828",
+  "air.rotorcraft": "#ef6c00",
+  "air.glider": "#f9a825",
+  "air.balloon": "#d81b60",
+  "air.drone": "#37474f",
+  "air.other": "#546e7a",
   bird: "#2e7d32",
   other: "#546e7a"
 };
-var FAMILY_COLORS = { ship: "#546e7a", train: "#546e7a", transit: "#00796b", road: "#546e7a", other: "#546e7a" };
+var FAMILY_COLORS = { ship: "#546e7a", train: "#546e7a", transit: "#00796b", air: "#546e7a", road: "#546e7a", other: "#546e7a" };
 var DELAY_COLORS = {
   on_time: "#2e7d32",
   late: "#f9a825",
@@ -1223,6 +1237,22 @@ var BIRD = `<svg class="glyph" viewBox="6 19 86 65" aria-hidden="true"><path d="
 var ARROW = (heading) => `<svg class="arrow" viewBox="-12 -12 24 24" style="transform:rotate(${Math.round(heading)}deg)" aria-hidden="true"><path d="M0,-10 L6.5,9 L0,5 L-6.5,9 Z" fill="currentColor"/></svg>`;
 var WARNING = `<svg class="glyph" viewBox="-11 -11 22 22" aria-hidden="true"><path d="M0,-3.5 V2" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><circle cy="5.5" r="1.3" fill="currentColor"/></svg>`;
 var CAMERA = `<svg class="glyph" viewBox="-11 -9 22 18" aria-hidden="true"><rect x="-9" y="-5" width="18" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cy="1" r="3.2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>`;
+var SILHOUETTES = {
+  "air.light": `<path d="M50 16 C53 16 54.5 20 54.5 26 L54.5 34 L96 34 L96 43 L54.5 43 L54 74 L67 76 L67 83 L50 82 L33 83 L33 76 L46 74 L45.5 43 L4 43 L4 34 L45.5 34 L45.5 26 C45.5 20 47 16 50 16 Z"/><rect x="39" y="11" width="22" height="4" rx="2"/>`,
+  "air.small": `<path d="M50 8 C53 8 54 12 54 18 L54 38 L95 40 L95 48 L54 50 L54 78 L68 82 L68 88 L50 86 L32 88 L32 82 L46 78 L46 50 L5 48 L5 40 L46 38 L46 18 C46 12 47 8 50 8 Z"/><ellipse cx="31" cy="38" rx="4.5" ry="10"/><ellipse cx="69" cy="38" rx="4.5" ry="10"/>`,
+  "air.large": `<path d="M50 8 C53 8 54.5 12 54.5 17 L54.5 37 L92 57 L92 64 L54.5 55 L54.5 76 L66 84 L66 89 L50 85.5 L34 89 L34 84 L45.5 76 L45.5 55 L8 64 L8 57 L45.5 37 L45.5 17 C45.5 12 47 8 50 8 Z"/>`,
+  "air.heavy": `<path d="M50 3 C54.5 3 56.5 8 56.5 15 L56.5 36 L97 61 L97 68 L56.5 57 L56.5 80 L71 89 L71 94 L50 90 L29 94 L29 89 L43.5 80 L43.5 57 L3 68 L3 61 L43.5 36 L43.5 15 C43.5 8 45.5 3 50 3 Z"/><ellipse cx="28" cy="52" rx="4" ry="7"/><ellipse cx="72" cy="52" rx="4" ry="7"/>`,
+  "air.high_performance": `<path d="M50 3 L54.5 20 L55.5 46 L89 70 L89 77 L56.5 71 L57.5 82 L69 92 L69 97 L50 93 L31 97 L31 92 L42.5 82 L43.5 71 L11 77 L11 70 L44.5 46 L45.5 20 Z"/>`,
+  "air.rotorcraft": `<ellipse cx="50" cy="42" rx="11" ry="16"/><rect x="47" y="54" width="6" height="34" rx="2"/><rect x="39" y="84" width="22" height="6" rx="2"/><rect x="47" y="2" width="6" height="80" rx="3" transform="rotate(45 50 42)"/><rect x="47" y="2" width="6" height="80" rx="3" transform="rotate(-45 50 42)"/>`,
+  "air.glider": `<path d="M50 24 C52 24 52.5 28 52.5 32 L52.5 38 L99 40.5 L99 44.5 L52.5 45 L52 80 L62 82 L62 86 L50 85 L38 86 L38 82 L48 80 L47.5 45 L1 44.5 L1 40.5 L47.5 38 L47.5 32 C47.5 28 48 24 50 24 Z"/>`,
+  "air.balloon": `<circle cx="50" cy="50" r="30"/><path d="M50 20 V80 M24 35 Q50 50 76 35 M24 65 Q50 50 76 65" fill="none" opacity="0.5"/>`,
+  "air.drone": `<path d="M24 24 L76 76 M76 24 L24 76" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round"/><circle cx="22" cy="22" r="13"/><circle cx="78" cy="22" r="13"/><circle cx="22" cy="78" r="13"/><circle cx="78" cy="78" r="13"/><rect x="40" y="40" width="20" height="20" rx="5"/>`
+};
+function silhouette(point) {
+  const shape = Object.hasOwn(SILHOUETTES, point.kind) ? SILHOUETTES[point.kind] : void 0;
+  if (!shape) return null;
+  return `<svg class="silhouette" viewBox="0 0 100 100" style="transform:rotate(${Math.round(point.heading ?? 0)}deg)" aria-hidden="true">${shape}</svg>`;
+}
 function markerHtml(point) {
   const symbol2 = markerSymbol(point.kind);
   const moving = !point.stationary && point.heading !== null;
@@ -1233,6 +1263,8 @@ function markerHtml(point) {
   if (symbol2 === "warning") return { html: WARNING, shape: "disc" };
   if (symbol2 === "camera") return { html: CAMERA, shape: "disc" };
   if (symbol2 === "bird") return { html: BIRD, shape: "disc" };
+  const aircraft = silhouette(point);
+  if (aircraft) return { html: aircraft, shape: "silhouette" };
   if (moving) return { html: ARROW(point.heading), shape: "disc" };
   return { html: "", shape: "disc" };
 }
@@ -1409,19 +1441,25 @@ function valueOf(row) {
 function picture(image, onImage, text2) {
   const age = formatAge(image.takenMs, text2);
   return b2`<figure>
-        <button class="picture" @click=${() => onImage(image)} aria-label=${image.caption || ""}>
-            <img src=${image.url} alt="" loading="lazy" />
-        </button>
+        ${image.link ? linkedPicture(image, "lazy") : b2`<button class="picture" @click=${() => onImage(image)} aria-label=${image.caption || ""}>
+                      <img src=${image.url} alt="" loading="lazy" />
+                  </button>`}
         ${image.caption || age ? b2`<figcaption>${[image.caption, age].filter(Boolean).join(" \xB7 ")}</figcaption>` : A}
     </figure>`;
 }
 function featuredImage(image, onImage, text2) {
   return b2`<figure class="featured">
-        <button class="picture" @click=${() => onImage(null)} aria-label=${text2("common.close_image")}>
-            <img src=${image.url} alt=${image.caption} />
-        </button>
+        ${image.link ? b2`${linkedPicture(image, "eager")}
+                      <button class="close" @click=${() => onImage(null)} aria-label=${text2("common.close_image")}>×</button>` : b2`<button class="picture" @click=${() => onImage(null)} aria-label=${text2("common.close_image")}>
+                      <img src=${image.url} alt=${image.caption} />
+                  </button>`}
         ${image.caption ? b2`<figcaption>${image.caption}</figcaption>` : A}
     </figure>`;
+}
+function linkedPicture(image, loading) {
+  return b2`<a class="picture linked" href=${image.link} target="_blank" rel="noopener noreferrer" aria-label=${image.caption || ""}>
+        <img src=${image.url} alt="" loading=${loading} />
+    </a>`;
 }
 
 // src/localize/languages/en.json
@@ -1483,6 +1521,7 @@ var en_default = {
   },
   list: {
     count: "{n} items",
+    count_one: "{n} item",
     sort: "Order",
     delay: "{n} min"
   },
@@ -1517,11 +1556,22 @@ var en_default = {
     road_condition_unknown: "Driving conditions unknown",
     road_weather_station: "Road weather station",
     road_camera: "Road camera",
+    air_light: "Light aircraft",
+    air_small: "Small aircraft",
+    air_large: "Large aircraft",
+    air_heavy: "Heavy aircraft",
+    air_high_performance: "Fighter",
+    air_rotorcraft: "Helicopter",
+    air_glider: "Glider",
+    air_balloon: "Balloon",
+    air_drone: "Drone",
+    air_other: "Other aircraft",
     bird: "Bird sighting",
     other: "Other",
     family_ship: "Ship",
     family_train: "Train",
     family_transit: "Public transport",
+    family_air: "Aircraft",
     family_road: "Road",
     family_other: "Other"
   },
@@ -1591,6 +1641,7 @@ var fi_default = {
   },
   list: {
     count: "{n} kohdetta",
+    count_one: "{n} kohde",
     sort: "J\xE4rjestys",
     delay: "{n} min"
   },
@@ -1625,11 +1676,22 @@ var fi_default = {
     road_condition_unknown: "Ajokeli ei tiedossa",
     road_weather_station: "Ties\xE4\xE4asema",
     road_camera: "Kelikamera",
+    air_light: "Kevyt lentokone",
+    air_small: "Pieni lentokone",
+    air_large: "Suuri lentokone",
+    air_heavy: "Raskas lentokone",
+    air_high_performance: "H\xE4vitt\xE4j\xE4",
+    air_rotorcraft: "Helikopteri",
+    air_glider: "Purjelentokone",
+    air_balloon: "Ilmapallo",
+    air_drone: "Drooni",
+    air_other: "Muu ilma-alus",
     bird: "Lintuhavainto",
     other: "Muu",
     family_ship: "Alus",
     family_train: "Juna",
     family_transit: "Joukkoliikenne",
+    family_air: "Ilma-alus",
     family_road: "Tieliikenne",
     family_other: "Muu"
   },
@@ -1715,6 +1777,12 @@ function compare(a4, b4, collator) {
   if (typeof a4 === "number") return -1;
   if (typeof b4 === "number") return 1;
   return collator.compare(a4, b4);
+}
+function countText(n6, lists, text2) {
+  const words = new Set(lists.map((list2) => `${list2.count}|${list2.countOne}`));
+  const list = lists[0];
+  if (words.size === 1 && list?.count) return `${n6} ${n6 === 1 && list.countOne ? list.countOne : list.count}`;
+  return text2(n6 === 1 ? "list.count_one" : "list.count", { n: n6 });
 }
 
 // src/options.ts
@@ -33776,8 +33844,8 @@ var FeedMap = class {
       }
       element.classList.toggle("plain", !marker.html);
       element.classList.toggle("selected", selected);
-      element.style.background = drawn.color;
-      element.style.color = textOn(drawn.color);
+      element.style.background = shape === "silhouette" ? "" : drawn.color;
+      element.style.color = shape === "silhouette" ? drawn.color : textOn(drawn.color);
       entry.marker.setOpacity(drawn.point.opacity);
       element.style.zIndex = selected ? "2" : "";
       element.title = drawn.point.label || drawn.point.name;
@@ -33923,7 +33991,7 @@ var FIT_GROWTH_MS = 3e3;
 var WIDE_PX = 640;
 console.info(
   `%c  MAP-FEED-CARD 
-%c  ${"1.0.3"}    `,
+%c  ${"1.1.0"}    `,
   "color: orange; font-weight: bold; background: black",
   "color: white; font-weight: bold; background: dimgray"
 );
@@ -34024,7 +34092,7 @@ var MapFeedCard = class extends i4 {
     const titleInList = list && this.wide && title !== "";
     return b2`
             <ha-card
-                class=${e7({ wide: this.wide, "with-list": list })}
+                class=${e7({ wide: this.wide, "with-list": list, dark: this.dark() })}
                 style="--map-height:${this.options.mapHeight}px;--list-height:${this.options.listHeight}px"
             >
                 ${title && !titleInList ? b2`<h1 class="card-title">${title}</h1>` : A}
@@ -34066,8 +34134,7 @@ var MapFeedCard = class extends i4 {
       key,
       this.language()
     );
-    const counts = new Set(lists.map((list) => list.count));
-    const number3 = counts.size === 1 && lists[0]?.count ? `${entries.length} ${lists[0].count}` : this.text("list.count", { n: entries.length });
+    const number3 = countText(entries.length, lists, (key2, values) => this.text(key2, values));
     const feeds = this.options.feeds;
     const name = feeds.length === 1 ? this.hass?.states[feeds[0].entity]?.attributes?.friendly_name : void 0;
     const count = typeof name === "string" && name ? `${name} \xB7 ${number3}` : number3;
@@ -34238,7 +34305,7 @@ var MapFeedCard = class extends i4 {
         view.problems.push(this.problem(feed.entity, result.status));
         continue;
       }
-      const { points, shapes, area, attribution, list } = result.feed;
+      const { points, shapes, area, attribution, attributionUrl, list } = result.feed;
       view.lists.push(list);
       const pointKeys = /* @__PURE__ */ new Map();
       const tooOld = (item) => feed.maxAgeMinutes !== null && item.updatedMs !== null && now - item.updatedMs > feed.maxAgeMinutes * 6e4;
@@ -34290,7 +34357,11 @@ var MapFeedCard = class extends i4 {
       if (area && feed.showArea)
         view.content.areas.push({ area, color: feed.areaColor ?? areaColor(this.dark()) });
       view.extent.push(...area ? areaOutline(area) : extent);
-      if (attribution) view.content.attributions.push(escapeHtml(attribution));
+      if (attribution) {
+        view.content.attributions.push(
+          attributionUrl ? `<a href="${escapeHtml(attributionUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(attribution)}</a>` : escapeHtml(attribution)
+        );
+      }
       for (const legend of [byDelay ? this.delayLegend(feed, delays) : [], ownColours ? result.feed.legend : []]) {
         const signature = JSON.stringify(legend);
         if (legend.length && !legends.has(signature)) {
@@ -34382,6 +34453,10 @@ MapFeedCard.styles = [
                 display: flex;
                 flex-direction: column;
                 container: card / inline-size;
+                --silhouette-edge: #1c1c1c;
+            }
+            ha-card.dark {
+                --silhouette-edge: #e8e8e8;
             }
             .card-title {
                 margin: 0;
@@ -34752,6 +34827,32 @@ MapFeedCard.styles = [
                 width: 18px;
                 height: 18px;
             }
+            /* An aircraft: its silhouette alone, edged dark on a light map and light on a dark one. */
+            .feed-marker.silhouette {
+                width: 28px;
+                height: 28px;
+                border: none;
+                box-shadow: none;
+                background: none;
+                filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
+            }
+            .feed-marker.silhouette.selected {
+                width: 34px;
+                height: 34px;
+                border: none;
+                box-shadow: none;
+                filter: drop-shadow(0 0 1.5px #fff) drop-shadow(0 0 1.5px #fff) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
+            }
+            .feed-marker svg.silhouette {
+                width: 100%;
+                height: 100%;
+                overflow: visible;
+                fill: currentColor;
+                stroke: var(--silhouette-edge);
+                stroke-width: 4.3;
+                stroke-linejoin: round;
+                paint-order: stroke;
+            }
             .feed-marker .glyph {
                 width: 12px;
                 height: 12px;
@@ -34945,6 +35046,26 @@ MapFeedCard.styles = [
             }
             .featured .picture {
                 cursor: zoom-out;
+            }
+            .picture.linked {
+                cursor: pointer;
+            }
+            .featured {
+                position: relative;
+            }
+            .featured .close {
+                position: absolute;
+                top: 6px;
+                right: 6px;
+                width: 28px;
+                height: 28px;
+                padding: 0;
+                border: none;
+                border-radius: 50%;
+                font: 400 20px/28px var(--ha-font-family-body, Roboto, sans-serif);
+                color: #fff;
+                background: rgba(0, 0, 0, 0.55);
+                cursor: pointer;
             }
             figcaption {
                 margin-top: 4px;
