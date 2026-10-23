@@ -4,6 +4,8 @@ export interface HassEntity {
     entity_id: string;
     state: string;
     last_changed?: string;
+    /** Changes with the attributes too, unlike last_changed. */
+    last_updated?: string;
     attributes: Record<string, unknown>;
 }
 

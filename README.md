@@ -80,6 +80,7 @@ Each feed in `entities` can have options of its own:
 | `show_area`         | boolean | `false`  | Draw the area the feed covers, as a dashed outline                                           |
 | `area_color`        | string  |          | The area's colour, as a hex colour. By default a blue that suits the theme                   |
 | `labels`            | boolean | `false`  | Show each item's name beside its marker                                                      |
+| `glide`             | boolean | `false`  | Move the markers smoothly between updates instead of jumping, an update behind               |
 
 Every option is in the card's visual editor, which offers each feed only the options that make sense for its [type](docs/map-feed-format.md#feed-type), such as no delays for bird sightings.
 
@@ -90,7 +91,11 @@ an item with a short label, such as a train's number, shows it in the marker. Ro
 symbols of their own, and an aircraft is the silhouette of its kind, such as a light aircraft, an airliner or a
 helicopter, turned the way it flies. Lines and areas, such as a road under construction or the stretch a snow plough has cleared, are
 drawn in their item's colour, and tapping one selects it. Pointing at a line or an area shows its name, and with
-`labels` every marker has its name beside it. When the card opens, the map shows the feeds' areas, or everything in
+`labels` every marker has its name beside it. With `glide`, a moving marker travels in a straight line from its
+previous position to the new one, taking as long as the source took between them, so it shows where the item was an
+update ago. A trail drawn behind it ends at the marker. It suits aircraft best, which fly straight between updates, and trains well enough, while a bus turning
+corners cuts across them. Stationary items and anything after a gap of over two minutes still jump, as does
+everything when the system asks for reduced motion. When the card opens, the map shows the feeds' areas, or everything in
 them when they have none. The map follows the theme, light or dark, and takes the map colours a theme sets with `--ha-color-map-*` variables, as Home Assistant's own map does. Its corner credits each feed's source, with a link when the feed gives one.
 
 <p>
@@ -184,20 +189,22 @@ npm run check
 file HACS installs and is committed to the repository. MapLibre is bundled with the card, its worker included, so the
 card stays one file.
 
-| Path                      | What it contains                             |
-| ------------------------- | -------------------------------------------- |
-| `src/map-feed-card.ts`    | The card itself                              |
-| `src/editor.ts`           | The visual editor                            |
-| `src/feed.ts`             | Reading the feeds                            |
-| `src/map.ts`              | The map, its markers, lines and areas        |
-| `src/map-tiles.ts`        | Home Assistant's map tiles and styles        |
-| `src/map-theme.ts`        | Home Assistant's map colours and themes      |
-| `src/list.ts`             | The list's rows and orders                   |
-| `src/details.ts`          | The details panel                            |
-| `src/style.ts`            | Colours and markers                          |
-| `src/localize/languages/` | The card's texts, one JSON file per language |
-| `docs/map-feed-format.md` | The format the card reads                    |
-| `tests/`                  | Tests, run with vitest                       |
+| Path                      | What it contains                              |
+| ------------------------- | --------------------------------------------- |
+| `src/map-feed-card.ts`    | The card itself                               |
+| `src/editor.ts`           | The visual editor                             |
+| `src/options.ts`          | The card's options, checked when they are set |
+| `src/feed.ts`             | Reading the feeds                             |
+| `src/map.ts`              | The map, its markers, lines and areas         |
+| `src/glide.ts`            | Gliding markers between updates               |
+| `src/map-tiles.ts`        | Home Assistant's map tiles and styles         |
+| `src/map-theme.ts`        | Home Assistant's map colours and themes       |
+| `src/list.ts`             | The list's rows and orders                    |
+| `src/details.ts`          | The details panel                             |
+| `src/style.ts`            | Colours and markers                           |
+| `src/localize/languages/` | The card's texts, one JSON file per language  |
+| `docs/map-feed-format.md` | The format the card reads                     |
+| `tests/`                  | Tests, run with vitest                        |
 
 ## Support
 

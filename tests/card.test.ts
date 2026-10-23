@@ -194,6 +194,61 @@ describe("map-feed-card", () => {
         expect(card.shadowRoot!.querySelector("button.picture")).toBeNull();
     });
 
+    it.each<[string, boolean, Record<string, unknown>, string | undefined, boolean, number | null]>([
+        [
+            "glides a moving item, from the time its position was measured",
+            true,
+            { updated: "2026-09-14T21:09:41Z" },
+            "2026-09-14T21:10:03Z",
+            true,
+            Date.parse("2026-09-14T21:09:41Z"),
+        ],
+        [
+            "takes the time its feed last changed when the item has none",
+            true,
+            { updated: undefined },
+            "2026-09-14T21:10:03Z",
+            true,
+            Date.parse("2026-09-14T21:10:03Z"),
+        ],
+        ["knows no time when neither has one", true, { updated: undefined }, undefined, true, null],
+        ["doesn't glide a stationary item", true, { stationary: true }, "2026-09-14T21:10:03Z", false, Date.parse("2026-09-14T21:10:05Z")],
+        ["doesn't glide when its feed doesn't", false, {}, "2026-09-14T21:10:03Z", false, Date.parse("2026-09-14T21:10:05Z")],
+    ])("%s", async (_, glide, properties, lastUpdated, glides, reportedMs) => {
+        const state = {
+            ...feedState("sensor.ships", [shipFeature({ updated: "2026-09-14T21:10:05Z", ...properties })]),
+            last_updated: lastUpdated,
+        };
+        await mount({ entities: [{ entity: "sensor.ships", glide }] }, { "sensor.ships": state });
+        const [point] = drawn.updates.at(-1)!.points as Array<{ glide: boolean; reportedMs: number | null }>;
+        expect(point.glide).toBe(glides);
+        expect(point.reportedMs).toBe(reportedMs);
+    });
+
+    it("times each feed's items by when their own feed last changed", async () => {
+        const state = (entity: string, lastUpdated: string) => ({
+            ...feedState(entity, [shipFeature({ updated: undefined })]),
+            last_updated: lastUpdated,
+        });
+        await mount(
+            {
+                entities: [
+                    { entity: "sensor.ships", glide: true },
+                    { entity: "sensor.boats", glide: true },
+                ],
+            },
+            {
+                "sensor.ships": state("sensor.ships", "2026-09-14T21:10:03Z"),
+                "sensor.boats": state("sensor.boats", "2026-09-14T21:10:09Z"),
+            },
+        );
+        const points = drawn.updates.at(-1)!.points as Array<{ key: string; reportedMs: number | null }>;
+        expect(points.map(({ key, reportedMs }) => [key.split("|")[0], reportedMs])).toEqual([
+            ["sensor.ships", Date.parse("2026-09-14T21:10:03Z")],
+            ["sensor.boats", Date.parse("2026-09-14T21:10:09Z")],
+        ]);
+    });
+
     it("counts one item in the singular", async () => {
         const card = await mount(
             { list: true, entities: ["sensor.aircraft"] },

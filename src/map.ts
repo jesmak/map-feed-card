@@ -9,6 +9,7 @@ import type { FilterSpecification, GeoJSONSource, MapLayerMouseEvent, StyleSpeci
 import workerSource from "maplibre-gl/dist/maplibre-gl-worker.mjs?raw";
 
 import { areaOutline, type FeedArea, type FeedPoint, type FeedShape, type LngLat } from "./feed";
+import { cutTrail, nextGlide, positionAt, type Glide, type Report } from "./glide";
 import { loadStyle, MapError, onTokenChange, refreshToken, transformRequest } from "./map-tiles";
 import type { MapStyle } from "./options";
 import { escapeHtml, markerHtml, textOn } from "./style";
@@ -20,6 +21,10 @@ export interface DrawnPoint {
     color: string;
     /** Text beside the marker, or '' for none. */
     label?: string;
+    /** Moves between reports instead of jumping (glide.ts). */
+    glide?: boolean;
+    /** When the position was reported: its own time, or when its feed last changed. Null when neither is known. */
+    reportedMs?: number | null;
 }
 
 export interface DrawnShape {
@@ -50,6 +55,12 @@ interface MarkerEntry {
     element: HTMLElement;
     html: string;
     shape: string;
+    /** Where the marker is drawn. */
+    position: LngLat;
+    report: Report | null;
+    glide: Glide | null;
+    /** Where the marker was when its trail was last drawn. */
+    trailDrawnAt: LngLat | null;
 }
 
 /** A marker closer to the map's edge than this is moved into view when selected: half of a badge, and some air. */
@@ -59,6 +70,9 @@ const REVEAL_MARGIN_PX = 32;
 const FIT_MAX_ZOOM = 13;
 /** Home's surroundings, a region rather than streets, while there is nothing to fit the map to. */
 const HOME_ZOOM = 9;
+
+/** A gliding marker's trail is drawn again once its end has moved this far, not on every frame. */
+const TRAIL_STEP_PX = 1;
 
 /** After a refused tile, how long before another refusal may ask for a new token again. */
 const RECOVERY_THROTTLE_MS = 30_000;
@@ -93,6 +107,9 @@ export class FeedMap {
     /** What the map was last fitted to, fitted again when its size changes until someone moves it. */
     private fittedTo: [LngLat, LngLat] | null = null;
     private movedSinceFit = false;
+    private frame?: number;
+    /** The points whose lines are trails cut at their gliding marker, by key. */
+    private trailOwners = new Set<string>();
 
     constructor(
         private readonly container: HTMLElement,
@@ -188,6 +205,7 @@ export class FeedMap {
     update(content: MapContent): void {
         this.content = content;
         if (!this.map) return;
+        this.trailOwners = new Set(content.shapes.filter(({ shape }) => shape.geometry.type === "line").map(({ selects }) => selects));
         this.updateMarkers();
         this.updateLayers();
         this.updateAttribution();
@@ -224,6 +242,7 @@ export class FeedMap {
 
     destroy(): void {
         this.destroyed = true;
+        if (this.frame !== undefined) cancelAnimationFrame(this.frame);
         this.unsubscribe?.();
         this.map?.remove();
         this.map = undefined;
@@ -264,7 +283,7 @@ export class FeedMap {
             element.title = drawn.point.label || drawn.point.name;
             element.setAttribute("aria-label", drawn.point.label || drawn.point.name);
             element.setAttribute("aria-pressed", String(selected));
-            entry.marker.setLngLat([drawn.point.lon, drawn.point.lat]);
+            this.place(entry, drawn);
             if (!existing) entry.marker.addTo(this.map!);
         }
         for (const [key, entry] of this.markers) {
@@ -273,6 +292,63 @@ export class FeedMap {
                 this.markers.delete(key);
             }
         }
+        if (this.frame === undefined && [...this.markers.values()].some((entry) => entry.glide))
+            this.frame = requestAnimationFrame(() => this.step());
+    }
+
+    /** Moves a marker to its new report, or starts it gliding there. */
+    private place(entry: MarkerEntry, drawn: DrawnPoint): void {
+        const reportedMs = drawn.reportedMs ?? null;
+        const report: Report | null = reportedMs === null ? null : { position: [drawn.point.lon, drawn.point.lat], at: reportedMs };
+        const glide = report && drawn.glide && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+        // A hidden tab draws no frames, so the marker is first brought to where its glide has got to.
+        this.advance(entry, Date.now());
+        const next = glide ? nextGlide(entry.position, entry.report, report, Date.now()) : "jump";
+        if (next === "stay") {
+            entry.report = { ...report!, position: entry.report!.position };
+            return;
+        }
+        entry.report = report;
+        entry.glide = next === "jump" ? null : next;
+        if (!entry.glide) this.moveTo(entry, [drawn.point.lon, drawn.point.lat]);
+    }
+
+    private moveTo(entry: MarkerEntry, position: LngLat): void {
+        entry.position = position;
+        entry.marker.setLngLat(position);
+    }
+
+    /** One frame of the gliding markers, and their trails once they have moved far enough to show. */
+    private step(): void {
+        this.frame = undefined;
+        const map = this.map;
+        if (!map) return;
+        const now = Date.now();
+        let trails = false;
+        let gliding = false;
+        for (const [key, entry] of this.markers) {
+            if (!entry.glide) continue;
+            if (this.advance(entry, now)) gliding = true;
+            if (this.trailOwners.has(key) && (!entry.glide || this.movedOnScreen(entry))) trails = true;
+        }
+        if (trails) this.updateLayers();
+        if (gliding) this.frame = requestAnimationFrame(() => this.step());
+    }
+
+    /** Moves a gliding marker to where its glide is at `now`, ending the glide at its end. False once it has ended. */
+    private advance(entry: MarkerEntry, now: number): boolean {
+        if (!entry.glide) return false;
+        this.moveTo(entry, positionAt(entry.glide, now));
+        if (now < entry.glide.start + entry.glide.duration) return true;
+        entry.glide = null;
+        return false;
+    }
+
+    private movedOnScreen(entry: MarkerEntry): boolean {
+        if (!entry.trailDrawnAt) return true;
+        const a = this.map!.project(entry.trailDrawnAt);
+        const b = this.map!.project(entry.position);
+        return Math.hypot(a.x - b.x, a.y - b.y) >= TRAIL_STEP_PX;
     }
 
     private createMarker(key: string): MarkerEntry {
@@ -280,7 +356,16 @@ export class FeedMap {
         element.type = "button";
         element.classList.add("feed-marker");
         element.addEventListener("click", () => this.onSelect(key));
-        const entry = { marker: new Marker({ element, anchor: "center" }), element, html: "", shape: "" };
+        const entry: MarkerEntry = {
+            marker: new Marker({ element, anchor: "center" }),
+            element,
+            html: "",
+            shape: "",
+            position: [0, 0],
+            report: null,
+            glide: null,
+            trailDrawnAt: null,
+        };
         this.markers.set(key, entry);
         return entry;
     }
@@ -350,7 +435,7 @@ export class FeedMap {
                 type: "Feature",
                 geometry:
                     shape.geometry.type === "line"
-                        ? { type: "MultiLineString", coordinates: shape.geometry.paths }
+                        ? { type: "MultiLineString", coordinates: this.trail(selects, shape.geometry.paths) }
                         : { type: "MultiPolygon", coordinates: shape.geometry.polygons },
                 properties: {
                     key,
@@ -371,6 +456,15 @@ export class FeedMap {
                 properties: { color },
             })),
         });
+    }
+
+    /** A line of a gliding point's, cut to end at its marker. */
+    private trail(owner: string, paths: LngLat[][]): LngLat[][] {
+        const entry = this.markers.get(owner);
+        if (!entry) return paths;
+        entry.trailDrawnAt = entry.position;
+        const glide = entry.glide;
+        return glide ? paths.map((path) => cutTrail(path, glide, entry.position)) : paths;
     }
 
     private click(event: MapLayerMouseEvent): void {

@@ -1,20 +1,22 @@
 import { describe, expect, it } from "vitest";
 
-import { feedFields, MapFeedCardEditor } from "../src/editor";
+import { compactFeeds, feedFields, MapFeedCardEditor } from "../src/editor";
 import type { HomeAssistant } from "../src/hass";
 import { feedState, shipFeature, trainFeature } from "./support/fakes";
 
 describe("a feed's options in the editor", () => {
     it("offers delays only for what can be late, and no age limit for sightings", () => {
-        expect(feedFields("train", false, {})).toEqual(["color_by", "max_age_minutes", "labels"]);
+        expect(feedFields("train", false, {})).toEqual(["color_by", "max_age_minutes", "labels", "glide"]);
         expect(feedFields("transit", false, { color_by: "delay" })).toEqual([
             "color_by",
             "late_minutes",
             "very_late_minutes",
             "max_age_minutes",
             "labels",
+            "glide",
         ]);
-        expect(feedFields("ship", false, {})).toEqual(["max_age_minutes", "labels"]);
+        expect(feedFields("ship", false, {})).toEqual(["max_age_minutes", "labels", "glide"]);
+        expect(feedFields("air", false, {})).toEqual(["max_age_minutes", "labels", "glide"]);
         expect(feedFields("road", false, {})).toEqual(["max_age_minutes", "labels"]);
         expect(feedFields("nature", false, {})).toEqual(["labels"]);
     });
@@ -26,10 +28,11 @@ describe("a feed's options in the editor", () => {
             "very_late_minutes",
             "max_age_minutes",
             "labels",
+            "glide",
             "show_area",
             "area_color",
         ]);
-        expect(feedFields("other", false, {})).toEqual(["color_by", "max_age_minutes", "labels"]);
+        expect(feedFields("other", false, {})).toEqual(["color_by", "max_age_minutes", "labels", "glide"]);
     });
 
     it("offers the area only to a feed that has one, and its colour once it is shown", () => {
@@ -45,8 +48,17 @@ describe("a feed's options in the editor", () => {
             "max_age_minutes",
             "labels",
         ]);
-        expect(feedFields("ship", false, { late_minutes: 5 })).toEqual(["max_age_minutes", "late_minutes", "labels"]);
-        expect(feedFields("ship", false, { color_by: "kind", show_area: false })).toEqual(["max_age_minutes", "labels"]);
+        expect(feedFields("ship", false, { late_minutes: 5 })).toEqual(["max_age_minutes", "late_minutes", "labels", "glide"]);
+        expect(feedFields("ship", false, { color_by: "kind", show_area: false })).toEqual(["max_age_minutes", "labels", "glide"]);
+        expect(feedFields("road", false, { glide: true })).toEqual(["max_age_minutes", "labels", "glide"]);
+        expect(feedFields("road", false, { glide: false })).toEqual(["max_age_minutes", "labels"]);
+    });
+});
+
+describe("a feed's options in the configuration", () => {
+    it("leaves out gliding switched off, which is the default, and keeps it switched on", () => {
+        expect(compactFeeds([{ entity: "sensor.aircraft", glide: false }])).toEqual(["sensor.aircraft"]);
+        expect(compactFeeds([{ entity: "sensor.aircraft", glide: true }])).toEqual([{ entity: "sensor.aircraft", glide: true }]);
     });
 });
 

@@ -456,6 +456,7 @@ export class MapFeedCard extends LitElement {
             const { points, shapes, area, attribution, attributionUrl, list } = result.feed;
             view.lists.push(list);
             const pointKeys = new Map<string, DrawnPoint>();
+            const feedChangedMs = Date.parse(this.hass?.states[feed.entity]?.last_updated ?? "");
             const tooOld = (item: FeedItem) =>
                 feed.maxAgeMinutes !== null && item.updatedMs !== null && now - item.updatedMs > feed.maxAgeMinutes * 60_000;
             /** What frames this feed when the card opens: its area, or without one everything in it. */
@@ -470,6 +471,8 @@ export class MapFeedCard extends LitElement {
                     point,
                     color: pointColor(point, feed.colorBy, feed.delayThresholds),
                     label: feed.labels ? point.label || point.name : "",
+                    glide: feed.glide && !point.stationary,
+                    reportedMs: point.updatedMs ?? (Number.isNaN(feedChangedMs) ? null : feedChangedMs),
                 };
                 if (feed.colorBy === "delay" && canBeLate(point)) {
                     byDelay = true;

@@ -15,6 +15,7 @@ describe("parseOptions", () => {
                     showArea: false,
                     areaColor: null,
                     labels: false,
+                    glide: false,
                 },
             ],
             mapStyle: "default",
@@ -30,11 +31,11 @@ describe("parseOptions", () => {
         const { feeds } = parseOptions({
             entities: [
                 { entity: "sensor.trains", color_by: "delay", late_minutes: 2, very_late_minutes: "15", max_age_minutes: 10 },
-                { entity: "sensor.birds", show_area: true, area_color: "#ff6f00" },
+                { entity: "sensor.birds", show_area: true, area_color: "#ff6f00", glide: true },
             ],
         });
-        expect(feeds[0]).toMatchObject({ colorBy: "delay", delayThresholds: [2, 15], maxAgeMinutes: 10 });
-        expect(feeds[1]).toMatchObject({ showArea: true, areaColor: "#ff6f00" });
+        expect(feeds[0]).toMatchObject({ colorBy: "delay", delayThresholds: [2, 15], maxAgeMinutes: 10, glide: false });
+        expect(feeds[1]).toMatchObject({ showArea: true, areaColor: "#ff6f00", glide: true });
     });
 
     it("reads the list's options", () => {

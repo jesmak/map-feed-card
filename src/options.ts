@@ -29,6 +29,8 @@ export interface FeedOptions {
     areaColor: string | null;
     /** Draw each marker's label or name beside it. */
     labels: boolean;
+    /** Move markers between updates instead of jumping (glide.ts). */
+    glide: boolean;
 }
 
 export interface CardOptions {
@@ -77,6 +79,7 @@ function parseFeed(options: Record<string, unknown>): FeedOptions {
         showArea: options.show_area === true,
         areaColor: parseAreaColor(options.area_color),
         labels: options.labels === true,
+        glide: options.glide === true,
     };
 }
 

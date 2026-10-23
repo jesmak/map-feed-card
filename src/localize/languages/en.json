@@ -52,7 +52,9 @@
         "list_height_helper": "When the list is below the map. Beside the map, the list is as tall as the map.",
         "sort": "Order the list starts in",
         "sort_helper": "One of the orders the feeds offer. It can also be changed on the card.",
-        "labels": "Show names beside the markers"
+        "labels": "Show names beside the markers",
+        "glide": "Glide markers between updates",
+        "glide_helper": "Moves each marker smoothly from its previous position to the new one. It then shows where the item was one update ago."
     },
     "list": {
         "count": "{n} items",

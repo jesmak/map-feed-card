@@ -29,13 +29,14 @@ const FEED_DEFAULTS: Record<string, unknown> = {
     very_late_minutes: DEFAULT_DELAY_THRESHOLDS[1],
     show_area: false,
     labels: false,
+    glide: false,
 };
 
 const MINUTES = { number: { min: 0, max: 1440, step: 1, mode: "box", unit_of_measurement: "min" } };
 
 /**
  * A feed's options that make sense for it: delays only for what can be late, an age limit for what has positions,
- * the area only when the feed has one. A feed that doesn't say its type gets them all, since it could be anything.
+ * gliding for what moves, the area only when the feed has one. A feed that doesn't say its type gets them all, since it could be anything.
  * Thresholds and the area's colour appear once the option they belong to is on. An option that doesn't make sense but
  * is set anyway, such as one left from the feed the entry had before, still shows, so it can be cleared.
  */
@@ -50,6 +51,7 @@ export function feedFields(type: FeedType | null, hasArea: boolean, options: Rec
         ...(colorBy && options.color_by === "delay" ? ["late_minutes", "very_late_minutes"] : []),
         ...(type !== "nature" || set("max_age_minutes") ? ["max_age_minutes"] : []),
         "labels",
+        ...((type !== "road" && type !== "nature") || set("glide") ? ["glide"] : []),
         ...(area ? ["show_area"] : []),
         ...((area && options.show_area === true) || set("area_color") ? ["area_color"] : []),
     ];
@@ -69,6 +71,7 @@ function feedSchema(fields: string[], text: (key: string) => string) {
         // The card refuses 0, which would hide everything.
         max_age_minutes: { number: { ...MINUTES.number, min: 1 } },
         labels: { boolean: {} },
+        glide: { boolean: {} },
         show_area: { boolean: {} },
         area_color: { text: {} },
     };
