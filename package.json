@@ -1,6 +1,6 @@
 {
     "name": "map-feed-card",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "description": "Home Assistant dashboard card that draws map feeds (trains, ships, buses, road works, birds…) on Home Assistant's own map, with the selected item's details beside it",
     "keywords": [
         "home-assistant",

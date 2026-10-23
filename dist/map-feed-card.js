@@ -1,4 +1,4 @@
-/*! map-feed-card 1.1.0 | MIT License */
+/*! map-feed-card 1.2.0 | MIT License */
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
@@ -1187,6 +1187,7 @@ var KIND_COLORS = {
   "air.light": "#2e7d32",
   "air.small": "#00838f",
   "air.large": "#1565c0",
+  "air.turboprop": "#795548",
   "air.heavy": "#6a1b9a",
   "air.high_performance": "#c62828",
   "air.rotorcraft": "#ef6c00",
@@ -1241,6 +1242,8 @@ var SILHOUETTES = {
   "air.light": `<path d="M50 16 C53 16 54.5 20 54.5 26 L54.5 34 L96 34 L96 43 L54.5 43 L54 74 L67 76 L67 83 L50 82 L33 83 L33 76 L46 74 L45.5 43 L4 43 L4 34 L45.5 34 L45.5 26 C45.5 20 47 16 50 16 Z"/><rect x="39" y="11" width="22" height="4" rx="2"/>`,
   "air.small": `<path d="M50 8 C53 8 54 12 54 18 L54 38 L95 40 L95 48 L54 50 L54 78 L68 82 L68 88 L50 86 L32 88 L32 82 L46 78 L46 50 L5 48 L5 40 L46 38 L46 18 C46 12 47 8 50 8 Z"/><ellipse cx="31" cy="38" rx="4.5" ry="10"/><ellipse cx="69" cy="38" rx="4.5" ry="10"/>`,
   "air.large": `<path d="M50 8 C53 8 54.5 12 54.5 17 L54.5 37 L92 57 L92 64 L54.5 55 L54.5 76 L66 84 L66 89 L50 85.5 L34 89 L34 84 L45.5 76 L45.5 55 L8 64 L8 57 L45.5 37 L45.5 17 C45.5 12 47 8 50 8 Z"/>`,
+  // An ATR or a Dash 8: a straight wing with its engines' propellers in front, which no other kind has.
+  "air.turboprop": `<path d="M50 4 C53.5 4 55 8.5 55 15 L55 79 L68 84 L68 90 L50 87.5 L32 90 L32 84 L45 79 L45 15 C45 8.5 46.5 4 50 4 Z"/><rect x="2" y="36" width="96" height="9" rx="3"/><rect x="25" y="25" width="9" height="22" rx="4"/><rect x="66" y="25" width="9" height="22" rx="4"/><rect x="18" y="21" width="23" height="3.6" rx="1.8"/><rect x="59" y="21" width="23" height="3.6" rx="1.8"/>`,
   "air.heavy": `<path d="M50 3 C54.5 3 56.5 8 56.5 15 L56.5 36 L97 61 L97 68 L56.5 57 L56.5 80 L71 89 L71 94 L50 90 L29 94 L29 89 L43.5 80 L43.5 57 L3 68 L3 61 L43.5 36 L43.5 15 C43.5 8 45.5 3 50 3 Z"/><ellipse cx="28" cy="52" rx="4" ry="7"/><ellipse cx="72" cy="52" rx="4" ry="7"/>`,
   "air.high_performance": `<path d="M50 3 L54.5 20 L55.5 46 L89 70 L89 77 L56.5 71 L57.5 82 L69 92 L69 97 L50 93 L31 97 L31 92 L42.5 82 L43.5 71 L11 77 L11 70 L44.5 46 L45.5 20 Z"/>`,
   "air.rotorcraft": `<ellipse cx="50" cy="42" rx="11" ry="16"/><rect x="47" y="54" width="6" height="34" rx="2"/><rect x="39" y="84" width="22" height="6" rx="2"/><rect x="47" y="2" width="6" height="80" rx="3" transform="rotate(45 50 42)"/><rect x="47" y="2" width="6" height="80" rx="3" transform="rotate(-45 50 42)"/>`,
@@ -1559,6 +1562,7 @@ var en_default = {
     air_light: "Light aircraft",
     air_small: "Small aircraft",
     air_large: "Large aircraft",
+    air_turboprop: "Turboprop",
     air_heavy: "Heavy aircraft",
     air_high_performance: "Fighter",
     air_rotorcraft: "Helicopter",
@@ -1679,6 +1683,7 @@ var fi_default = {
     air_light: "Kevyt lentokone",
     air_small: "Pieni lentokone",
     air_large: "Suuri lentokone",
+    air_turboprop: "Potkuriturbiinikone",
     air_heavy: "Raskas lentokone",
     air_high_performance: "H\xE4vitt\xE4j\xE4",
     air_rotorcraft: "Helikopteri",
@@ -34226,7 +34231,7 @@ var FIT_GROWTH_MS = 3e3;
 var WIDE_PX = 640;
 console.info(
   `%c  MAP-FEED-CARD 
-%c  ${"1.1.0"}    `,
+%c  ${"1.2.0"}    `,
   "color: orange; font-weight: bold; background: black",
   "color: white; font-weight: bold; background: dimgray"
 );

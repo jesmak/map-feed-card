@@ -94,6 +94,7 @@
         "air_light": "Light aircraft",
         "air_small": "Small aircraft",
         "air_large": "Large aircraft",
+        "air_turboprop": "Turboprop",
         "air_heavy": "Heavy aircraft",
         "air_high_performance": "Fighter",
         "air_rotorcraft": "Helicopter",

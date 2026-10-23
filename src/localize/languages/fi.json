@@ -94,6 +94,7 @@
         "air_light": "Kevyt lentokone",
         "air_small": "Pieni lentokone",
         "air_large": "Suuri lentokone",
+        "air_turboprop": "Potkuriturbiinikone",
         "air_heavy": "Raskas lentokone",
         "air_high_performance": "Hävittäjä",
         "air_rotorcraft": "Helikopteri",

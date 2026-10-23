@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import { besidesRow, delayText, formatAge, groups, speedText, statusLine, titleIsSubtitle, type Text } from "../src/details";
 import type { FeedPoint } from "../src/feed";
-import { delayClass, kindColor, markerHtml, textOn } from "../src/style";
+import en from "../src/localize/languages/en.json";
+import fi from "../src/localize/languages/fi.json";
+import { delayClass, KIND_COLORS, kindColor, markerHtml, textOn } from "../src/style";
 
 /** English as the card has it, so the expectations read like the card. */
 const text: Text = (key, values = {}) => {
@@ -147,6 +149,22 @@ describe("markers and colours", () => {
         expect(markerHtml({ ...aircraft, heading: null }).html).toContain("rotate(0deg)");
         expect(markerHtml({ ...aircraft, stationary: true }).shape).toBe("silhouette");
         expect(markerHtml({ ...aircraft, kind: "air.rotorcraft" }).html).not.toBe(markerHtml(aircraft).html);
+        const turboprop = markerHtml({ ...aircraft, kind: "air.turboprop" });
+        expect(turboprop.shape).toBe("silhouette");
+        for (const other of Object.keys(KIND_COLORS).filter((kind) => kind.startsWith("air.") && kind !== "air.turboprop")) {
+            expect(turboprop.html, `a turboprop isn't drawn as ${other}`).not.toBe(markerHtml({ ...aircraft, kind: other }).html);
+        }
+    });
+
+    // The card's own legend names each kind, so a kind with a colour and no name would be listed by its family alone.
+    it.each(Object.keys(KIND_COLORS))("names the kind %s in every language", (kind) => {
+        const key = kind.replaceAll(".", "_");
+        for (const [language, texts] of [
+            ["en", en],
+            ["fi", fi],
+        ] as const) {
+            expect((texts.kinds as Record<string, string>)[key], `${language} kinds.${key}`).toBeTruthy();
+        }
     });
 
     it("draws an aircraft it has no shape for as an arrow, and one with a badge as a badge", () => {
