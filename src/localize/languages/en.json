@@ -54,7 +54,9 @@
         "sort_helper": "One of the orders the feeds offer. It can also be changed on the card.",
         "labels": "Show names beside the markers",
         "glide": "Glide markers between updates",
-        "glide_helper": "Moves each marker smoothly from its previous position to the new one. It then shows where the item was one update ago."
+        "glide_helper": "Moves each marker smoothly from its previous position to the new one. It then shows where the item was one update ago.",
+        "frame": "Frame the map to this feed",
+        "frame_helper": "Turn off when this feed shouldn't be used to frame the map's initial view."
     },
     "list": {
         "count": "{n} items",
@@ -104,6 +106,7 @@
         "air_balloon": "Balloon",
         "air_drone": "Drone",
         "air_other": "Other aircraft",
+        "air_area": "Airspace area",
         "bird": "Bird sighting",
         "other": "Other",
         "family_ship": "Ship",

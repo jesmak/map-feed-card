@@ -360,12 +360,22 @@ describe("readFeed: list", () => {
         );
         const [point] = feed.points;
         expect(point!.sortValues).toEqual({ distance_km: 3.9, updated: Date.parse("2026-10-12T07:30:00Z") });
-        expect(point!.listRow).toEqual({ title: "Kaislalahti", text: "", value: null });
+        expect(point!.listRow).toEqual({ title: "Kaislalahti", text: "", value: null, tag: null });
     });
 
     it("reads a row's parts only as text", () => {
         const feed = okFeed(feedState("sensor.x", [shipFeature({ list: { title: { html: "<b>" }, value: 3.9 } })]));
-        expect(feed.points[0]!.listRow).toEqual({ title: null, text: null, value: "3.9" });
+        expect(feed.points[0]!.listRow).toEqual({ title: null, text: null, value: "3.9", tag: null });
+    });
+
+    it("reads a row's tag as a detail row's: text, and a tone it knows or neutral", () => {
+        const rowOf = (tag: unknown) => okFeed(feedState("sensor.x", [shipFeature({ list: { tag } })])).points[0]!.listRow.tag;
+        expect(rowOf({ text: "NEW", tone: "warning" })).toEqual({ text: "NEW", tone: "warning" });
+        expect(rowOf({ text: "NEW", tone: "loud" })).toEqual({ text: "NEW", tone: "neutral" });
+        expect(rowOf({ text: "NEW" })).toEqual({ text: "NEW", tone: "neutral" });
+        expect(rowOf({ text: "", tone: "warning" })).toBeNull();
+        expect(rowOf({ text: { html: "<b>NEW</b>" } })).toBeNull();
+        expect(rowOf("NEW")).toBeNull();
     });
 });
 

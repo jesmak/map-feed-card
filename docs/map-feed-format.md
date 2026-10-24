@@ -169,7 +169,7 @@ Properties the card doesn't know are ignored, apart from a feed's own properties
 | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Ships   | `ship.cargo`, `ship.tanker`, `ship.passenger`, `ship.pilot`, `ship.tug`, `ship.fishing`, `ship.pleasure`, `ship.icebreaker`, `ship.other`                                                                                                                                                                   |
 | Trains  | `train.long_distance`, `train.commuter`, `train.cargo`, `train.other`                                                                                                                                                                                                                                       |
-| Air     | `air.light`, `air.small`, `air.large`, `air.turboprop`, `air.heavy`, `air.high_performance`, `air.rotorcraft`, `air.glider`, `air.balloon`, `air.drone`, `air.other`                                                                                                                                        |
+| Air     | `air.light`, `air.small`, `air.large`, `air.turboprop`, `air.heavy`, `air.high_performance`, `air.rotorcraft`, `air.glider`, `air.balloon`, `air.drone`, `air.other`, `air.area`                                                                                                                            |
 | Transit | `bus`, `tram`, `metro`, `ferry`                                                                                                                                                                                                                                                                             |
 | Road    | `road.roadwork`, `road.announcement`, `road.accident`, `road.weight_restriction`, `road.exempted_transport`, `road.maintenance`, `road.maintenance_track`, `road.condition.normal`, `road.condition.poor`, `road.condition.extremely_poor`, `road.condition.unknown`, `road.weather_station`, `road.camera` |
 | Nature  | `bird`                                                                                                                                                                                                                                                                                                      |
@@ -184,7 +184,8 @@ Road works, announcements, accidents, weight restrictions and exempted transport
 silhouette of its kind, from above and turned to its heading (north when it has none), without a disc, and
 `air.other` as an arrow. An aircraft with a badge keeps the badge and its arrow. The details of something that moves
 (ships, trains, transit, aircraft and `road.maintenance`) shows how old its position is. For everything else it
-shows when the item was updated.
+shows when the item was updated. `air.area` is an area of airspace, such as a restricted area, drawn as a polygon of
+its own without a point, so its details show neither a speed nor a position's age.
 
 ### Rows
 
@@ -305,11 +306,16 @@ badge already says its name has its route, the `subtitle`, as the title instead.
 { "title": "Joensuu → Helsinki", "text": "Past Kouvola", "value": "3.9 km" }
 ```
 
+```json
+{ "title": "Restricted area EFR1880", "text": "in force until 17:00", "value": "82 km", "tag": { "text": "NEW", "tone": "warning" } }
+```
+
 | Field   | Type   | Required | Meaning                                                                |
 | ------- | ------ | -------- | ---------------------------------------------------------------------- |
 | `title` | string | MAY      | The row's title.                                                       |
 | `text`  | string | MAY      | The line under the title. An empty string leaves it out.               |
 | `value` | string | MAY      | Shown on the right, such as a distance. An empty string leaves it out. |
+| `tag`   | object | MAY      | A short tag after the title, as a [row's tag](#rows) is.               |
 
 Each field replaces only its own part, so a feed can give a bird sighting's distance as the `value` and keep the rest.
 The value of something late takes its delay's colour, everything else the secondary text colour.

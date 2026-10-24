@@ -211,6 +211,11 @@ export class FeedMap {
         this.updateAttribution();
     }
 
+    /** Whether the map has been moved since it was last fitted, by someone or to reveal a selected item. */
+    get moved(): boolean {
+        return this.movedSinceFit;
+    }
+
     /** Shows everything in `bounds`, as [[west, south], [east, north]]. */
     fit(bounds: [LngLat, LngLat]): void {
         this.fittedTo = bounds;

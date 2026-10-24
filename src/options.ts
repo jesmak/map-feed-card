@@ -31,6 +31,8 @@ export interface FeedOptions {
     labels: boolean;
     /** Move markers between updates instead of jumping (glide.ts). */
     glide: boolean;
+    /** The map opens framed to this feed, with the others that are. */
+    frame: boolean;
 }
 
 export interface CardOptions {
@@ -80,6 +82,7 @@ function parseFeed(options: Record<string, unknown>): FeedOptions {
         areaColor: parseAreaColor(options.area_color),
         labels: options.labels === true,
         glide: options.glide === true,
+        frame: options.frame !== false,
     };
 }
 

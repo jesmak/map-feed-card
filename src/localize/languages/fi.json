@@ -54,7 +54,9 @@
         "sort_helper": "Jokin syötteiden tarjoamista järjestyksistä. Järjestystä voi vaihtaa myös kortilla.",
         "labels": "Näytä nimet merkkien vieressä",
         "glide": "Liu'uta merkkejä päivitysten välillä",
-        "glide_helper": "Merkki liikkuu tasaisesti edellisestä sijainnista uuteen. Se näyttää silloin, missä kohde oli yhtä päivitystä aiemmin."
+        "glide_helper": "Merkki liikkuu tasaisesti edellisestä sijainnista uuteen. Se näyttää silloin, missä kohde oli yhtä päivitystä aiemmin.",
+        "frame": "Rajaa kartta tähän syötteeseen",
+        "frame_helper": "Ota pois käytöstä, kun haluat että tätä syötettä ei käytetä näytettävän kartta-alueen alustavaan rajaamiseen."
     },
     "list": {
         "count": "{n} kohdetta",
@@ -104,6 +106,7 @@
         "air_balloon": "Ilmapallo",
         "air_drone": "Drooni",
         "air_other": "Muu ilma-alus",
+        "air_area": "Ilmatilan alue",
         "bird": "Lintuhavainto",
         "other": "Muu",
         "family_ship": "Alus",

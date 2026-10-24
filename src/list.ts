@@ -2,7 +2,7 @@
  * The card's list of items (docs/map-feed-format.md#list): each item's row, and the orders the feeds offer.
  */
 import { titleIsSubtitle, formatAge, type Text } from "./details";
-import { isMoving, type FeedItem, type FeedList, type FeedPoint, type SortValue } from "./feed";
+import { isMoving, type FeedItem, type FeedList, type FeedPoint, type RowTag, type SortValue } from "./feed";
 import { canBeLate } from "./style";
 
 export interface Row {
@@ -12,6 +12,8 @@ export interface Row {
     value: string;
     /** Whether the value is a delay, drawn in the item's colour. */
     valueIsDelay: boolean;
+    /** A short tag after the title, from the feed's row. */
+    tag: RowTag | null;
 }
 
 /**
@@ -28,6 +30,7 @@ export function rowOf(item: FeedItem, point: FeedPoint | null, text: Text, now =
         text: own.text ?? (subtitleTitle ? "" : item.subtitle),
         value: own.value ?? (delay || formatAge(ageOf, text, now)),
         valueIsDelay: own.value === null && delay !== "",
+        tag: own.tag,
     };
 }
 

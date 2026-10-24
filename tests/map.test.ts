@@ -85,7 +85,7 @@ function ship(overrides: Partial<FeedPoint> = {}): FeedPoint {
         badge: "",
         label: "",
         detailAction: null,
-        listRow: { title: null, text: null, value: null },
+        listRow: { title: null, text: null, value: null, tag: null },
         sortValues: {},
         ...overrides,
     };
@@ -367,7 +367,7 @@ function shape(geometry: FeedShape["geometry"]): FeedShape {
         images: [],
         link: null,
         opacity: 1,
-        listRow: { title: null, text: null, value: null },
+        listRow: { title: null, text: null, value: null, tag: null },
         sortValues: {},
         geometry,
         pointId: "ship:230000001",

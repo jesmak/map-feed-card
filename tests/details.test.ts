@@ -47,7 +47,7 @@ function point(overrides: Partial<FeedPoint> = {}): FeedPoint {
         badge: "IC 8",
         label: "",
         detailAction: null,
-        listRow: { title: null, text: null, value: null },
+        listRow: { title: null, text: null, value: null, tag: null },
         sortValues: {},
         ...overrides,
     };

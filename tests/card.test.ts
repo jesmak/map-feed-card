@@ -4,7 +4,7 @@ import type { HomeAssistant } from "../src/hass";
 import { aircraftFeature, feedState, roadworkLine, shipFeature, trainFeature } from "./support/fakes";
 
 // happy-dom has no WebGL, and the tile proxy is Home Assistant's; the card is tested without its map.
-const drawn = vi.hoisted(() => ({ updates: [] as Array<Record<string, unknown>>, fits: 0 }));
+const drawn = vi.hoisted(() => ({ updates: [] as Array<Record<string, unknown>>, fits: 0, bounds: null as unknown, moved: false }));
 vi.mock("../src/map", () => ({
     FeedMap: class {
         async init() {}
@@ -12,8 +12,12 @@ vi.mock("../src/map", () => ({
         update(content: Record<string, unknown>) {
             drawn.updates.push(content);
         }
-        fit() {
+        get moved() {
+            return drawn.moved;
+        }
+        fit(bounds: unknown) {
             drawn.fits += 1;
+            drawn.bounds = bounds;
         }
         reveal() {}
         resize() {}
@@ -55,6 +59,8 @@ afterEach(() => {
     document.body.innerHTML = "";
     drawn.updates = [];
     drawn.fits = 0;
+    drawn.bounds = null;
+    drawn.moved = false;
 });
 
 describe("map-feed-card", () => {
@@ -304,5 +310,122 @@ describe("map-feed-card", () => {
         await card.updateComplete;
         expect(drawn.updates.length).toBeGreaterThan(before);
         expect(drawn.fits).toBe(2);
+    });
+
+    describe("a feed left out of the framing", () => {
+        const area = (id: string, list: Record<string, unknown> = {}) => ({
+            type: "Feature",
+            id,
+            geometry: {
+                type: "MultiPolygon",
+                coordinates: [
+                    [
+                        [
+                            [20, 60],
+                            [30, 60],
+                            [30, 70],
+                            [20, 70],
+                            [20, 60],
+                        ],
+                    ],
+                ],
+            },
+            properties: { name: "Korpivaara", kind: "air.area", details: [{ label: "Heights", value: "SFC – FL 95" }], list },
+        });
+
+        it("frames the map to the other feeds only", async () => {
+            await mount(
+                { entities: ["sensor.ships", { entity: "sensor.airspace", frame: false }] },
+                {
+                    "sensor.ships": feedState("sensor.ships", [shipFeature()]),
+                    "sensor.airspace": feedState("sensor.airspace", [area("area:EFD910")]),
+                },
+            );
+            expect(drawn.fits).toBe(1);
+            expect(drawn.bounds).toEqual([
+                [27.17012, 60.53044],
+                [27.17012, 60.53044],
+            ]);
+            // Still drawn.
+            expect(drawn.updates.at(-1)!.shapes).toHaveLength(1);
+        });
+
+        it("drops a fit still waiting for something to frame once the map has been moved", async () => {
+            const states = (ships: unknown[]) => ({
+                "sensor.ships": feedState("sensor.ships", ships),
+                "sensor.airspace": feedState("sensor.airspace", [area("area:EFD910")]),
+            });
+            const entities = ["sensor.ships", { entity: "sensor.airspace", frame: false }];
+            const waiting = await mount({ entities }, states([]));
+            expect(drawn.fits).toBe(0);
+            // Not moved: the first ship frames the map.
+            waiting.hass = hass(states([shipFeature()]));
+            await waiting.updateComplete;
+            expect(drawn.fits).toBe(1);
+
+            waiting.remove();
+            drawn.fits = 0;
+            const moved = await mount({ entities }, states([]));
+            drawn.moved = true;
+            moved.hass = hass(states([shipFeature()]));
+            await moved.updateComplete;
+            expect(drawn.fits).toBe(0);
+        });
+
+        it("leaves the map where it opens when every feed is left out", async () => {
+            await mount(
+                { entities: [{ entity: "sensor.airspace", frame: false }] },
+                { "sensor.airspace": feedState("sensor.airspace", [area("area:EFD910")]) },
+            );
+            expect(drawn.fits).toBe(0);
+        });
+    });
+
+    describe("a list row's tag", () => {
+        const area = (id: string, list: Record<string, unknown> = {}) => ({
+            type: "Feature",
+            id,
+            geometry: {
+                type: "MultiPolygon",
+                coordinates: [
+                    [
+                        [
+                            [20, 60],
+                            [30, 60],
+                            [30, 70],
+                            [20, 70],
+                            [20, 60],
+                        ],
+                    ],
+                ],
+            },
+            properties: { name: "Korpivaara", kind: "air.area", details: [{ label: "Heights", value: "SFC – FL 95" }], list },
+        });
+
+        it("shows a list row's tag after its title", async () => {
+            const card = await mount(
+                { entities: ["sensor.airspace"], list: true },
+                {
+                    "sensor.airspace": feedState("sensor.airspace", [
+                        area("area:EFR1880", { title: "Restricted area EFR1880", tag: { text: "NEW", tone: "warning" } }),
+                        {
+                            ...area("area:EFD910", { title: "Korpivaara", tag: { text: "TODAY", tone: "item" } }),
+                            properties: {
+                                ...area("x").properties,
+                                color: "#8f9aab",
+                                list: { title: "Korpivaara", tag: { text: "TODAY", tone: "item" } },
+                            },
+                        },
+                    ]),
+                },
+            );
+            const title = card.shadowRoot!.querySelector(".row .row-title")!;
+            expect(title.textContent!.replace(/\s+/g, " ").trim()).toBe("Restricted area EFR1880 NEW");
+            expect(title.querySelector(".tag.warning")!.textContent).toBe("NEW");
+            // The item tone takes the item's own colour.
+            const own = card.shadowRoot!.querySelector<HTMLElement>(".row .tag.item")!;
+            expect(own.textContent).toBe("TODAY");
+            expect(own.getAttribute("style")).toContain("background:#8f9aab");
+        });
     });
 });

@@ -8,7 +8,7 @@ import { customElement, property, query, state } from "lit/decorators.js";
 import { classMap } from "lit/directives/class-map.js";
 import maplibreCss from "maplibre-gl/dist/maplibre-gl.css?raw";
 
-import { DetailLoader, renderDetails } from "./details";
+import { DetailLoader, renderDetails, tagOf } from "./details";
 import "./editor";
 import {
     boundsOf,
@@ -322,7 +322,7 @@ export class MapFeedCard extends LitElement {
                     : html`<span class="dot" style="background:${entry.color};opacity:${entry.item.opacity}"></span>`
             }
             <span class="row-text">
-                <span class="row-title">${row.title}</span>
+                <span class="row-title">${row.title}${row.tag ? html` ${tagOf(row.tag, entry.color)}` : nothing}</span>
                 ${row.text ? html`<span class="row-sub">${row.text}</span>` : nothing}
             </span>
             ${row.value ? html`<span class="row-value" style=${valueStyle}>${row.value}</span>` : nothing}
@@ -340,6 +340,8 @@ export class MapFeedCard extends LitElement {
         if (!this.map || !this.view) return;
         void this.map.setStyle(this.options!.mapStyle, this.dark(), this.themeColors());
         this.map.update({ ...this.view.content, selected: this.selected });
+        // A fit waits for something to frame, but not past a move: a feed left out of the framing may be what is being read.
+        if (!this.fitted && this.map.moved) this.fitted = true;
         if (!this.fitted) {
             const bounds = boundsOf(this.view.extent);
             if (bounds) {
@@ -511,8 +513,9 @@ export class MapFeedCard extends LitElement {
             }
             if (area && feed.showArea)
                 view.content.areas.push({ area, color: feed.areaColor ?? areaColor(this.dark()) } satisfies DrawnArea);
-            // The feed's area frames the map best; without one, everything in the feed does.
-            view.extent.push(...(area ? areaOutline(area) : extent));
+            // The feed's area frames the map best; without one, everything in the feed does. A feed left out of the
+            // framing, such as a national one beside a local one, frames nothing.
+            if (feed.frame) view.extent.push(...(area ? areaOutline(area) : extent));
             // MapLibre reads an attribution as HTML; a feed's is text, as everything in it is, and its link an https URL.
             if (attribution) {
                 view.content.attributions.push(

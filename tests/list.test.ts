@@ -43,7 +43,7 @@ function point(overrides: Partial<FeedPoint> = {}): FeedPoint {
         badge: "IC 8",
         label: "",
         detailAction: null,
-        listRow: { title: null, text: null, value: null },
+        listRow: { title: null, text: null, value: null, tag: null },
         sortValues: {},
         ...overrides,
     };
@@ -51,7 +51,13 @@ function point(overrides: Partial<FeedPoint> = {}): FeedPoint {
 
 describe("rows", () => {
     it("titles a train by its route and gives its delay as the value", () => {
-        expect(rowOf(point(), point(), text, NOW)).toEqual({ title: "Joensuu → Helsinki", text: "", value: "4 min", valueIsDelay: true });
+        expect(rowOf(point(), point(), text, NOW)).toEqual({
+            title: "Joensuu → Helsinki",
+            text: "",
+            value: "4 min",
+            valueIsDelay: true,
+            tag: null,
+        });
         expect(rowOf(point({ delayMinutes: -2.4 }), point({ delayMinutes: -2.4 }), text, NOW).value).toBe("−2 min");
         expect(rowOf(point({ delayMinutes: 0.2 }), point({ delayMinutes: 0.2 }), text, NOW).value).toBe("on time");
         expect(rowOf(point({ cancelled: true }), point({ cancelled: true }), text, NOW).value).toBe("cancelled");
@@ -64,16 +70,17 @@ describe("rows", () => {
             badge: "1",
             subtitle: "1 species · 12.10.",
             delayMinutes: null,
-            listRow: { title: "Kaislalahti", text: null, value: "3.9 km" },
+            listRow: { title: "Kaislalahti", text: null, value: "3.9 km", tag: null },
         });
         expect(rowOf(site, site, text, NOW)).toEqual({
             title: "Kaislalahti",
             text: "1 species · 12.10.",
             value: "3.9 km",
             valueIsDelay: false,
+            tag: null,
         });
         const plain = point({ name: "Roadwork", kind: "road.roadwork", badge: "", subtitle: "", delayMinutes: null });
-        expect(rowOf(plain, plain, text, NOW)).toEqual({ title: "Roadwork", text: "", value: "5 min ago", valueIsDelay: false });
+        expect(rowOf(plain, plain, text, NOW)).toEqual({ title: "Roadwork", text: "", value: "5 min ago", valueIsDelay: false, tag: null });
     });
 });
 

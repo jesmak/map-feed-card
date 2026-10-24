@@ -4,7 +4,7 @@
  */
 import { html, nothing, type TemplateResult } from "lit";
 
-import { isMoving, kindFamily, readDetailRows, type DetailRow, type FeedImage, type FeedItem, type FeedPoint } from "./feed";
+import { isMoving, kindFamily, readDetailRows, type DetailRow, type FeedImage, type FeedItem, type FeedPoint, type RowTag } from "./feed";
 import type { HomeAssistant } from "./hass";
 import { DELAY_COLORS, delayClass, textOn } from "./style";
 
@@ -231,7 +231,7 @@ function mediaList(rows: DetailRow[], color: string, onImage: (image: FeedImage 
                         <span class="label">${row.label}</span>
                         <span class="value">${valueOf(row)}</span>
                     </div>
-                    ${row.tag ? tag(row, color) : nothing}
+                    ${row.tag ? tagOf(row.tag, color) : nothing}
                 </li>`,
         )}
     </ul>`;
@@ -242,17 +242,15 @@ function table(rows: DetailRow[]): TemplateResult {
         ${rows.map(
             (row) =>
                 html`<dt>${row.label}</dt>
-                    <dd>${valueOf(row)}${row.tag ? html` ${tag(row, null)}` : nothing}</dd>`,
+                    <dd>${valueOf(row)}${row.tag ? html` ${tagOf(row.tag, null)}` : nothing}</dd>`,
         )}
     </dl>`;
 }
 
 /** `item` takes the item's own colour, the one its marker has, so the tag leads from the marker to the row. */
-function tag(row: DetailRow, color: string | null): TemplateResult {
-    const own = row.tag!.tone === "item" && color;
-    return html`<span class="tag ${row.tag!.tone}" style=${own ? `background:${color};color:${textOn(color)}` : ""}
-        >${row.tag!.text}</span
-    >`;
+export function tagOf(tag: RowTag, color: string | null): TemplateResult {
+    const own = tag.tone === "item" && color;
+    return html`<span class="tag ${tag.tone}" style=${own ? `background:${color};color:${textOn(color)}` : ""}>${tag.text}</span>`;
 }
 
 function valueOf(row: DetailRow): string {

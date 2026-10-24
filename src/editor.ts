@@ -30,6 +30,7 @@ const FEED_DEFAULTS: Record<string, unknown> = {
     show_area: false,
     labels: false,
     glide: false,
+    frame: true,
 };
 
 const MINUTES = { number: { min: 0, max: 1440, step: 1, mode: "box", unit_of_measurement: "min" } };
@@ -54,6 +55,7 @@ export function feedFields(type: FeedType | null, hasArea: boolean, options: Rec
         ...((type !== "road" && type !== "nature") || set("glide") ? ["glide"] : []),
         ...(area ? ["show_area"] : []),
         ...((area && options.show_area === true) || set("area_color") ? ["area_color"] : []),
+        "frame",
     ];
     // Thresholds set without delay colouring do nothing, but are shown, so they can be cleared.
     for (const name of ["late_minutes", "very_late_minutes"])
@@ -74,6 +76,7 @@ function feedSchema(fields: string[], text: (key: string) => string) {
         glide: { boolean: {} },
         show_area: { boolean: {} },
         area_color: { text: {} },
+        frame: { boolean: {} },
     };
     return fields.map((name) => ({ name, selector: selectors[name] }));
 }

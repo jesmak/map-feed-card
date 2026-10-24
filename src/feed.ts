@@ -91,6 +91,7 @@ export interface ListRow {
     title: string | null;
     text: string | null;
     value: string | null;
+    tag: RowTag | null;
 }
 
 /** A value to sort by: a number, a time as milliseconds, or text. */
@@ -414,9 +415,9 @@ function readList(value: unknown): FeedList {
 }
 
 function readListRow(value: unknown): ListRow {
-    if (!isRecord(value)) return { title: null, text: null, value: null };
+    if (!isRecord(value)) return { title: null, text: null, value: null, tag: null };
     const part = (part: unknown): string | null => (typeof part === "string" || typeof part === "number" ? text(part) : null);
-    return { title: part(value.title) || null, text: part(value.text), value: part(value.value) };
+    return { title: part(value.title) || null, text: part(value.text), value: part(value.value), tag: readTag(value.tag) };
 }
 
 /** A date-time as ISO 8601 writes it; anything else that Date.parse would accept is left as text. */

@@ -1,4 +1,4 @@
-/*! map-feed-card 1.3.0 | MIT License */
+/*! map-feed-card 1.4.0 | MIT License */
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
@@ -837,8 +837,8 @@ function readDetailRows(value) {
     const row = { label, value: rowValue, unit: text(item.unit) };
     const image = readImage(item.image);
     if (image) row.image = image;
-    const tag2 = readTag(item.tag);
-    if (tag2) row.tag = tag2;
+    const tag = readTag(item.tag);
+    if (tag) row.tag = tag;
     rows.push(row);
   }
   return rows;
@@ -983,9 +983,9 @@ function readList(value) {
   return list;
 }
 function readListRow(value) {
-  if (!isRecord(value)) return { title: null, text: null, value: null };
+  if (!isRecord(value)) return { title: null, text: null, value: null, tag: null };
   const part = (part2) => typeof part2 === "string" || typeof part2 === "number" ? text(part2) : null;
-  return { title: part(value.title) || null, text: part(value.text), value: part(value.value) };
+  return { title: part(value.title) || null, text: part(value.text), value: part(value.value), tag: readTag(value.tag) };
 }
 var ISO_TIME = /^\d{4}-\d{2}-\d{2}T/;
 function readSortValues(props, properties) {
@@ -1419,7 +1419,7 @@ function mediaList(rows, color3, onImage) {
                         <span class="label">${row.label}</span>
                         <span class="value">${valueOf(row)}</span>
                     </div>
-                    ${row.tag ? tag(row, color3) : A}
+                    ${row.tag ? tagOf(row.tag, color3) : A}
                 </li>`
   )}
     </ul>`;
@@ -1428,15 +1428,13 @@ function table(rows) {
   return b2`<dl class="table">
         ${rows.map(
     (row) => b2`<dt>${row.label}</dt>
-                    <dd>${valueOf(row)}${row.tag ? b2` ${tag(row, null)}` : A}</dd>`
+                    <dd>${valueOf(row)}${row.tag ? b2` ${tagOf(row.tag, null)}` : A}</dd>`
   )}
     </dl>`;
 }
-function tag(row, color3) {
-  const own = row.tag.tone === "item" && color3;
-  return b2`<span class="tag ${row.tag.tone}" style=${own ? `background:${color3};color:${textOn(color3)}` : ""}
-        >${row.tag.text}</span
-    >`;
+function tagOf(tag, color3) {
+  const own = tag.tone === "item" && color3;
+  return b2`<span class="tag ${tag.tone}" style=${own ? `background:${color3};color:${textOn(color3)}` : ""}>${tag.text}</span>`;
 }
 function valueOf(row) {
   return row.unit ? `${row.value} ${row.unit}` : row.value;
@@ -1522,7 +1520,9 @@ var en_default = {
     sort_helper: "One of the orders the feeds offer. It can also be changed on the card.",
     labels: "Show names beside the markers",
     glide: "Glide markers between updates",
-    glide_helper: "Moves each marker smoothly from its previous position to the new one. It then shows where the item was one update ago."
+    glide_helper: "Moves each marker smoothly from its previous position to the new one. It then shows where the item was one update ago.",
+    frame: "Frame the map to this feed",
+    frame_helper: "Turn off when this feed shouldn't be used to frame the map's initial view."
   },
   list: {
     count: "{n} items",
@@ -1572,6 +1572,7 @@ var en_default = {
     air_balloon: "Balloon",
     air_drone: "Drone",
     air_other: "Other aircraft",
+    air_area: "Airspace area",
     bird: "Bird sighting",
     other: "Other",
     family_ship: "Ship",
@@ -1645,7 +1646,9 @@ var fi_default = {
     sort_helper: "Jokin sy\xF6tteiden tarjoamista j\xE4rjestyksist\xE4. J\xE4rjestyst\xE4 voi vaihtaa my\xF6s kortilla.",
     labels: "N\xE4yt\xE4 nimet merkkien vieress\xE4",
     glide: "Liu'uta merkkej\xE4 p\xE4ivitysten v\xE4lill\xE4",
-    glide_helper: "Merkki liikkuu tasaisesti edellisest\xE4 sijainnista uuteen. Se n\xE4ytt\xE4\xE4 silloin, miss\xE4 kohde oli yht\xE4 p\xE4ivityst\xE4 aiemmin."
+    glide_helper: "Merkki liikkuu tasaisesti edellisest\xE4 sijainnista uuteen. Se n\xE4ytt\xE4\xE4 silloin, miss\xE4 kohde oli yht\xE4 p\xE4ivityst\xE4 aiemmin.",
+    frame: "Rajaa kartta t\xE4h\xE4n sy\xF6tteeseen",
+    frame_helper: "Ota pois k\xE4yt\xF6st\xE4, kun haluat ett\xE4 t\xE4t\xE4 sy\xF6tett\xE4 ei k\xE4ytet\xE4 n\xE4ytett\xE4v\xE4n kartta-alueen alustavaan rajaamiseen."
   },
   list: {
     count: "{n} kohdetta",
@@ -1695,6 +1698,7 @@ var fi_default = {
     air_balloon: "Ilmapallo",
     air_drone: "Drooni",
     air_other: "Muu ilma-alus",
+    air_area: "Ilmatilan alue",
     bird: "Lintuhavainto",
     other: "Muu",
     family_ship: "Alus",
@@ -1745,7 +1749,8 @@ function rowOf(item, point, text2, now = Date.now()) {
     title: own.title ?? ((subtitleTitle ? item.subtitle : item.name) || item.name),
     text: own.text ?? (subtitleTitle ? "" : item.subtitle),
     value: own.value ?? (delay || formatAge(ageOf, text2, now)),
-    valueIsDelay: own.value === null && delay !== ""
+    valueIsDelay: own.value === null && delay !== "",
+    tag: own.tag
   };
 }
 function shortDelay(point, text2) {
@@ -1832,7 +1837,8 @@ function parseFeed(options) {
     showArea: options.show_area === true,
     areaColor: parseAreaColor(options.area_color),
     labels: options.labels === true,
-    glide: options.glide === true
+    glide: options.glide === true,
+    frame: options.frame !== false
   };
 }
 function parseMapStyle(value) {
@@ -1886,7 +1892,8 @@ var FEED_DEFAULTS = {
   very_late_minutes: DEFAULT_DELAY_THRESHOLDS[1],
   show_area: false,
   labels: false,
-  glide: false
+  glide: false,
+  frame: true
 };
 var MINUTES = { number: { min: 0, max: 1440, step: 1, mode: "box", unit_of_measurement: "min" } };
 function feedFields(type, hasArea, options) {
@@ -1901,7 +1908,8 @@ function feedFields(type, hasArea, options) {
     "labels",
     ...type !== "road" && type !== "nature" || set("glide") ? ["glide"] : [],
     ...area ? ["show_area"] : [],
-    ...area && options.show_area === true || set("area_color") ? ["area_color"] : []
+    ...area && options.show_area === true || set("area_color") ? ["area_color"] : [],
+    "frame"
   ];
   for (const name of ["late_minutes", "very_late_minutes"])
     if (set(name) && !fields.includes(name)) fields.splice(fields.indexOf("labels"), 0, name);
@@ -1919,7 +1927,8 @@ function feedSchema(fields, text2) {
     labels: { boolean: {} },
     glide: { boolean: {} },
     show_area: { boolean: {} },
-    area_color: { text: {} }
+    area_color: { text: {} },
+    frame: { boolean: {} }
   };
   return fields.map((name) => ({ name, selector: selectors[name] }));
 }
@@ -34085,6 +34094,10 @@ var FeedMap = class {
     this.updateLayers();
     this.updateAttribution();
   }
+  /** Whether the map has been moved since it was last fitted, by someone or to reveal a selected item. */
+  get moved() {
+    return this.movedSinceFit;
+  }
   /** Shows everything in `bounds`, as [[west, south], [east, north]]. */
   fit(bounds) {
     this.fittedTo = bounds;
@@ -34355,7 +34368,7 @@ var FIT_GROWTH_MS = 3e3;
 var WIDE_PX = 640;
 console.info(
   `%c  MAP-FEED-CARD 
-%c  ${"1.3.0"}    `,
+%c  ${"1.4.0"}    `,
   "color: orange; font-weight: bold; background: black",
   "color: white; font-weight: bold; background: dimgray"
 );
@@ -34548,7 +34561,7 @@ var MapFeedCard = class extends i4 {
     return b2`<button class="row" aria-expanded=${open ? "true" : "false"} @click=${() => this.select(open ? null : entry.key)}>
             ${entry.point?.badge ? b2`<span class="chip" style="background:${entry.color};color:${textOn(entry.color)}">${entry.point.badge}</span>` : b2`<span class="dot" style="background:${entry.color};opacity:${entry.item.opacity}"></span>`}
             <span class="row-text">
-                <span class="row-title">${row.title}</span>
+                <span class="row-title">${row.title}${row.tag ? b2` ${tagOf(row.tag, entry.color)}` : A}</span>
                 ${row.text ? b2`<span class="row-sub">${row.text}</span>` : A}
             </span>
             ${row.value ? b2`<span class="row-value" style=${valueStyle}>${row.value}</span>` : A}
@@ -34564,6 +34577,7 @@ var MapFeedCard = class extends i4 {
     if (!this.map || !this.view) return;
     void this.map.setStyle(this.options.mapStyle, this.dark(), this.themeColors());
     this.map.update({ ...this.view.content, selected: this.selected });
+    if (!this.fitted && this.map.moved) this.fitted = true;
     if (!this.fitted) {
       const bounds = boundsOf(this.view.extent);
       if (bounds) {
@@ -34723,7 +34737,7 @@ var MapFeedCard = class extends i4 {
       }
       if (area && feed.showArea)
         view.content.areas.push({ area, color: feed.areaColor ?? areaColor(this.dark()) });
-      view.extent.push(...area ? areaOutline(area) : extent);
+      if (feed.frame) view.extent.push(...area ? areaOutline(area) : extent);
       if (attribution) {
         view.content.attributions.push(
           attributionUrl ? `<a href="${escapeHtml(attributionUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(attribution)}</a>` : escapeHtml(attribution)

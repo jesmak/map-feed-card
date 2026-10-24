@@ -16,6 +16,7 @@ describe("parseOptions", () => {
                     areaColor: null,
                     labels: false,
                     glide: false,
+                    frame: true,
                 },
             ],
             mapStyle: "default",
@@ -36,6 +37,13 @@ describe("parseOptions", () => {
         });
         expect(feeds[0]).toMatchObject({ colorBy: "delay", delayThresholds: [2, 15], maxAgeMinutes: 10, glide: false });
         expect(feeds[1]).toMatchObject({ showArea: true, areaColor: "#ff6f00", glide: true });
+    });
+
+    it("frames the map to a feed unless told not to", () => {
+        const { feeds } = parseOptions({
+            entities: ["sensor.aircraft", { entity: "sensor.airspace", frame: false }, { entity: "sensor.ships", frame: true }],
+        });
+        expect(feeds.map((feed) => feed.frame)).toEqual([true, false, true]);
     });
 
     it("reads the list's options", () => {
