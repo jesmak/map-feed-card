@@ -475,7 +475,6 @@ function readDetailAction(value: unknown): DetailAction | null {
     return { domain: match[1]!, service: match[2]!, data: isRecord(value.data) ? value.data : {} };
 }
 
-/** Note that `area` is latitude first, like the rest of Home Assistant. */
 /** A feed covers a local area; anything wider than this is a mistake, such as metres written as kilometres. */
 const MAX_RADIUS_KM = 1000;
 

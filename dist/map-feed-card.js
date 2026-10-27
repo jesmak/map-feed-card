@@ -34755,8 +34755,10 @@ var MapFeedCard = class extends i4 {
     view.content.attributions = [...new Set(view.content.attributions)];
     return view;
   }
-  /** The card's own legend for colour by delay, with the feed's thresholds. */
-  /** The delay classes, and the two greys only when the map has something cancelled or without a delay. */
+  /**
+   * The card's own legend for colour by delay, with the feed's thresholds: the delay classes, and the two greys only
+   * when the map has something cancelled or without a delay.
+   */
   delayLegend(feed, shown) {
     const [late, veryLate] = feed.delayThresholds;
     return [

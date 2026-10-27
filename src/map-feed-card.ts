@@ -539,8 +539,10 @@ export class MapFeedCard extends LitElement {
         return view;
     }
 
-    /** The card's own legend for colour by delay, with the feed's thresholds. */
-    /** The delay classes, and the two greys only when the map has something cancelled or without a delay. */
+    /**
+     * The card's own legend for colour by delay, with the feed's thresholds: the delay classes, and the two greys only
+     * when the map has something cancelled or without a delay.
+     */
     private delayLegend(feed: FeedOptions, shown: ReadonlySet<string>): LegendEntry[] {
         const [late, veryLate] = feed.delayThresholds;
         return [
