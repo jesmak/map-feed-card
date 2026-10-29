@@ -56,32 +56,32 @@ The card needs Home Assistant 2026.9.3 or newer. Home Assistant serves the map t
 
 ## Options
 
-| Name          | Type    | Default   | Description                                                                                                        |
-| ------------- | ------- | --------- | ------------------------------------------------------------------------------------------------------------------ |
-| `type`        | string  | required  | `custom:map-feed-card`                                                                                             |
-| `entities`    | list    | required  | Map feed sensors, drawn on the same map, as entity ids or with their options below                                 |
-| `title`       | string  |           | Shown at the top of the card                                                                                       |
-| `map_style`   | string  | `default` | Home Assistant's map style, `default`, `colorful`, `natural`, `muted`, `gray` or `toner`                           |
-| `map_height`  | number  | `300`     | The map's height in pixels. When the card is wide, the details beside it are as tall                               |
-| `legend`      | boolean | `true`    | Show what the colours mean, over the map                                                                           |
-| `list`        | boolean | `false`   | Show the items as a list beside or below the map, the selected one opened in place                                 |
-| `list_height` | number  | `450`     | The list's height in pixels below the map. Beside the map, the list is as tall as the map                          |
-| `sort`        | string  |           | The order the list starts in, one of the orders the feeds offer. With more than one, it can be changed on the card |
+| Name          | Type    | Description                                                                                                        | Default   |
+| ------------- | ------- | ------------------------------------------------------------------------------------------------------------------ | --------- |
+| `type`        | string  | `custom:map-feed-card`                                                                                             | required  |
+| `entities`    | list    | Map feed sensors, drawn on the same map, as entity ids or with their options below                                 | required  |
+| `title`       | string  | Shown at the top of the card                                                                                       |           |
+| `map_style`   | string  | Home Assistant's map style, `default`, `colorful`, `natural`, `muted`, `gray` or `toner`                           | `default` |
+| `map_height`  | number  | The map's height in pixels. When the card is wide, the details beside it are as tall                               | `300`     |
+| `legend`      | boolean | Show what the colours mean, over the map                                                                           | `true`    |
+| `list`        | boolean | Show the items as a list beside or below the map, the selected one opened in place                                 | `false`   |
+| `list_height` | number  | The list's height in pixels below the map. Beside the map, the list is as tall as the map                          | `450`     |
+| `sort`        | string  | The order the list starts in, one of the orders the feeds offer. With more than one, it can be changed on the card |           |
 
 Each feed in `entities` can have options of its own:
 
-| Name                | Type    | Default  | Description                                                                                                                                       |
-| ------------------- | ------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `entity`            | string  | required | The map feed sensor                                                                                                                               |
-| `color_by`          | string  | `kind`   | `kind` colours by what the item is, `delay` trains and public transport by how late they are                                                      |
-| `late_minutes`      | number  | `3`      | With `color_by: delay`, minutes late from which an item is yellow                                                                                 |
-| `very_late_minutes` | number  | `10`     | With `color_by: delay`, minutes late from which an item is red                                                                                    |
-| `max_age_minutes`   | number  |          | Hide items whose position is older than this                                                                                                      |
-| `show_area`         | boolean | `false`  | Draw the area the feed covers, as a dashed outline                                                                                                |
-| `area_color`        | string  |          | The area's colour, as a hex colour. By default a blue that suits the theme                                                                        |
-| `labels`            | boolean | `false`  | Show each item's name beside its marker                                                                                                           |
-| `glide`             | boolean | `false`  | Move the markers smoothly between updates instead of jumping, an update behind                                                                    |
-| `frame`             | boolean | `true`   | Frame the map to this feed when the card opens. Off for a feed that covers much more than the others, such as a whole country beside a local feed |
+| Name                | Type    | Description                                                                                                                                       | Default  |
+| ------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `entity`            | string  | The map feed sensor                                                                                                                               | required |
+| `color_by`          | string  | `kind` colours by what the item is, `delay` trains and public transport by how late they are                                                      | `kind`   |
+| `late_minutes`      | number  | With `color_by: delay`, minutes late from which an item is yellow                                                                                 | `3`      |
+| `very_late_minutes` | number  | With `color_by: delay`, minutes late from which an item is red                                                                                    | `10`     |
+| `max_age_minutes`   | number  | Hide items whose position is older than this                                                                                                      |          |
+| `show_area`         | boolean | Draw the area the feed covers, as a dashed outline                                                                                                | `false`  |
+| `area_color`        | string  | The area's colour, as a hex colour. By default a blue that suits the theme                                                                        |          |
+| `labels`            | boolean | Show each item's name beside its marker                                                                                                           | `false`  |
+| `glide`             | boolean | Move the markers smoothly between updates instead of jumping, an update behind                                                                    | `false`  |
+| `frame`             | boolean | Frame the map to this feed when the card opens. Off for a feed that covers much more than the others, such as a whole country beside a local feed | `true`   |
 
 Every option is in the card's visual editor, which offers each feed only the options that make sense for its [type](docs/map-feed-format.md#feed-type), such as no delays for bird sightings.
 
