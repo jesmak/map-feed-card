@@ -1,4 +1,4 @@
-/*! map-feed-card 1.4.0 | MIT License */
+/*! map-feed-card 1.4.1 | MIT License */
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
@@ -34368,7 +34368,7 @@ var FIT_GROWTH_MS = 3e3;
 var WIDE_PX = 640;
 console.info(
   `%c  MAP-FEED-CARD 
-%c  ${"1.4.0"}    `,
+%c  ${"1.4.1"}    `,
   "color: orange; font-weight: bold; background: black",
   "color: white; font-weight: bold; background: dimgray"
 );
@@ -34445,7 +34445,7 @@ var MapFeedCard = class extends i4 {
   shouldUpdate(changed) {
     const previous = changed.get("hass");
     if (!previous || changed.size > 1 || !changed.has("hass") || !this.options) return true;
-    return previous.themes?.darkMode !== this.hass?.themes?.darkMode || // Another theme can paint the map in other colours (map-theme.ts).
+    return previous.locale !== this.hass?.locale || previous.language !== this.hass?.language || previous.themes?.darkMode !== this.hass?.themes?.darkMode || // Another theme can paint the map in other colours (map-theme.ts).
     previous.themes?.theme !== this.hass?.themes?.theme || previous.selectedTheme !== this.hass?.selectedTheme || this.options.feeds.some(({ entity }) => previous.states[entity] !== this.hass?.states[entity]);
   }
   willUpdate(changed) {

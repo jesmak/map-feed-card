@@ -171,8 +171,10 @@ export class MapFeedCard extends LitElement {
     protected shouldUpdate(changed: PropertyValues): boolean {
         const previous = changed.get("hass") as HomeAssistant | undefined;
         if (!previous || changed.size > 1 || !changed.has("hass") || !this.options) return true;
-        // Home Assistant hands the card every state change in the house; only its own feeds and the theme matter.
+        // Home Assistant hands the card every state change in the house; only its own feeds, the language and the theme matter.
         return (
+            previous.locale !== this.hass?.locale ||
+            previous.language !== this.hass?.language ||
             previous.themes?.darkMode !== this.hass?.themes?.darkMode ||
             // Another theme can paint the map in other colours (map-theme.ts).
             previous.themes?.theme !== this.hass?.themes?.theme ||
