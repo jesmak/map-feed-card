@@ -1,6 +1,6 @@
 /**
  * A dashboard card that draws map feeds (docs/map-feed-format.md) on Home Assistant's own map, with the selected
- * item's details in a panel below the map, or beside it when the card is wide.
+ * item's details in a sheet over the bottom of the map, or in a panel beside it when the card is wide.
  */
 import { LitElement, css, html, nothing, unsafeCSS } from "lit";
 import type { PropertyValues, TemplateResult } from "lit";
@@ -10,6 +10,7 @@ import maplibreCss from "maplibre-gl/dist/maplibre-gl.css?raw";
 
 import { DetailLoader, renderDetails, tagOf } from "./details";
 import "./editor";
+import { ScrollFade, fadeStyles } from "./fade";
 import {
     boundsOf,
     readFeed,
@@ -26,6 +27,7 @@ import {
     type LegendEntry,
 } from "./feed";
 import type { HomeAssistant } from "./hass";
+import { gridMinRows, heightCardSize, heightStyle, validHeight, type HeightConfig } from "./height";
 import { countText, rowOf, sortOptions, sortRows, startingSort, type Row } from "./list";
 import { browserLanguage, translate } from "./localize/localize";
 import { FeedMap, type DrawnArea, type DrawnPoint, type DrawnShape, type MapContent } from "./map";
@@ -46,8 +48,17 @@ const UNFOLD_MS = 220;
 /** How long after a row was opened content that grows is still fitted into view. */
 const FIT_GROWTH_MS = 3000;
 
-/** From this width the details go beside the map instead of below it. */
+/** From this width the details go beside the map instead of over it. */
 const WIDE_PX = 640;
+
+/** How much of the map the details' sheet leaves clear above it, for the item it shows. */
+const SHEET_CLEAR_PX = 96;
+/** Held to a height, the least the map keeps when it gives way, so the details' sheet still has room over it. */
+const MAP_MIN_PX = 200;
+/** Held to a height with the list below the map, the least the list keeps: its header and two rows of two lines. */
+const LIST_MIN_PX = 162;
+/** The card's title, with its padding. */
+const TITLE_PX = 48;
 
 console.info(
     `%c  MAP-FEED-CARD \n%c  ${__CARD_VERSION__}    `,
@@ -89,7 +100,11 @@ interface View {
 @customElement("map-feed-card")
 export class MapFeedCard extends LitElement {
     @property({ attribute: false }) public hass?: HomeAssistant;
+    /** "grid" in a sections view, where the rows set in its layout tab hold the card to a height. */
+    @property({ attribute: false }) public layout?: string;
     @state() private options?: CardOptions;
+    /** The configuration as written, for the height's options. */
+    private config: HeightConfig = {};
     @state() private selected: string | null = null;
     @state() private featured: FeedImage | null = null;
     @state() private mapError = "";
@@ -113,6 +128,23 @@ export class MapFeedCard extends LitElement {
     private resizer?: ResizeObserver;
     /** Set when something is selected, so the list scrolls its row into view once it is drawn. */
     private fitSelected = false;
+    /**
+     * Set when anything may have moved the selected item out of view or under the details' sheet: a tap, the item
+     * moving, the sheet or the card changing size, the map starting or framing itself. The map then shows the item,
+     * unless someone has moved it since the tap.
+     */
+    private revealSelected = false;
+    /** Where the selected item was when the map was last asked to show it, so its moving asks again. */
+    private shownAt = "";
+    /** The details' sheet whose size is followed, so the item is kept clear of it as the sheet changes size. */
+    private sheetElement?: HTMLElement;
+    private sheetResizer?: ResizeObserver;
+
+    constructor() {
+        super();
+        // The list fades while the card is held to a height.
+        new ScrollFade(this, () => (this.heightStyle() ? this.renderRoot.querySelectorAll<HTMLElement>(".list .rows") : []));
+    }
 
     public static getConfigElement(): HTMLElement {
         return document.createElement("map-feed-card-editor");
@@ -126,6 +158,10 @@ export class MapFeedCard extends LitElement {
 
     public setConfig(config: Record<string, unknown>): void {
         const options = parseOptions(config);
+        if (!validHeight(config as HeightConfig)) {
+            throw new Error("height and max_height must be positive numbers of pixels, and height_mode auto, fixed or max");
+        }
+        this.config = config as HeightConfig;
         const previous = this.options;
         this.options = options;
         if (previous && previous.feeds.map((feed) => feed.entity).join() !== options.feeds.map((feed) => feed.entity).join()) {
@@ -136,11 +172,24 @@ export class MapFeedCard extends LitElement {
 
     public getCardSize(): number {
         const list = this.options?.list ? this.options.listHeight : 0;
-        return Math.ceil(((this.options?.mapHeight ?? 300) + list) / 50) + 3;
+        return heightCardSize(this.config, Math.ceil(((this.options?.mapHeight ?? 300) + list) / 50) + 3, this.minimumHeight());
     }
 
     public getGridOptions(): Record<string, unknown> {
-        return { columns: "full", min_columns: 6, rows: "auto" };
+        return { columns: "full", min_columns: 6, rows: "auto", min_rows: gridMinRows(this.minimumHeight()) };
+    }
+
+    /**
+     * Held to a height, the title and the map with room for the details' sheet still fit; with the list, the map at its
+     * own height and the list's header and two rows. Below the map is the narrow layout's, the taller of the two.
+     */
+    private minimumHeight(): number {
+        const title = this.options?.title ? TITLE_PX : 0;
+        return title + (this.options?.list ? this.options.mapHeight + LIST_MIN_PX : MAP_MIN_PX);
+    }
+
+    private heightStyle(): string {
+        return heightStyle(this.config, this.layout, this.minimumHeight());
     }
 
     public connectedCallback(): void {
@@ -150,6 +199,11 @@ export class MapFeedCard extends LitElement {
         this.resizer = new ResizeObserver(([entry]) => {
             this.wide = (entry?.contentRect.width ?? 0) >= WIDE_PX;
             this.map?.resize();
+            // A new size, or the details moving between the sheet and the panel, can hide the selected item.
+            if (this.selected) {
+                this.revealSelected = true;
+                this.requestUpdate();
+            }
             this.fitLegend();
         });
         this.resizer.observe(this);
@@ -163,6 +217,8 @@ export class MapFeedCard extends LitElement {
         super.disconnectedCallback();
         clearInterval(this.ticker);
         this.resizer?.disconnect();
+        this.sheetResizer?.disconnect();
+        this.sheetElement = undefined;
         this.map?.destroy();
         this.map = undefined;
         this.fitted = false;
@@ -207,8 +263,8 @@ export class MapFeedCard extends LitElement {
         const titleInList = list && this.wide && title !== "";
         return html`
             <ha-card
-                class=${classMap({ wide: this.wide, "with-list": list, dark: this.dark() })}
-                style="--map-height:${this.options.mapHeight}px;--list-height:${this.options.listHeight}px"
+                class=${classMap({ wide: this.wide, "with-list": list, dark: this.dark(), held: !!this.heightStyle() })}
+                style="--map-height:${this.options.mapHeight}px;--list-height:${this.options.listHeight}px;${this.heightStyle()}"
             >
                 ${title && !titleInList ? html`<h1 class="card-title">${title}</h1>` : nothing}
                 <div class="body">
@@ -216,24 +272,45 @@ export class MapFeedCard extends LitElement {
                         <div class="map"></div>
                         ${this.options.legend && view?.legend.length ? this.legend(view.legend) : nothing}
                         ${this.mapError ? html`<div class="map-error">${this.mapError}</div>` : nothing}
+                        ${!list && !this.wide ? this.sheet(view, selected) : nothing}
                     </div>
                     ${
                         list
                             ? this.renderList(view, titleInList ? title : "")
-                            : html`<div class="panel">
-                                  ${view?.problems.map((problem) => html`<div class="problem">${problem}</div>`)}
-                                  ${
-                                      selected
-                                          ? this.details(selected)
-                                          : html`<div class="hint">
-                                                ${this.text(view?.items.size ? "common.select_hint" : "common.nothing_to_show")}
-                                            </div>`
-                                  }
-                              </div>`
+                            : !this.wide
+                              ? nothing
+                              : html`<div class="panel">
+                                    ${view?.problems.map((problem) => html`<div class="problem">${problem}</div>`)}
+                                    ${
+                                        selected
+                                            ? this.details(selected)
+                                            : html`<div class="hint">
+                                                  ${this.text(view?.items.size ? "common.select_hint" : "common.nothing_to_show")}
+                                              </div>`
+                                    }
+                                </div>`
                     }
                 </div>
             </ha-card>
         `;
+    }
+
+    /**
+     * Narrow and without the list, the details go in a sheet over the bottom of the map, so the card keeps its size;
+     * with nothing selected, a note on the map says what to do, or what is wrong with a feed.
+     */
+    private sheet(view: View | undefined, selected: ViewItem | undefined): TemplateResult {
+        const problems = view?.problems.map((problem) => html`<div class="problem">${problem}</div>`);
+        if (!selected) {
+            return html`<div class="map-note">
+                ${problems}${view?.items.size ? html`<div class="hint">${this.text("common.select_hint")}</div>` : nothing}
+                ${!view?.items.size && !view?.problems.length ? html`<div class="hint">${this.text("common.nothing_to_show")}</div>` : nothing}
+            </div>`;
+        }
+        return html`<div class="sheet">
+            <button class="sheet-close" @click=${() => this.select(null)} aria-label=${this.text("common.close_details")}>×</button>
+            ${problems}${this.details(selected)}
+        </div>`;
     }
 
     private details(selected: ViewItem, row?: Row): TemplateResult {
@@ -245,7 +322,11 @@ export class MapFeedCard extends LitElement {
             thresholds: selected.feed.delayThresholds,
             actionRows: selected.point ? this.loader.get(selected.point) : undefined,
             featured: this.featured,
-            onImage: (image) => (this.featured = image),
+            onImage: (image) => {
+                this.featured = image;
+                // The picture opens at the top of the details, so they are scrolled there to show it.
+                if (image) this.renderRoot.querySelector(".sheet, .panel")?.scrollTo({ top: 0 });
+            },
             text: (key, values) => this.text(key, values),
         });
     }
@@ -339,6 +420,7 @@ export class MapFeedCard extends LitElement {
         }
         // A map that failed isn't tried again on every update of a feed, only when the card is connected again.
         if (!this.map && !this.mapStarting && !this.mapError && this.mapElement && this.hass && this.options) void this.startMap();
+        this.followSheet();
         if (!this.map || !this.view) return;
         void this.map.setStyle(this.options!.mapStyle, this.dark(), this.themeColors());
         this.map.update({ ...this.view.content, selected: this.selected });
@@ -349,8 +431,36 @@ export class MapFeedCard extends LitElement {
             if (bounds) {
                 this.map.fit(bounds);
                 this.fitted = true;
+                // The framing may have moved the selected item out of view, or under the sheet.
+                this.revealSelected = true;
             }
         }
+        const position = this.selected ? this.view.items.get(this.selected)?.point : null;
+        const at = position ? `${position.lon},${position.lat}` : "";
+        // A selected item that moves, such as a train, is followed.
+        if (at !== this.shownAt) this.revealSelected = true;
+        // After the framing above, which a move would otherwise stop: a tap while the map was starting waited for the map.
+        if (this.revealSelected) {
+            this.revealSelected = false;
+            if (position) {
+                this.shownAt = at;
+                this.map.reveal([position.lon, position.lat], this.sheetElement?.offsetHeight ?? 0);
+            }
+        }
+    }
+
+    /** Follows the details' sheet's size, which changes as its pictures load, so the item is kept clear of it. */
+    private followSheet(): void {
+        const sheet = this.renderRoot.querySelector<HTMLElement>(".sheet") ?? undefined;
+        if (sheet === this.sheetElement) return;
+        if (this.sheetElement) this.sheetResizer?.unobserve(this.sheetElement);
+        this.sheetElement = sheet;
+        if (!sheet) return;
+        this.sheetResizer ??= new ResizeObserver(() => {
+            this.revealSelected = true;
+            this.requestUpdate();
+        });
+        this.sheetResizer.observe(sheet);
     }
 
     private async startMap(): Promise<void> {
@@ -378,7 +488,16 @@ export class MapFeedCard extends LitElement {
     }
 
     private select(key: string | null): void {
-        if (key === this.selected) return;
+        if (key === this.selected) {
+            // Tapping the selected item again shows it again, wherever the map or the list had been moved to.
+            if (key !== null) {
+                this.map?.tapped();
+                this.revealSelected = true;
+                this.fitSelected = true;
+                this.requestUpdate();
+            }
+            return;
+        }
         // The row being closed keeps its details until they have folded away.
         const previous = this.selected;
         if (previous) {
@@ -393,9 +512,10 @@ export class MapFeedCard extends LitElement {
         this.selectedAt = Date.now();
         this.selected = key;
         this.featured = null;
-        const position = key ? this.view?.items.get(key)?.point : null;
-        if (position) this.map?.reveal([position.lon, position.lat]);
+        this.revealSelected = key !== null;
+        this.map?.tapped();
         this.renderRoot.querySelector(".panel")?.scrollTo({ top: 0 });
+        this.renderRoot.querySelector(".sheet")?.scrollTo({ top: 0 });
         this.fitSelected = key !== null;
     }
 
@@ -621,9 +741,12 @@ export class MapFeedCard extends LitElement {
 
     static styles = [
         unsafeCSS(maplibreCss),
+        fadeStyles,
         css`
+            /* As tall as a sections view's grid rows make its cell, which a card held by them fills. */
             :host {
                 display: block;
+                height: 100%;
             }
             ha-card {
                 height: 100%;
@@ -680,6 +803,89 @@ export class MapFeedCard extends LitElement {
                 max-height: none;
                 border-top: none;
                 border-left: 1px solid var(--divider-color);
+            }
+            /* Held to a height: without the list the map takes what is left, starting from its own height, so a card that
+               grows up to a limit gives way only once it reaches it. With the list, the list does, starting from its rows. */
+            .held .map-wrap {
+                flex: 1 1 var(--map-height);
+                height: auto;
+                min-height: ${MAP_MIN_PX}px;
+            }
+            .held.with-list:not(.wide) .map-wrap {
+                flex: none;
+                height: var(--map-height);
+            }
+            .held.with-list:not(.wide) .list {
+                flex: 1 1 auto;
+                max-height: none;
+                min-height: ${LIST_MIN_PX}px;
+            }
+            .held.wide .body {
+                flex: 1 1 var(--map-height);
+                height: auto;
+            }
+            .held.wide .map-wrap {
+                flex: 3 1 0;
+                min-height: 0;
+            }
+            /* the details over the map */
+            .map-note {
+                position: absolute;
+                left: 10px;
+                bottom: 10px;
+                max-width: calc(100% - 70px);
+                padding: 6px 10px;
+                border-radius: 8px;
+                background: color-mix(in srgb, var(--card-background-color) 90%, transparent);
+                pointer-events: none;
+            }
+            .map-note .hint,
+            .map-note .problem {
+                font-size: 13px;
+                margin: 0;
+            }
+            .map-note .problem + .hint {
+                margin-top: 4px;
+            }
+            /* Over MapLibre's own controls. */
+            .sheet {
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                z-index: 3;
+                box-sizing: border-box;
+                /* At least half of a small map, so its details still have room. */
+                max-height: max(calc(100% - ${SHEET_CLEAR_PX}px), 50%);
+                overflow-y: auto;
+                scrollbar-width: thin;
+                overscroll-behavior: contain;
+                padding: 14px 16px 16px;
+                border-top: 1px solid var(--divider-color);
+                background: var(--card-background-color, var(--ha-card-background, #fff));
+                box-shadow: 0 -6px 16px -8px rgba(0, 0, 0, 0.5);
+            }
+            .sheet-close {
+                float: right;
+                width: 32px;
+                height: 32px;
+                margin: -8px -8px 0 8px;
+                padding: 0;
+                border: 0;
+                border-radius: 50%;
+                background: transparent;
+                color: var(--secondary-text-color);
+                font: inherit;
+                font-size: 22px;
+                line-height: 32px;
+                cursor: pointer;
+            }
+            .sheet-close:hover {
+                background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+            }
+            .sheet-close:focus-visible {
+                outline: 2px solid var(--primary-color);
+                outline-offset: -2px;
             }
             /* the list */
             .list {

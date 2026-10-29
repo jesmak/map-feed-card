@@ -107,6 +107,8 @@ export class FeedMap {
     /** What the map was last fitted to, fitted again when its size changes until someone moves it. */
     private fittedTo: [LngLat, LngLat] | null = null;
     private movedSinceFit = false;
+    /** Set when someone moves the map, so it no longer moves by itself to show the selected item until the next tap. */
+    private movedByHand = false;
     private frame?: number;
     /** The points whose lines are trails cut at their gliding marker, by key. */
     private trailOwners = new Set<string>();
@@ -170,7 +172,9 @@ export class FeedMap {
         map.on("click", (event) => this.click(event));
         // Only a move someone makes has the event that caused it; the card's own fits and pans don't.
         map.on("movestart", (event) => {
-            if (event.originalEvent) this.movedSinceFit = true;
+            if (!event.originalEvent) return;
+            this.movedSinceFit = true;
+            this.movedByHand = true;
         });
         // Marks the map drawn, for whatever waits for it, such as the README's screenshots; MapLibre says so only in an event.
         map.on("idle", () => (this.container.dataset.mapReady = ""));
@@ -223,19 +227,29 @@ export class FeedMap {
         this.map?.fitBounds(bounds, { padding: 40, maxZoom: FIT_MAX_ZOOM, animate: false });
     }
 
-    /** Moves the selected item into view when it isn't, or is so near the edge that its marker is cut off. */
-    reveal(position: LngLat): void {
+    /** An item was tapped: it is shown again, wherever the map had been moved to before. */
+    tapped(): void {
+        this.movedByHand = false;
+    }
+
+    /**
+     * Moves the selected item into view when it isn't, or is so near the edge that its marker is cut off, unless someone
+     * has moved the map since the item was tapped. `covered` is how much of the map's bottom the details' sheet covers,
+     * so the item is shown in the part left clear.
+     */
+    reveal(position: LngLat, covered = 0): void {
         const map = this.map;
-        if (!map) return;
+        if (!map || this.movedByHand) return;
         const { x, y } = map.project(position);
         const { clientWidth: width, clientHeight: height } = map.getContainer();
         const margin = REVEAL_MARGIN_PX;
-        if (x < margin || y < margin || x > width - margin || y > height - margin) {
+        if (x < margin || y < margin || x > width - margin || y > height - covered - margin) {
             this.movedSinceFit = true;
-            map.easeTo({ center: position });
+            map.easeTo({ center: position, offset: [0, -covered / 2] });
         }
     }
 
+    /** Lays the map out for its new size, and frames it again when it was framed and hasn't been moved since. */
     resize(): void {
         if (!this.map) return;
         // A new size clears the canvas until the next frame, so the map isn't drawn until MapLibre is idle again.

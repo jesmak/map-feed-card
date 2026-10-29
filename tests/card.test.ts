@@ -1,10 +1,18 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { HomeAssistant } from "../src/hass";
-import { aircraftFeature, feedState, roadworkLine, shipFeature, trainFeature } from "./support/fakes";
+import { aircraftFeature, cameraFeature, feedState, roadworkLine, shipFeature, trainFeature } from "./support/fakes";
 
 // happy-dom has no WebGL, and the tile proxy is Home Assistant's; the card is tested without its map.
-const drawn = vi.hoisted(() => ({ updates: [] as Array<Record<string, unknown>>, fits: 0, bounds: null as unknown, moved: false }));
+const drawn = vi.hoisted(() => ({
+    updates: [] as Array<Record<string, unknown>>,
+    fits: 0,
+    bounds: null as unknown,
+    moved: false,
+    reveals: [] as Array<[unknown, number]>,
+    /** Fits and reveals in the order the card asked for them. */
+    order: [] as string[],
+}));
 vi.mock("../src/map", () => ({
     FeedMap: class {
         async init() {}
@@ -16,11 +24,18 @@ vi.mock("../src/map", () => ({
             return drawn.moved;
         }
         fit(bounds: unknown) {
+            drawn.order.push("fit");
             drawn.fits += 1;
             drawn.bounds = bounds;
         }
-        reveal() {}
+        reveal(position: unknown, covered: number) {
+            drawn.order.push("reveal");
+            drawn.reveals.push([position, covered]);
+        }
         resize() {}
+        tapped() {
+            drawn.order.push("tapped");
+        }
         destroy() {}
     },
 }));
@@ -459,5 +474,534 @@ describe("redrawing for a new hass", () => {
         element.hass = change(element.hass!);
         await element.updateComplete;
         expect(render).toHaveBeenCalledTimes(renders);
+    });
+});
+
+describe("the details", () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+        vi.unstubAllGlobals();
+        drawn.reveals = [];
+        drawn.order = [];
+    });
+
+    const trains = { "sensor.trains": feedState("sensor.trains", [trainFeature()]) };
+    type Card = InstanceType<typeof MapFeedCard>;
+    const first = (card: Card) => [...card["view"]!.items.keys()][0]!;
+    const parts = (card: Card) => {
+        const root = card.shadowRoot!;
+        return {
+            note: !!root.querySelector(".map-wrap > .map-note"),
+            sheet: !!root.querySelector(".map-wrap > .sheet"),
+            panel: !!root.querySelector(".body > .panel"),
+        };
+    };
+
+    // Narrow and without the list, the details go over the map so the card keeps its size; wide, beside it; with the
+    // list, in it.
+    it.each<[string, Record<string, unknown>, boolean, boolean, ReturnType<typeof parts>]>([
+        ["narrow without the list, nothing selected", {}, false, false, { note: true, sheet: false, panel: false }],
+        ["narrow without the list, an item selected", {}, false, true, { note: false, sheet: true, panel: false }],
+        ["wide without the list, nothing selected", {}, true, false, { note: false, sheet: false, panel: true }],
+        ["wide without the list, an item selected", {}, true, true, { note: false, sheet: false, panel: true }],
+        ["narrow with the list, nothing selected", { list: true }, false, false, { note: false, sheet: false, panel: false }],
+        ["narrow with the list, an item selected", { list: true }, false, true, { note: false, sheet: false, panel: false }],
+        ["wide with the list, nothing selected", { list: true }, true, false, { note: false, sheet: false, panel: false }],
+        ["wide with the list, an item selected", { list: true }, true, true, { note: false, sheet: false, panel: false }],
+    ])("puts the details where they belong for %s", async (_name, extra, wide, selected, expected) => {
+        const card = await mount({ entities: ["sensor.trains"], ...extra }, trains);
+        card["wide"] = wide;
+        if (selected) card["select"](first(card));
+        await card.updateComplete;
+        expect(parts(card)).toEqual(expected);
+    });
+
+    // The note over the map says what to do when there is something to tap, what is wrong with a feed it can't draw,
+    // and that there is nothing to show when there is neither.
+    it.each<[string, string[], Record<string, ReturnType<typeof feedState>>, string[]]>([
+        ["items to tap", ["sensor.trains"], trains, ["Select an item on the map to see more about it."]],
+        ["no items", ["sensor.trains"], { "sensor.trains": feedState("sensor.trains", []) }, ["Nothing to show right now."]],
+        ["a feed it can't draw", ["sensor.missing"], {}, ["Entity not found: sensor.missing"]],
+        [
+            "a feed it can't draw beside items to tap",
+            ["sensor.trains", "sensor.missing"],
+            trains,
+            ["Entity not found: sensor.missing", "Select an item on the map to see more about it."],
+        ],
+    ])("says on the map what there is with %s", async (_name, entities, states, texts) => {
+        const card = await mount({ entities }, states);
+        const note = card.shadowRoot!.querySelector(".map-note")!;
+        expect([...note.children].map((child) => child.textContent!.replace(/\s+/g, " ").trim())).toEqual(texts);
+    });
+
+    it("shows the selected item's details in the panel beside a wide map, not the hint", async () => {
+        const card = await mount({ entities: ["sensor.trains"] }, trains);
+        card["wide"] = true;
+        card["select"](first(card));
+        await card.updateComplete;
+        const panel = card.shadowRoot!.querySelector(".panel")!;
+        expect(panel.querySelector(".head")).not.toBeNull();
+        expect(panel.textContent).not.toContain("Select an item on the map");
+    });
+
+    it("closes the sheet with its button, and asks for a tap again", async () => {
+        const card = await mount({ entities: ["sensor.trains"] }, trains);
+        card["select"](first(card));
+        await card.updateComplete;
+        const close = card.shadowRoot!.querySelector<HTMLButtonElement>(".sheet .sheet-close")!;
+        expect(close.getAttribute("aria-label")).toBe("Close details");
+        close.click();
+        await card.updateComplete;
+        expect(parts(card)).toEqual({ note: true, sheet: false, panel: false });
+        expect(card.shadowRoot!.querySelector(".map-note")!.textContent).toContain("Select an item on the map");
+        expect(drawn.updates.at(-1)?.selected).toBeNull();
+    });
+
+    it("asks for a tap again when the selected item leaves its feed", async () => {
+        const card = await mount({ entities: ["sensor.trains"] }, trains);
+        card["select"](first(card));
+        await card.updateComplete;
+        card.hass = { ...card.hass!, states: { "sensor.trains": feedState("sensor.trains", [{ ...trainFeature(), id: "train:9" }]) } };
+        await card.updateComplete;
+        expect(parts(card)).toEqual({ note: true, sheet: false, panel: false });
+    });
+
+    it("starts another item's details from their top, and shows that item clear of the sheet", async () => {
+        const states = { "sensor.trains": feedState("sensor.trains", [trainFeature(), { ...trainFeature(), id: "train:9" }]) };
+        const card = await mount({ entities: ["sensor.trains"] }, states);
+        const [one, other] = [...card["view"]!.items.keys()];
+        card["select"](one!);
+        await card.updateComplete;
+        const scrollTo = vi.spyOn(card.shadowRoot!.querySelector(".sheet")!, "scrollTo");
+        card["select"](other!);
+        await card.updateComplete;
+        expect(scrollTo).toHaveBeenCalledWith({ top: 0 });
+        expect(drawn.reveals).toHaveLength(2);
+    });
+
+    it.each<[string, boolean, string]>([
+        ["the sheet", false, ".sheet"],
+        ["the panel beside a wide map", true, ".panel"],
+    ])("scrolls %s to a picture opened at the top of the details", async (_name, wide, part) => {
+        const card = await mount({ entities: ["sensor.cameras"] }, { "sensor.cameras": feedState("sensor.cameras", [cameraFeature()]) });
+        card["wide"] = wide;
+        card["select"](first(card));
+        await card.updateComplete;
+        const details = card.shadowRoot!.querySelector(part)!;
+        const scrollTo = vi.spyOn(details, "scrollTo");
+        details.querySelector<HTMLButtonElement>("button.picture")!.click();
+        await card.updateComplete;
+        expect(details.querySelector(".featured")).not.toBeNull();
+        expect(scrollTo).toHaveBeenCalledWith({ top: 0 });
+    });
+
+    it("opens a picture in a list row where it is, with no sheet or panel to scroll", async () => {
+        const card = await mount(
+            { entities: ["sensor.cameras"], list: true },
+            { "sensor.cameras": feedState("sensor.cameras", [cameraFeature()]) },
+        );
+        card["select"](first(card));
+        await card.updateComplete;
+        const scrollTo = vi.spyOn(HTMLElement.prototype, "scrollTo");
+        card.shadowRoot!.querySelector<HTMLButtonElement>(".item.open button.picture")!.click();
+        await card.updateComplete;
+        expect(card.shadowRoot!.querySelector(".item.open .featured")).not.toBeNull();
+        expect(scrollTo).not.toHaveBeenCalledWith({ top: 0 });
+    });
+
+    // An item tapped while the map was starting is shown once the map is up, after any framing, which a move would stop.
+    it.each<[string, Array<string | Record<string, unknown>>, Record<string, ReturnType<typeof feedState>>, boolean, string[], boolean?]>([
+        ["the map is framed to its feeds", ["sensor.trains"], trains, true, ["fit", "reveal"]],
+        ["the map is framed to its feeds, with the details in the sheet", ["sensor.trains"], trains, false, ["fit", "reveal"]],
+        ["the map is framed to its feeds, with the details beside a wide map", ["sensor.trains"], trains, false, ["fit", "reveal"], true],
+        ["nothing frames the map", [{ entity: "sensor.trains", frame: false }], trains, true, ["reveal"]],
+        ["nothing frames the map, with the details in the sheet", [{ entity: "sensor.trains", frame: false }], trains, false, ["reveal"]],
+        [
+            "the feeds that frame the map are still empty",
+            ["sensor.empty", { entity: "sensor.trains", frame: false }],
+            { ...trains, "sensor.empty": feedState("sensor.empty", []) },
+            true,
+            ["reveal"],
+        ],
+        [
+            "the feeds that frame the map are still empty, with the details in the sheet",
+            ["sensor.empty", { entity: "sensor.trains", frame: false }],
+            { ...trains, "sensor.empty": feedState("sensor.empty", []) },
+            false,
+            ["reveal"],
+        ],
+    ])("shows an item tapped while the map was still starting when %s", async (_name, entities, states, list, order, wide = false) => {
+        vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(140);
+        const card = document.createElement("map-feed-card") as Card;
+        card.setConfig({ type: "custom:map-feed-card", entities, list });
+        card.hass = hass(states);
+        document.body.append(card);
+        card["wide"] = wide;
+        await card.updateComplete;
+        card["select"](first(card));
+        await new Promise((resolve) => setTimeout(resolve));
+        await card.updateComplete;
+        expect(drawn.order).toEqual(order);
+        // In the sheet, the item is shown clear of it; in the list or the panel, anywhere on the map.
+        expect(drawn.reveals.map(([, covered]) => covered)).toEqual([list || wide ? 0 : 140]);
+    });
+
+    it("shows the selected item again after framing the map to the feeds a new configuration gives", async () => {
+        const card = await mount({ entities: ["sensor.trains"], list: true }, trains);
+        card["select"](first(card));
+        await card.updateComplete;
+        drawn.order = [];
+        card.setConfig({ type: "custom:map-feed-card", entities: ["sensor.trains", "sensor.ships"], list: true });
+        card.hass = hass({ ...trains, "sensor.ships": feedState("sensor.ships", [shipFeature()]) });
+        await card.updateComplete;
+        expect(drawn.order).toEqual(["fit", "reveal"]);
+    });
+
+    it("shows nothing when the item tapped left its feed before the map was up", async () => {
+        const card = document.createElement("map-feed-card") as Card;
+        card.setConfig({ type: "custom:map-feed-card", entities: ["sensor.trains"], list: true });
+        card.hass = hass(trains);
+        document.body.append(card);
+        await card.updateComplete;
+        card["select"](first(card));
+        card.hass = hass({ "sensor.trains": feedState("sensor.trains", [{ ...trainFeature(), id: "train:9" }]) });
+        await new Promise((resolve) => setTimeout(resolve));
+        await card.updateComplete;
+        expect(drawn.order).toEqual(["fit"]);
+    });
+
+    it("shows the selected item again when the feeds that frame the map fill later, and the framing moves the map", async () => {
+        const states = { ...trains, "sensor.empty": feedState("sensor.empty", []) };
+        const card = await mount({ entities: ["sensor.empty", { entity: "sensor.trains", frame: false }], list: true }, states);
+        card["select"](first(card));
+        await card.updateComplete;
+        expect(drawn.order).toEqual(["tapped", "reveal"]);
+        card.hass = hass({ ...trains, "sensor.empty": feedState("sensor.empty", [shipFeature()]) });
+        await card.updateComplete;
+        expect(drawn.order).toEqual(["tapped", "reveal", "fit", "reveal"]);
+    });
+
+    describe("as the card and the sheet change size", () => {
+        let observed: Map<Element, (entries: unknown[]) => void>;
+        let sheetHeight = 120;
+        beforeEach(() => {
+            observed = new Map();
+            sheetHeight = 120;
+            vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(() => sheetHeight);
+            // A resize observer reports a target's size once it is laid out after being observed, and again on every change.
+            vi.stubGlobal(
+                "ResizeObserver",
+                class {
+                    constructor(private readonly callback: (entries: unknown[]) => void) {}
+                    observe(target: Element) {
+                        observed.set(target, this.callback);
+                        setTimeout(() => this.callback([{ target, contentRect: { width: 480 } }]));
+                    }
+                    unobserve(target: Element) {
+                        observed.delete(target);
+                    }
+                    disconnect() {
+                        observed.clear();
+                    }
+                },
+            );
+        });
+        const resize = async (card: Card, target: Element, width = 480) => {
+            observed.get(target)!([{ target, contentRect: { width } }]);
+            await card.updateComplete;
+        };
+        const selected = async () => {
+            const card = await mount({ entities: ["sensor.trains"] }, trains);
+            card["select"](first(card));
+            await card.updateComplete;
+            await new Promise((resolve) => setTimeout(resolve));
+            await card.updateComplete;
+            return card;
+        };
+        const sheet = (card: Card) => card.shadowRoot!.querySelector(".sheet")!;
+        // The card asks the map to show the selected item whenever something may have hidden it, measuring the sheet as
+        // it is then. The map itself leaves the item alone once someone has moved the map (map.test.ts).
+        const covered = () => drawn.reveals.map(([, height]) => height);
+
+        it("shows the item clear of the sheet when tapped, measuring the sheet as drawn", async () => {
+            await selected();
+            expect(covered().length).toBeGreaterThan(0);
+            expect(new Set(covered())).toEqual(new Set([120]));
+        });
+
+        it("shows the item clear of the sheet again whenever the sheet changes size, as its pictures load, however late", async () => {
+            const card = await selected();
+            card["selectedAt"] = Date.now() - 60_000;
+            sheetHeight = 200;
+            await resize(card, sheet(card));
+            expect(covered().at(-1)).toBe(200);
+        });
+
+        it("shows the item again when the card changes size, which can frame the map anew", async () => {
+            const card = await selected();
+            const before = drawn.reveals.length;
+            await resize(card, card, 460);
+            expect(drawn.reveals.length).toBe(before + 1);
+        });
+
+        it("shows the item clear of the sheet when the card narrows and the details move from beside the map into it", async () => {
+            const card = await selected();
+            await resize(card, card, 700);
+            await card.updateComplete;
+            expect([card.shadowRoot!.querySelector(".panel") !== null, covered().at(-1)]).toEqual([true, 0]);
+            await resize(card, card, 480);
+            await card.updateComplete;
+            expect([card.shadowRoot!.querySelector(".sheet") !== null, covered().at(-1)]).toEqual([true, 120]);
+        });
+
+        it("moves nothing when the card changes size with nothing selected", async () => {
+            const card = await mount({ entities: ["sensor.trains"] }, trains);
+            await resize(card, card, 460);
+            expect(drawn.reveals).toHaveLength(0);
+        });
+
+        it("tells the map of a tap before showing the item", async () => {
+            const card = await mount({ entities: ["sensor.trains"] }, trains);
+            drawn.order = [];
+            card["select"](first(card));
+            await card.updateComplete;
+            expect(drawn.order.slice(0, 2)).toEqual(["tapped", "reveal"]);
+        });
+
+        it("shows the selected item again when it is tapped again", async () => {
+            const card = await mount({ entities: ["sensor.trains"] }, trains);
+            card["select"](first(card));
+            await card.updateComplete;
+            drawn.order = [];
+            card["select"](first(card));
+            await card.updateComplete;
+            expect(drawn.order).toEqual(["tapped", "reveal"]);
+            expect(card["selected"]).toBe(first(card));
+        });
+
+        it("brings the selected item's row back into view when it is tapped again on the map", async () => {
+            const card = await mount({ entities: ["sensor.trains"], list: true }, trains);
+            card["select"](first(card));
+            await card.updateComplete;
+            // The first tap's details finish loading, and fit their row, before the second tap.
+            await new Promise((resolve) => setTimeout(resolve));
+            await card.updateComplete;
+            const fitRow = vi.spyOn(card as unknown as { fitRow(): void }, "fitRow");
+            card["select"](first(card));
+            await card.updateComplete;
+            expect(fitRow).toHaveBeenCalledTimes(1);
+        });
+
+        it.each<[string, [number, number], number]>([
+            ["follows it as it moves, clear of the sheet", [27.4, 60.95], 1],
+            ["leaves the map alone when it hasn't moved", [27.30011, 60.90204], 0],
+        ])("when the selected item's feed updates the map %s", async (_name, coordinates, reveals) => {
+            const card = await mount({ entities: ["sensor.trains"] }, trains);
+            card["select"](first(card));
+            await card.updateComplete;
+            drawn.reveals = [];
+            const moved = { ...trainFeature({ speed_kmh: 90 }), geometry: { type: "Point", coordinates } };
+            card.hass = hass({ "sensor.trains": feedState("sensor.trains", [moved]) });
+            await card.updateComplete;
+            expect(drawn.reveals).toEqual(reveals ? [[coordinates, 120]] : []);
+        });
+
+        it("never follows an item with no point to follow, such as a road work's line", async () => {
+            const roads = (overrides: Record<string, unknown>) => ({
+                "sensor.roads": feedState("sensor.roads", [roadworkLine(overrides)]),
+            });
+            const card = await mount({ entities: ["sensor.roads"] }, roads({}));
+            card["select"](first(card));
+            await card.updateComplete;
+            drawn.reveals = [];
+            card.hass = hass(roads({ name: "Moved" }));
+            await card.updateComplete;
+            expect(drawn.reveals).toEqual([]);
+        });
+
+        // Coming back, the card's first report of its size shows the item; with nothing to frame and no sheet, nothing else does.
+        it.each<[string, Array<string | Record<string, unknown>>, boolean, string[]]>([
+            ["a map framed to its feeds", ["sensor.trains"], false, ["fit", "reveal"]],
+            ["a map with nothing to frame", [{ entity: "sensor.trains", frame: false }], false, ["reveal"]],
+            ["a map with nothing to frame and the details in the list", [{ entity: "sensor.trains", frame: false }], true, ["reveal"]],
+            ["a map whose framing feeds are still empty", ["sensor.empty", { entity: "sensor.trains", frame: false }], false, ["reveal"]],
+        ])("shows the item again when the card comes back to the page with %s", async (_name, entities, list, first2) => {
+            const card = await mount({ entities, list }, { ...trains, "sensor.empty": feedState("sensor.empty", []) });
+            card["select"](first(card));
+            await card.updateComplete;
+            card.remove();
+            drawn.order = [];
+            document.body.append(card);
+            await card.updateComplete;
+            await new Promise((resolve) => setTimeout(resolve));
+            await card.updateComplete;
+            expect(drawn.order.slice(0, first2.length)).toEqual(first2);
+            expect(drawn.order.slice(first2.length).every((call) => call === "reveal")).toBe(true);
+        });
+    });
+
+    it("shows the selected item clear of the sheet, measured once the sheet is drawn", async () => {
+        vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(140);
+        const card = await mount({ entities: ["sensor.trains"] }, trains);
+        card["select"](first(card));
+        await card.updateComplete;
+        expect(drawn.reveals.map(([, covered]) => covered)).toEqual([140]);
+    });
+
+    it("shows the selected item anywhere on the map when the details aren't over it", async () => {
+        const card = await mount({ entities: ["sensor.trains"], list: true }, trains);
+        card["select"](first(card));
+        await card.updateComplete;
+        expect(drawn.reveals.map(([, covered]) => covered)).toEqual([0]);
+    });
+});
+
+describe("the height", () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    const trains = { "sensor.trains": feedState("sensor.trains", [trainFeature()]) };
+    const style = (card: HTMLElement) => card.shadowRoot!.querySelector("ha-card")!.getAttribute("style")!.split(";").at(-1)!.trim();
+
+    // Held, the card keeps its title and room for the details' sheet over a map of 200 px; with the list, the map at its
+    // own height and the list's header and two rows (162 px).
+    it.each<[string, Record<string, unknown>, string | undefined, string, number]>([
+        ["by its content", {}, undefined, "", 4],
+        ["to a height", { title: "Trains", height: 400 }, undefined, "height: 400px", 4],
+        ["to a height below its minimum", { title: "Trains", height: 120 }, undefined, "height: 248px", 4],
+        ["to a height below its minimum, with no title", { height: 120 }, undefined, "height: 200px", 4],
+        ["up to a limit", { title: "Trains", max_height: 600 }, undefined, "max-height: 600px", 4],
+        [
+            "with the list, to a height below the map and two rows",
+            { title: "Trains", list: true, map_height: 340, height: 300 },
+            undefined,
+            "height: 550px",
+            9,
+        ],
+        [
+            "with the list up to a limit",
+            { title: "Trains", list: true, map_height: 340, max_height: 700 },
+            undefined,
+            "max-height: 700px",
+            9,
+        ],
+        [
+            "with the list, no title and the map's own height, to a height below them",
+            { list: true, height: 100 },
+            undefined,
+            "height: 462px",
+            8,
+        ],
+        ["up to a limit below its minimum", { title: "Trains", max_height: 120 }, undefined, "max-height: 248px", 4],
+        ["by nothing in the auto mode over a height", { height_mode: "auto", height: 400 }, undefined, "", 4],
+        ["by nothing in the fixed mode with no height", { height_mode: "fixed" }, undefined, "", 4],
+        ["by rows in a sections view", { height: 400, grid_options: { rows: 6 } }, "grid", "height: 100%", 4],
+        ["by the older layout options' rows in a sections view", { layout_options: { grid_rows: 6 } }, "grid", "height: 100%", 4],
+        ["with the list, by rows in a sections view", { list: true, grid_options: { rows: 9 } }, "grid", "height: 100%", 8],
+        [
+            "by grid rows outside a sections view, which leave the mode",
+            { height: 400, grid_options: { rows: 6 } },
+            undefined,
+            "height: 400px",
+            4,
+        ],
+    ])("is held %s", async (_name, extra, layout, expected, minRows) => {
+        const card = await mount({ entities: ["sensor.trains"], ...extra }, trains);
+        card.layout = layout;
+        await card.updateComplete;
+        expect(style(card)).toBe(expected);
+        expect(card.shadowRoot!.querySelector("ha-card")!.classList.contains("held")).toBe(expected !== "");
+        expect(card.getGridOptions().min_rows).toBe(minRows);
+    });
+
+    it("refuses a height that isn't a positive number of pixels", () => {
+        const card = document.createElement("map-feed-card") as InstanceType<typeof MapFeedCard>;
+        expect(() => card.setConfig({ entities: ["sensor.trains"], height: -5 })).toThrow(/height/);
+        expect(() => card.setConfig({ entities: ["sensor.trains"], height_mode: "tall" })).toThrow(/height_mode/);
+    });
+
+    const scrolled = (part: Element) => {
+        Object.defineProperty(part, "scrollHeight", { value: 500, configurable: true });
+        Object.defineProperty(part, "clientHeight", { value: 200, configurable: true });
+    };
+    const fades = (part: Element) => ["fades", "fade-top", "fade-bottom"].filter((name) => part.classList.contains(name));
+
+    it.each<[string, Record<string, unknown>, string | undefined, string[]]>([
+        ["held to a height", { height: 600 }, undefined, ["fades", "fade-bottom"]],
+        ["held up to a limit", { max_height: 600 }, undefined, ["fades", "fade-bottom"]],
+        ["held by rows in a sections view", { grid_options: { rows: 10 } }, "grid", ["fades", "fade-bottom"]],
+        [
+            "held to a height with automatic rows in a sections view",
+            { height: 600, grid_options: { rows: "auto" } },
+            "grid",
+            ["fades", "fade-bottom"],
+        ],
+        ["held by the older layout options' rows", { layout_options: { grid_rows: 10 } }, "grid", ["fades", "fade-bottom"]],
+        ["never in auto", {}, undefined, []],
+        ["never in auto with automatic rows in a sections view", { grid_options: { rows: "auto" } }, "grid", []],
+        ["never by grid rows outside a sections view", { grid_options: { rows: 10 } }, undefined, []],
+        ["never in the auto mode over a height", { height_mode: "auto", height: 600 }, undefined, []],
+        ["never with automatic rows and no mode", { grid_options: { rows: "auto" } }, undefined, []],
+    ])("fades the list's bottom edge %s", async (_name, extra, layout, expected) => {
+        const card = await mount({ entities: ["sensor.trains"], list: true, ...extra }, trains);
+        card.layout = layout;
+        await card.updateComplete;
+        scrolled(card.shadowRoot!.querySelector(".list .rows")!);
+        card.requestUpdate();
+        await card.updateComplete;
+        expect(fades(card.shadowRoot!.querySelector(".list .rows")!)).toEqual(expected);
+    });
+
+    it.each<[string, Record<string, unknown>, string | undefined, string]>([
+        ["sized by its content", {}, undefined, ""],
+        ["held to a height", { height: 600 }, undefined, "height: 600px"],
+        ["held up to a limit", { max_height: 600 }, undefined, "max-height: 600px"],
+        ["held by rows in a sections view", { grid_options: { rows: 8 } }, "grid", "height: 100%"],
+        [
+            "held to a height with automatic rows in a sections view",
+            { height: 600, grid_options: { rows: "auto" } },
+            "grid",
+            "height: 600px",
+        ],
+    ])("never fades the details' sheet when it is %s", async (_name, extra, layout, held) => {
+        const card = await mount({ entities: ["sensor.trains"], ...extra }, trains);
+        card.layout = layout;
+        await card.updateComplete;
+        expect(style(card)).toBe(held);
+        card["select"]([...card["view"]!.items.keys()][0]!);
+        await card.updateComplete;
+        scrolled(card.shadowRoot!.querySelector(".sheet")!);
+        card.requestUpdate();
+        await card.updateComplete;
+        expect(fades(card.shadowRoot!.querySelector(".sheet")!)).toEqual([]);
+    });
+
+    it("lets go of its height and the list's fade when set back to its content, and holds them again", async () => {
+        const card = await mount({ entities: ["sensor.trains"], list: true, height: 600 }, trains);
+        const rows = () => card.shadowRoot!.querySelector(".list .rows")!;
+        scrolled(rows());
+        card.requestUpdate();
+        await card.updateComplete;
+        expect([style(card), fades(rows())]).toEqual(["height: 600px", ["fades", "fade-bottom"]]);
+        card.setConfig({ type: "custom:map-feed-card", entities: ["sensor.trains"], list: true });
+        await card.updateComplete;
+        expect([style(card), fades(rows())]).toEqual(["", []]);
+        card.setConfig({ type: "custom:map-feed-card", entities: ["sensor.trains"], list: true, height: 600 });
+        await card.updateComplete;
+        expect([style(card), fades(rows())]).toEqual(["height: 600px", ["fades", "fade-bottom"]]);
+    });
+
+    // A masonry view's size in units of 50 px: the title, the map and the list by their heights, or the height held to.
+    it.each<[string, Record<string, unknown>, number]>([
+        ["by its content", {}, 9],
+        ["by its content with the list", { list: true }, 18],
+        ["held to a height", { height: 400 }, 8],
+        ["up to a limit above its content", { max_height: 900 }, 9],
+        ["up to a limit below its content", { max_height: 300 }, 6],
+        ["with the list, held to a height below its minimum", { list: true, height: 300 }, 9],
+    ])("tells a masonry view its size %s", async (_name, extra, size) => {
+        const card = await mount({ entities: ["sensor.trains"], ...extra }, trains);
+        expect(card.getCardSize()).toBe(size);
     });
 });

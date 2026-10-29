@@ -17,7 +17,8 @@
         "min_ago": "{n} min ago",
         "hours_ago": "{n} h ago",
         "days_ago": "{n} d ago",
-        "close_image": "Close the picture"
+        "close_image": "Close the picture",
+        "close_details": "Close details"
     },
     "legend": {
         "on_time": "on time",
@@ -49,14 +50,23 @@
         "legend": "Show a legend",
         "list": "Show the items as a list",
         "list_height": "List height (px)",
-        "list_height_helper": "When the list is below the map. Beside the map, the list is as tall as the map.",
+        "list_height_helper": "When the list is below the map and the card isn't held to a height. Beside the map, the list is as tall as the map.",
         "sort": "Order the list starts in",
         "sort_helper": "One of the orders the feeds offer. It can also be changed on the card.",
         "labels": "Show names beside the markers",
         "glide": "Glide markers between updates",
         "glide_helper": "Moves each marker smoothly from its previous position to the new one. It then shows where the item was one update ago.",
         "frame": "Frame the map to this feed",
-        "frame_helper": "Turn off when this feed shouldn't be used to frame the map's initial view."
+        "frame_helper": "Turn off when this feed shouldn't be used to frame the map's initial view.",
+        "height_mode": "Height",
+        "height_mode_helper": "A height set in the layout tab of a sections view is used instead.",
+        "height_mode_auto": "Fits the content",
+        "height_mode_fixed": "Fixed",
+        "height_mode_max": "Grows up to a limit",
+        "height": "Fixed height",
+        "height_helper": "The card is always this tall.",
+        "max_height": "Maximum height",
+        "max_height_helper": "The card grows with its content up to this height."
     },
     "list": {
         "count": "{n} items",

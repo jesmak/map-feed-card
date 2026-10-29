@@ -17,7 +17,8 @@
         "min_ago": "{n} min sitten",
         "hours_ago": "{n} t sitten",
         "days_ago": "{n} pv sitten",
-        "close_image": "Sulje kuva"
+        "close_image": "Sulje kuva",
+        "close_details": "Sulje tiedot"
     },
     "legend": {
         "on_time": "ajallaan",
@@ -49,14 +50,23 @@
         "legend": "Näytä selite",
         "list": "Näytä kohteet listana",
         "list_height": "Listan korkeus (px)",
-        "list_height_helper": "Kun lista on kartan alla. Kartan vieressä lista on koko kartan korkuinen.",
+        "list_height_helper": "Kun lista on kartan alla eikä kortin korkeutta ole rajattu. Kartan vieressä lista on koko kartan korkuinen.",
         "sort": "Listan aloitusjärjestys",
         "sort_helper": "Jokin syötteiden tarjoamista järjestyksistä. Järjestystä voi vaihtaa myös kortilla.",
         "labels": "Näytä nimet merkkien vieressä",
         "glide": "Liu'uta merkkejä päivitysten välillä",
         "glide_helper": "Merkki liikkuu tasaisesti edellisestä sijainnista uuteen. Se näyttää silloin, missä kohde oli yhtä päivitystä aiemmin.",
         "frame": "Rajaa kartta tähän syötteeseen",
-        "frame_helper": "Ota pois käytöstä, kun haluat että tätä syötettä ei käytetä näytettävän kartta-alueen alustavaan rajaamiseen."
+        "frame_helper": "Ota pois käytöstä, kun haluat että tätä syötettä ei käytetä näytettävän kartta-alueen alustavaan rajaamiseen.",
+        "height_mode": "Korkeus",
+        "height_mode_helper": "Osioihin jaetun näkymän asettelu-välilehdellä asetettu korkeus ohittaa tämän.",
+        "height_mode_auto": "Sisällön mukaan",
+        "height_mode_fixed": "Kiinteä",
+        "height_mode_max": "Kasvaa rajaan asti",
+        "height": "Kiinteä korkeus",
+        "height_helper": "Kortti on aina näin korkea.",
+        "max_height": "Enimmäiskorkeus",
+        "max_height_helper": "Kortti kasvaa sisältönsä mukana tähän korkeuteen asti."
     },
     "list": {
         "count": "{n} kohdetta",

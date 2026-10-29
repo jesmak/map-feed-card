@@ -5,6 +5,10 @@ import type { DrawnShape, MapContent } from "../src/map";
 
 // What the map was last given to draw, by source.
 const sources = vi.hoisted(() => ({}) as Record<string, { data?: unknown; setData(data: unknown): void }>);
+// The map's event handlers, so a test can move it as a hand would.
+const handlers = vi.hoisted(() => ({}) as Record<string, (event: unknown) => void>);
+// Where the map was moved to, and with what offset.
+const eased = vi.hoisted(() => [] as Array<{ center: unknown; offset?: [number, number] }>);
 
 // MapLibre needs WebGL, which happy-dom lacks. The fakes do only what matters here: a marker added to the map gets
 // MapLibre's own class, which places it on the map, and a marker and a source remember what they were given.
@@ -13,7 +17,9 @@ vi.mock("maplibre-gl", () => {
     class FakeMap {
         touchZoomRotate = { disableRotation: noop };
         keyboard = { disableRotation: noop };
-        on = noop;
+        on = (name: string, handler: (event: unknown) => void) => {
+            handlers[name] = handler;
+        };
         once = noop;
         addControl = noop;
         removeControl = noop;
@@ -29,6 +35,10 @@ vi.mock("maplibre-gl", () => {
             });
         // A pixel to every 0.00001 degrees, about a metre.
         project = ([lon, lat]: LngLat) => ({ x: lon * 100_000, y: lat * 100_000 });
+        getContainer = () => ({ clientWidth: 400, clientHeight: 300 });
+        resize = () => undefined;
+        fitBounds = () => undefined;
+        easeTo = (options: { center: unknown; offset?: [number, number] }) => eased.push(options);
     }
     class Marker {
         private readonly element: HTMLElement;
@@ -373,3 +383,100 @@ function shape(geometry: FeedShape["geometry"]): FeedShape {
         pointId: "ship:230000001",
     };
 }
+
+describe("revealing the selected item", () => {
+    // A map 400 × 300 px, where a pixel is 0.00001 degrees: an item moves into view when it is within 32 px of an edge,
+    // the details' sheet over the map's bottom counting as its bottom edge, and lands in the middle of the part left clear.
+    it.each<[string, [number, number], number, number | null]>([
+        ["in the middle, with no sheet", [200, 150], 0, null],
+        ["near the bottom edge, with no sheet", [200, 280], 0, 0],
+        ["near the left edge", [10, 150], 0, 0],
+        ["in the middle, under a sheet covering 140 px", [200, 150], 140, -70],
+        ["above the sheet, clear of it", [200, 100], 140, null],
+        ["just above the sheet, within the margin", [200, 140], 140, -70],
+        ["near the right edge", [390, 150], 0, 0],
+        ["near the top edge", [200, 10], 0, 0],
+        ["outside the map", [500, 150], 0, 0],
+        ["near the left edge, with a sheet open", [10, 100], 140, -70],
+        ["right at the margin from the bottom", [200, 268], 0, null],
+        ["a pixel past the margin from the bottom", [200, 269], 0, 0],
+        ["right at the margin above a sheet covering 140 px", [200, 128], 140, null],
+        ["a pixel past the margin above a sheet covering 140 px", [200, 129], 140, -70],
+        ["near the top edge, with a sheet open", [200, 10], 140, -70],
+        ["right at the margin from the left", [32, 150], 0, null],
+        ["a pixel past the margin from the left", [31, 150], 0, 0],
+        ["right at the margin from the right", [368, 150], 0, null],
+        ["a pixel past the margin from the right", [369, 150], 0, 0],
+        ["right at the margin from the top", [200, 32], 0, null],
+        ["a pixel past the margin from the top", [200, 31], 0, 0],
+        ["near the right edge, with a sheet open", [390, 100], 140, -70],
+        ["anywhere, under a sheet that leaves less than two margins clear", [200, 40], 250, -125],
+    ])("moves an item into view when it is %s", async (_name, [x, y], covered, offset) => {
+        vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({} as RenderingContext);
+        const map = new FeedMap(document.createElement("div"), "default", true, null, () => undefined);
+        await map.init();
+        eased.length = 0;
+        map.reveal([x / 100_000, y / 100_000], covered);
+        expect(eased.map((options) => (options.offset?.[1] ?? NaN) + 0)).toEqual(offset === null ? [] : [offset]);
+        expect(eased.map((options) => options.center)).toEqual(offset === null ? [] : [[x / 100_000, y / 100_000]]);
+        expect(map.moved).toBe(offset !== null);
+    });
+});
+
+describe("laying the map out for a new size", () => {
+    // It frames itself again for the new size only when it was framed and nobody has moved it since, by hand or to
+    // show an item.
+    type Step = "framed" | "moved by hand" | "moved by the card" | "moved to show an item" | "an item shown with no move" | "tapped";
+    const BOUNDS: [[number, number], [number, number]] = [
+        [0, 0],
+        [0.004, 0.003],
+    ];
+    const step = (map: InstanceType<typeof FeedMap>, done: Step) => {
+        if (done === "framed") map.fit(BOUNDS);
+        // A move someone makes carries the pointer's or the keyboard's event; one the card makes doesn't.
+        if (done === "moved by hand") handlers.movestart!({ originalEvent: new Event("pointerdown") });
+        if (done === "moved by the card") handlers.movestart!({});
+        if (done === "moved to show an item") map.reveal([10 / 100_000, 150 / 100_000]);
+        if (done === "an item shown with no move") map.reveal([200 / 100_000, 150 / 100_000]);
+        if (done === "tapped") map.tapped();
+    };
+    it.each<[string, boolean, Step[], boolean]>([
+        ["never framed", true, [], false],
+        ["framed and not moved since", true, ["framed"], true],
+        ["framed, then moved to show an item", true, ["framed", "moved to show an item"], false],
+        ["framed, then an item shown that needed no move", true, ["framed", "an item shown with no move"], true],
+        ["framed, then moved by hand", true, ["framed", "moved by hand"], false],
+        ["framed, then moved by the card's own framing or easing", true, ["framed", "moved by the card"], true],
+        ["moved by hand, then framed again", true, ["framed", "moved by hand", "framed"], true],
+        ["framed, then an item tapped", true, ["framed", "tapped"], true],
+        ["moved by hand, then an item tapped", true, ["framed", "moved by hand", "tapped"], false],
+        ["moved to show an item, then framed again", true, ["framed", "moved to show an item", "framed"], true],
+        ["not started yet", false, [], false],
+    ])("frames itself again when %s", async (_name, started, steps, again) => {
+        vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({} as RenderingContext);
+        const map = new FeedMap(document.createElement("div"), "default", true, null, () => undefined);
+        if (started) await map.init();
+        for (const done of steps) step(map, done);
+        const fit = vi.spyOn(map, "fit");
+        map.resize();
+        expect(fit).toHaveBeenCalledTimes(again ? 1 : 0);
+    });
+
+    // After a tap, the map shows the item whenever the card asks, until someone moves the map; the next tap shows it again.
+    it.each<[string, Step[], boolean, boolean]>([
+        ["with nothing moved", [], false, true],
+        ["after the card's own move", ["moved by the card"], false, true],
+        ["after a move by hand", ["moved by hand"], false, false],
+        ["after a move by hand and another tap", ["moved by hand"], true, true],
+    ])("decides whether to show a hidden item %s", async (_name, steps, tappedAgain, shown) => {
+        vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({} as RenderingContext);
+        const map = new FeedMap(document.createElement("div"), "default", true, null, () => undefined);
+        await map.init();
+        map.tapped();
+        for (const done of steps) step(map, done);
+        if (tappedAgain) map.tapped();
+        eased.length = 0;
+        map.reveal([10 / 100_000, 150 / 100_000]);
+        expect(eased).toHaveLength(shown ? 1 : 0);
+    });
+});

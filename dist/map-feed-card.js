@@ -1,4 +1,4 @@
-/*! map-feed-card 1.4.1 | MIT License */
+/*! map-feed-card 1.5.0 | MIT License */
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
@@ -1463,6 +1463,72 @@ function linkedPicture(image, loading) {
     </a>`;
 }
 
+// src/height.ts
+var HEIGHT_MODES = ["auto", "fixed", "max"];
+var pixels = (value) => value == null || typeof value === "number" && Number.isFinite(value) && value > 0;
+function validHeight(config) {
+  return (config.height_mode == null || HEIGHT_MODES.includes(config.height_mode)) && pixels(config.height) && pixels(config.max_height);
+}
+function heightMode(config) {
+  return config.height_mode ?? (config.height ? "fixed" : config.max_height ? "max" : "auto");
+}
+var ROW_HEIGHT = 56;
+var ROW_GAP = 8;
+function heightStyle(config, layout, minimum = 0) {
+  const rows = config.grid_options ? config.grid_options.rows : config.layout_options?.grid_rows;
+  if (layout === "grid" && typeof rows === "number") {
+    return "height: 100%";
+  }
+  const mode = heightMode(config);
+  if (mode === "fixed" && config.height) {
+    return `height: ${Math.max(config.height, minimum)}px`;
+  }
+  return mode === "max" && config.max_height ? `max-height: ${Math.max(config.max_height, minimum)}px` : "";
+}
+function gridMinRows(minimum) {
+  return Math.max(1, Math.ceil((minimum + ROW_GAP) / (ROW_HEIGHT + ROW_GAP)));
+}
+function heightCardSize(config, content, minimum = 0) {
+  const mode = heightMode(config);
+  if (mode === "fixed" && config.height) {
+    return Math.max(1, Math.round(Math.max(config.height, minimum) / 50));
+  }
+  return mode === "max" && config.max_height ? Math.max(1, Math.min(content, Math.round(Math.max(config.max_height, minimum) / 50))) : content;
+}
+function heightSchema(config, text2) {
+  const mode = heightMode(config);
+  const field = (name) => ({
+    name,
+    selector: { number: { min: 100, max: 2e3, step: 10, unit_of_measurement: "px", mode: "box" } }
+  });
+  return [
+    {
+      name: "height_mode",
+      selector: {
+        select: { mode: "dropdown", options: HEIGHT_MODES.map((value) => ({ value, label: text2(`editor.height_mode_${value}`) })) }
+      }
+    },
+    ...mode === "fixed" ? [field("height")] : mode === "max" ? [field("max_height")] : []
+  ];
+}
+function heightData(config) {
+  return { ...config, height_mode: heightMode(config) };
+}
+function tidyHeight(config) {
+  const mode = heightMode(config);
+  const tidied = { ...config };
+  if (mode !== "fixed" || !tidied.height) {
+    delete tidied.height;
+  }
+  if (mode !== "max" || !tidied.max_height) {
+    delete tidied.max_height;
+  }
+  if (!tidied.height_mode || heightMode({ ...tidied, height_mode: void 0 }) === mode) {
+    delete tidied.height_mode;
+  }
+  return tidied;
+}
+
 // src/localize/languages/en.json
 var en_default = {
   common: {
@@ -1483,7 +1549,8 @@ var en_default = {
     min_ago: "{n} min ago",
     hours_ago: "{n} h ago",
     days_ago: "{n} d ago",
-    close_image: "Close the picture"
+    close_image: "Close the picture",
+    close_details: "Close details"
   },
   legend: {
     on_time: "on time",
@@ -1515,14 +1582,23 @@ var en_default = {
     legend: "Show a legend",
     list: "Show the items as a list",
     list_height: "List height (px)",
-    list_height_helper: "When the list is below the map. Beside the map, the list is as tall as the map.",
+    list_height_helper: "When the list is below the map and the card isn't held to a height. Beside the map, the list is as tall as the map.",
     sort: "Order the list starts in",
     sort_helper: "One of the orders the feeds offer. It can also be changed on the card.",
     labels: "Show names beside the markers",
     glide: "Glide markers between updates",
     glide_helper: "Moves each marker smoothly from its previous position to the new one. It then shows where the item was one update ago.",
     frame: "Frame the map to this feed",
-    frame_helper: "Turn off when this feed shouldn't be used to frame the map's initial view."
+    frame_helper: "Turn off when this feed shouldn't be used to frame the map's initial view.",
+    height_mode: "Height",
+    height_mode_helper: "A height set in the layout tab of a sections view is used instead.",
+    height_mode_auto: "Fits the content",
+    height_mode_fixed: "Fixed",
+    height_mode_max: "Grows up to a limit",
+    height: "Fixed height",
+    height_helper: "The card is always this tall.",
+    max_height: "Maximum height",
+    max_height_helper: "The card grows with its content up to this height."
   },
   list: {
     count: "{n} items",
@@ -1609,7 +1685,8 @@ var fi_default = {
     min_ago: "{n} min sitten",
     hours_ago: "{n} t sitten",
     days_ago: "{n} pv sitten",
-    close_image: "Sulje kuva"
+    close_image: "Sulje kuva",
+    close_details: "Sulje tiedot"
   },
   legend: {
     on_time: "ajallaan",
@@ -1641,14 +1718,23 @@ var fi_default = {
     legend: "N\xE4yt\xE4 selite",
     list: "N\xE4yt\xE4 kohteet listana",
     list_height: "Listan korkeus (px)",
-    list_height_helper: "Kun lista on kartan alla. Kartan vieress\xE4 lista on koko kartan korkuinen.",
+    list_height_helper: "Kun lista on kartan alla eik\xE4 kortin korkeutta ole rajattu. Kartan vieress\xE4 lista on koko kartan korkuinen.",
     sort: "Listan aloitusj\xE4rjestys",
     sort_helper: "Jokin sy\xF6tteiden tarjoamista j\xE4rjestyksist\xE4. J\xE4rjestyst\xE4 voi vaihtaa my\xF6s kortilla.",
     labels: "N\xE4yt\xE4 nimet merkkien vieress\xE4",
     glide: "Liu'uta merkkej\xE4 p\xE4ivitysten v\xE4lill\xE4",
     glide_helper: "Merkki liikkuu tasaisesti edellisest\xE4 sijainnista uuteen. Se n\xE4ytt\xE4\xE4 silloin, miss\xE4 kohde oli yht\xE4 p\xE4ivityst\xE4 aiemmin.",
     frame: "Rajaa kartta t\xE4h\xE4n sy\xF6tteeseen",
-    frame_helper: "Ota pois k\xE4yt\xF6st\xE4, kun haluat ett\xE4 t\xE4t\xE4 sy\xF6tett\xE4 ei k\xE4ytet\xE4 n\xE4ytett\xE4v\xE4n kartta-alueen alustavaan rajaamiseen."
+    frame_helper: "Ota pois k\xE4yt\xF6st\xE4, kun haluat ett\xE4 t\xE4t\xE4 sy\xF6tett\xE4 ei k\xE4ytet\xE4 n\xE4ytett\xE4v\xE4n kartta-alueen alustavaan rajaamiseen.",
+    height_mode: "Korkeus",
+    height_mode_helper: "Osioihin jaetun n\xE4kym\xE4n asettelu-v\xE4lilehdell\xE4 asetettu korkeus ohittaa t\xE4m\xE4n.",
+    height_mode_auto: "Sis\xE4ll\xF6n mukaan",
+    height_mode_fixed: "Kiinte\xE4",
+    height_mode_max: "Kasvaa rajaan asti",
+    height: "Kiinte\xE4 korkeus",
+    height_helper: "Kortti on aina n\xE4in korkea.",
+    max_height: "Enimm\xE4iskorkeus",
+    max_height_helper: "Kortti kasvaa sis\xE4lt\xF6ns\xE4 mukana t\xE4h\xE4n korkeuteen asti."
   },
   list: {
     count: "{n} kohdetta",
@@ -1932,7 +2018,7 @@ function feedSchema(fields, text2) {
   };
   return fields.map((name) => ({ name, selector: selectors[name] }));
 }
-function schema(hass, text2, entities, sort) {
+function schema(hass, text2, entities, sort, config) {
   const feeds = Object.values(hass.states).filter((entity) => isMapFeed(entity)).map((entity) => entity.entity_id);
   return [
     { name: "title", selector: { text: {} } },
@@ -1981,7 +2067,8 @@ function schema(hass, text2, entities, sort) {
       hass,
       entities.map((entry) => String(entry.entity ?? "")),
       sort
-    )
+    ),
+    ...heightSchema(config, text2)
   ];
 }
 function sortField(hass, entities, sort) {
@@ -2027,8 +2114,8 @@ var MapFeedCardEditor = class extends i4 {
     return b2`
             <ha-form
                 .hass=${this.hass}
-                .data=${{ ...CARD_DEFAULTS, ...this.config, entities, ...sections }}
-                .schema=${schema(this.hass, (key) => this.text(key), entities, this.config.sort)}
+                .data=${{ ...CARD_DEFAULTS, ...heightData(this.config), entities, ...sections }}
+                .schema=${schema(this.hass, (key) => this.text(key), entities, this.config.sort, this.config)}
                 .computeLabel=${(entry) => this.text(`editor.${entry.name}`)}
                 .computeHelper=${(entry) => this.helper(entry.name)}
                 @value-changed=${this.valueChanged}
@@ -2046,7 +2133,7 @@ var MapFeedCardEditor = class extends i4 {
       }));
     }
     const rest = Object.fromEntries(Object.entries(value).filter(([key]) => key !== "entities" && !key.startsWith("feed_")));
-    const config = withoutDefaults(rest, CARD_DEFAULTS);
+    const config = tidyHeight(withoutDefaults(rest, CARD_DEFAULTS));
     config.type = value.type ?? "custom:map-feed-card";
     config.entities = compactFeeds(entities);
     this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
@@ -2069,6 +2156,104 @@ __decorateClass([
 MapFeedCardEditor = __decorateClass([
   t3("map-feed-card-editor")
 ], MapFeedCardEditor);
+
+// src/fade.ts
+var fadeStyles = i`
+    .fades {
+        --fade-length: min(24px, 25%);
+        scroll-padding-block: calc(var(--fade-top-offset, 0px) + var(--fade-length, 24px)) var(--fade-length, 24px);
+    }
+
+    .fade-top {
+        mask-image: linear-gradient(
+            to bottom,
+            #000 var(--fade-top-offset, 0px),
+            transparent var(--fade-top-offset, 0px),
+            #000 calc(var(--fade-top-offset, 0px) + var(--fade-length, 24px))
+        );
+    }
+
+    .fade-bottom {
+        mask-image: linear-gradient(to top, transparent, #000 var(--fade-length, 24px));
+    }
+
+    .fade-top.fade-bottom {
+        mask-image: linear-gradient(
+            to bottom,
+            #000 var(--fade-top-offset, 0px),
+            transparent var(--fade-top-offset, 0px),
+            #000 calc(var(--fade-top-offset, 0px) + var(--fade-length, 24px)),
+            #000 calc(100% - var(--fade-length, 24px)),
+            transparent
+        );
+    }
+`;
+function markFade(part) {
+  const hidden = part.scrollHeight - part.clientHeight;
+  part.classList.toggle("fade-top", hidden > 1 && part.scrollTop > 1);
+  part.classList.toggle("fade-bottom", hidden > 1 && hidden - part.scrollTop > 1);
+}
+var onScroll = (event) => markFade(event.currentTarget);
+var ScrollFade = class {
+  constructor(host, parts) {
+    this.host = host;
+    this.parts = parts;
+    /** Each followed part with the children whose size it watches. */
+    this.followed = /* @__PURE__ */ new Map();
+    this.resized = typeof ResizeObserver === "undefined" ? void 0 : new ResizeObserver((entries) => {
+      for (const { target } of entries) {
+        const part = this.followed.has(target) ? target : target.parentElement;
+        if (part && this.followed.has(part)) {
+          markFade(part);
+        }
+      }
+    });
+    host.addController(this);
+  }
+  hostConnected() {
+    if (this.host.hasUpdated) {
+      this.follow();
+    }
+  }
+  hostUpdated() {
+    if (this.host.isConnected) {
+      this.follow();
+    }
+  }
+  hostDisconnected() {
+    for (const part of [...this.followed.keys()]) {
+      this.forget(part);
+    }
+  }
+  follow() {
+    const now = new Set(this.parts());
+    for (const part of [...this.followed.keys()]) {
+      if (!now.has(part)) {
+        this.forget(part);
+      }
+    }
+    for (const part of now) {
+      if (!this.followed.has(part)) {
+        part.addEventListener("scroll", onScroll, { passive: true });
+        this.resized?.observe(part);
+      }
+      part.classList.add("fades");
+      const before = this.followed.get(part) ?? [];
+      const children = [...part.children];
+      before.filter((child) => !children.includes(child)).forEach((child) => this.resized?.unobserve(child));
+      children.filter((child) => !before.includes(child)).forEach((child) => this.resized?.observe(child));
+      this.followed.set(part, children);
+      markFade(part);
+    }
+  }
+  forget(part) {
+    this.followed.get(part)?.forEach((child) => this.resized?.unobserve(child));
+    this.followed.delete(part);
+    part.removeEventListener("scroll", onScroll);
+    this.resized?.unobserve(part);
+    part.classList.remove("fades", "fade-top", "fade-bottom");
+  }
+};
 
 // node_modules/maplibre-gl/dist/maplibre-gl.mjs
 /**
@@ -34015,6 +34200,8 @@ var FeedMap = class {
     /** What the map was last fitted to, fitted again when its size changes until someone moves it. */
     this.fittedTo = null;
     this.movedSinceFit = false;
+    /** Set when someone moves the map, so it no longer moves by itself to show the selected item until the next tap. */
+    this.movedByHand = false;
     /** The points whose lines are trails cut at their gliding marker, by key. */
     this.trailOwners = /* @__PURE__ */ new Set();
     this.style = style;
@@ -34060,7 +34247,9 @@ var FeedMap = class {
     map.on("style.load", () => this.addLayers());
     map.on("click", (event) => this.click(event));
     map.on("movestart", (event) => {
-      if (event.originalEvent) this.movedSinceFit = true;
+      if (!event.originalEvent) return;
+      this.movedSinceFit = true;
+      this.movedByHand = true;
     });
     map.on("idle", () => this.container.dataset.mapReady = "");
     const tooltip = new dI({ closeButton: false, closeOnClick: false, className: "feed-tooltip", offset: 12 });
@@ -34104,18 +34293,27 @@ var FeedMap = class {
     this.movedSinceFit = false;
     this.map?.fitBounds(bounds, { padding: 40, maxZoom: FIT_MAX_ZOOM, animate: false });
   }
-  /** Moves the selected item into view when it isn't, or is so near the edge that its marker is cut off. */
-  reveal(position) {
+  /** An item was tapped: it is shown again, wherever the map had been moved to before. */
+  tapped() {
+    this.movedByHand = false;
+  }
+  /**
+   * Moves the selected item into view when it isn't, or is so near the edge that its marker is cut off, unless someone
+   * has moved the map since the item was tapped. `covered` is how much of the map's bottom the details' sheet covers,
+   * so the item is shown in the part left clear.
+   */
+  reveal(position, covered = 0) {
     const map = this.map;
-    if (!map) return;
+    if (!map || this.movedByHand) return;
     const { x: x3, y: y4 } = map.project(position);
     const { clientWidth: width, clientHeight: height } = map.getContainer();
     const margin = REVEAL_MARGIN_PX;
-    if (x3 < margin || y4 < margin || x3 > width - margin || y4 > height - margin) {
+    if (x3 < margin || y4 < margin || x3 > width - margin || y4 > height - covered - margin) {
       this.movedSinceFit = true;
-      map.easeTo({ center: position });
+      map.easeTo({ center: position, offset: [0, -covered / 2] });
     }
   }
+  /** Lays the map out for its new size, and frames it again when it was framed and hasn't been moved since. */
   resize() {
     if (!this.map) return;
     delete this.container.dataset.mapReady;
@@ -34366,9 +34564,13 @@ var TICK_MS = 3e4;
 var UNFOLD_MS = 220;
 var FIT_GROWTH_MS = 3e3;
 var WIDE_PX = 640;
+var SHEET_CLEAR_PX = 96;
+var MAP_MIN_PX = 200;
+var LIST_MIN_PX = 162;
+var TITLE_PX = 48;
 console.info(
   `%c  MAP-FEED-CARD 
-%c  ${"1.4.1"}    `,
+%c  ${"1.5.0"}    `,
   "color: orange; font-weight: bold; background: black",
   "color: white; font-weight: bold; background: dimgray"
 );
@@ -34383,7 +34585,9 @@ registry.customCards.push({
 });
 var MapFeedCard = class extends i4 {
   constructor() {
-    super(...arguments);
+    super();
+    /** The configuration as written, for the height's options. */
+    this.config = {};
     this.selected = null;
     this.featured = null;
     this.mapError = "";
@@ -34396,6 +34600,15 @@ var MapFeedCard = class extends i4 {
     this.loader = new DetailLoader();
     /** Set when something is selected, so the list scrolls its row into view once it is drawn. */
     this.fitSelected = false;
+    /**
+     * Set when anything may have moved the selected item out of view or under the details' sheet: a tap, the item
+     * moving, the sheet or the card changing size, the map starting or framing itself. The map then shows the item,
+     * unless someone has moved it since the tap.
+     */
+    this.revealSelected = false;
+    /** Where the selected item was when the map was last asked to show it, so its moving asks again. */
+    this.shownAt = "";
+    new ScrollFade(this, () => this.heightStyle() ? this.renderRoot.querySelectorAll(".list .rows") : []);
   }
   static getConfigElement() {
     return document.createElement("map-feed-card-editor");
@@ -34407,6 +34620,10 @@ var MapFeedCard = class extends i4 {
   }
   setConfig(config) {
     const options = parseOptions(config);
+    if (!validHeight(config)) {
+      throw new Error("height and max_height must be positive numbers of pixels, and height_mode auto, fixed or max");
+    }
+    this.config = config;
     const previous = this.options;
     this.options = options;
     if (previous && previous.feeds.map((feed) => feed.entity).join() !== options.feeds.map((feed) => feed.entity).join()) {
@@ -34416,10 +34633,21 @@ var MapFeedCard = class extends i4 {
   }
   getCardSize() {
     const list = this.options?.list ? this.options.listHeight : 0;
-    return Math.ceil(((this.options?.mapHeight ?? 300) + list) / 50) + 3;
+    return heightCardSize(this.config, Math.ceil(((this.options?.mapHeight ?? 300) + list) / 50) + 3, this.minimumHeight());
   }
   getGridOptions() {
-    return { columns: "full", min_columns: 6, rows: "auto" };
+    return { columns: "full", min_columns: 6, rows: "auto", min_rows: gridMinRows(this.minimumHeight()) };
+  }
+  /**
+   * Held to a height, the title and the map with room for the details' sheet still fit; with the list, the map at its
+   * own height and the list's header and two rows. Below the map is the narrow layout's, the taller of the two.
+   */
+  minimumHeight() {
+    const title = this.options?.title ? TITLE_PX : 0;
+    return title + (this.options?.list ? this.options.mapHeight + LIST_MIN_PX : MAP_MIN_PX);
+  }
+  heightStyle() {
+    return heightStyle(this.config, this.layout, this.minimumHeight());
   }
   connectedCallback() {
     super.connectedCallback();
@@ -34427,6 +34655,10 @@ var MapFeedCard = class extends i4 {
     this.resizer = new ResizeObserver(([entry]) => {
       this.wide = (entry?.contentRect.width ?? 0) >= WIDE_PX;
       this.map?.resize();
+      if (this.selected) {
+        this.revealSelected = true;
+        this.requestUpdate();
+      }
       this.fitLegend();
     });
     this.resizer.observe(this);
@@ -34438,6 +34670,8 @@ var MapFeedCard = class extends i4 {
     super.disconnectedCallback();
     clearInterval(this.ticker);
     this.resizer?.disconnect();
+    this.sheetResizer?.disconnect();
+    this.sheetElement = void 0;
     this.map?.destroy();
     this.map = void 0;
     this.fitted = false;
@@ -34469,8 +34703,8 @@ var MapFeedCard = class extends i4 {
     const titleInList = list && this.wide && title !== "";
     return b2`
             <ha-card
-                class=${e7({ wide: this.wide, "with-list": list, dark: this.dark() })}
-                style="--map-height:${this.options.mapHeight}px;--list-height:${this.options.listHeight}px"
+                class=${e7({ wide: this.wide, "with-list": list, dark: this.dark(), held: !!this.heightStyle() })}
+                style="--map-height:${this.options.mapHeight}px;--list-height:${this.options.listHeight}px;${this.heightStyle()}"
             >
                 ${title && !titleInList ? b2`<h1 class="card-title">${title}</h1>` : A}
                 <div class="body">
@@ -34478,16 +34712,34 @@ var MapFeedCard = class extends i4 {
                         <div class="map"></div>
                         ${this.options.legend && view?.legend.length ? this.legend(view.legend) : A}
                         ${this.mapError ? b2`<div class="map-error">${this.mapError}</div>` : A}
+                        ${!list && !this.wide ? this.sheet(view, selected) : A}
                     </div>
-                    ${list ? this.renderList(view, titleInList ? title : "") : b2`<div class="panel">
-                                  ${view?.problems.map((problem) => b2`<div class="problem">${problem}</div>`)}
-                                  ${selected ? this.details(selected) : b2`<div class="hint">
-                                                ${this.text(view?.items.size ? "common.select_hint" : "common.nothing_to_show")}
-                                            </div>`}
-                              </div>`}
+                    ${list ? this.renderList(view, titleInList ? title : "") : !this.wide ? A : b2`<div class="panel">
+                                    ${view?.problems.map((problem) => b2`<div class="problem">${problem}</div>`)}
+                                    ${selected ? this.details(selected) : b2`<div class="hint">
+                                                  ${this.text(view?.items.size ? "common.select_hint" : "common.nothing_to_show")}
+                                              </div>`}
+                                </div>`}
                 </div>
             </ha-card>
         `;
+  }
+  /**
+   * Narrow and without the list, the details go in a sheet over the bottom of the map, so the card keeps its size;
+   * with nothing selected, a note on the map says what to do, or what is wrong with a feed.
+   */
+  sheet(view, selected) {
+    const problems = view?.problems.map((problem) => b2`<div class="problem">${problem}</div>`);
+    if (!selected) {
+      return b2`<div class="map-note">
+                ${problems}${view?.items.size ? b2`<div class="hint">${this.text("common.select_hint")}</div>` : A}
+                ${!view?.items.size && !view?.problems.length ? b2`<div class="hint">${this.text("common.nothing_to_show")}</div>` : A}
+            </div>`;
+    }
+    return b2`<div class="sheet">
+            <button class="sheet-close" @click=${() => this.select(null)} aria-label=${this.text("common.close_details")}>×</button>
+            ${problems}${this.details(selected)}
+        </div>`;
   }
   details(selected, row) {
     return renderDetails({
@@ -34498,7 +34750,10 @@ var MapFeedCard = class extends i4 {
       thresholds: selected.feed.delayThresholds,
       actionRows: selected.point ? this.loader.get(selected.point) : void 0,
       featured: this.featured,
-      onImage: (image) => this.featured = image,
+      onImage: (image) => {
+        this.featured = image;
+        if (image) this.renderRoot.querySelector(".sheet, .panel")?.scrollTo({ top: 0 });
+      },
       text: (key, values) => this.text(key, values)
     });
   }
@@ -34574,6 +34829,7 @@ var MapFeedCard = class extends i4 {
       this.fitRow();
     }
     if (!this.map && !this.mapStarting && !this.mapError && this.mapElement && this.hass && this.options) void this.startMap();
+    this.followSheet();
     if (!this.map || !this.view) return;
     void this.map.setStyle(this.options.mapStyle, this.dark(), this.themeColors());
     this.map.update({ ...this.view.content, selected: this.selected });
@@ -34583,8 +34839,32 @@ var MapFeedCard = class extends i4 {
       if (bounds) {
         this.map.fit(bounds);
         this.fitted = true;
+        this.revealSelected = true;
       }
     }
+    const position = this.selected ? this.view.items.get(this.selected)?.point : null;
+    const at3 = position ? `${position.lon},${position.lat}` : "";
+    if (at3 !== this.shownAt) this.revealSelected = true;
+    if (this.revealSelected) {
+      this.revealSelected = false;
+      if (position) {
+        this.shownAt = at3;
+        this.map.reveal([position.lon, position.lat], this.sheetElement?.offsetHeight ?? 0);
+      }
+    }
+  }
+  /** Follows the details' sheet's size, which changes as its pictures load, so the item is kept clear of it. */
+  followSheet() {
+    const sheet = this.renderRoot.querySelector(".sheet") ?? void 0;
+    if (sheet === this.sheetElement) return;
+    if (this.sheetElement) this.sheetResizer?.unobserve(this.sheetElement);
+    this.sheetElement = sheet;
+    if (!sheet) return;
+    this.sheetResizer ?? (this.sheetResizer = new ResizeObserver(() => {
+      this.revealSelected = true;
+      this.requestUpdate();
+    }));
+    this.sheetResizer.observe(sheet);
   }
   async startMap() {
     this.mapStarting = true;
@@ -34610,7 +34890,15 @@ var MapFeedCard = class extends i4 {
     }
   }
   select(key) {
-    if (key === this.selected) return;
+    if (key === this.selected) {
+      if (key !== null) {
+        this.map?.tapped();
+        this.revealSelected = true;
+        this.fitSelected = true;
+        this.requestUpdate();
+      }
+      return;
+    }
     const previous = this.selected;
     if (previous) {
       this.closing = /* @__PURE__ */ new Set([...this.closing, previous]);
@@ -34623,9 +34911,10 @@ var MapFeedCard = class extends i4 {
     this.selectedAt = Date.now();
     this.selected = key;
     this.featured = null;
-    const position = key ? this.view?.items.get(key)?.point : null;
-    if (position) this.map?.reveal([position.lon, position.lat]);
+    this.revealSelected = key !== null;
+    this.map?.tapped();
     this.renderRoot.querySelector(".panel")?.scrollTo({ top: 0 });
+    this.renderRoot.querySelector(".sheet")?.scrollTo({ top: 0 });
     this.fitSelected = key !== null;
   }
   /**
@@ -34826,9 +35115,12 @@ var MapFeedCard = class extends i4 {
 };
 MapFeedCard.styles = [
   r(maplibre_gl_default),
+  fadeStyles,
   i`
+            /* As tall as a sections view's grid rows make its cell, which a card held by them fills. */
             :host {
                 display: block;
+                height: 100%;
             }
             ha-card {
                 height: 100%;
@@ -34885,6 +35177,89 @@ MapFeedCard.styles = [
                 max-height: none;
                 border-top: none;
                 border-left: 1px solid var(--divider-color);
+            }
+            /* Held to a height: without the list the map takes what is left, starting from its own height, so a card that
+               grows up to a limit gives way only once it reaches it. With the list, the list does, starting from its rows. */
+            .held .map-wrap {
+                flex: 1 1 var(--map-height);
+                height: auto;
+                min-height: ${MAP_MIN_PX}px;
+            }
+            .held.with-list:not(.wide) .map-wrap {
+                flex: none;
+                height: var(--map-height);
+            }
+            .held.with-list:not(.wide) .list {
+                flex: 1 1 auto;
+                max-height: none;
+                min-height: ${LIST_MIN_PX}px;
+            }
+            .held.wide .body {
+                flex: 1 1 var(--map-height);
+                height: auto;
+            }
+            .held.wide .map-wrap {
+                flex: 3 1 0;
+                min-height: 0;
+            }
+            /* the details over the map */
+            .map-note {
+                position: absolute;
+                left: 10px;
+                bottom: 10px;
+                max-width: calc(100% - 70px);
+                padding: 6px 10px;
+                border-radius: 8px;
+                background: color-mix(in srgb, var(--card-background-color) 90%, transparent);
+                pointer-events: none;
+            }
+            .map-note .hint,
+            .map-note .problem {
+                font-size: 13px;
+                margin: 0;
+            }
+            .map-note .problem + .hint {
+                margin-top: 4px;
+            }
+            /* Over MapLibre's own controls. */
+            .sheet {
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                z-index: 3;
+                box-sizing: border-box;
+                /* At least half of a small map, so its details still have room. */
+                max-height: max(calc(100% - ${SHEET_CLEAR_PX}px), 50%);
+                overflow-y: auto;
+                scrollbar-width: thin;
+                overscroll-behavior: contain;
+                padding: 14px 16px 16px;
+                border-top: 1px solid var(--divider-color);
+                background: var(--card-background-color, var(--ha-card-background, #fff));
+                box-shadow: 0 -6px 16px -8px rgba(0, 0, 0, 0.5);
+            }
+            .sheet-close {
+                float: right;
+                width: 32px;
+                height: 32px;
+                margin: -8px -8px 0 8px;
+                padding: 0;
+                border: 0;
+                border-radius: 50%;
+                background: transparent;
+                color: var(--secondary-text-color);
+                font: inherit;
+                font-size: 22px;
+                line-height: 32px;
+                cursor: pointer;
+            }
+            .sheet-close:hover {
+                background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+            }
+            .sheet-close:focus-visible {
+                outline: 2px solid var(--primary-color);
+                outline-offset: -2px;
             }
             /* the list */
             .list {
@@ -35472,6 +35847,9 @@ MapFeedCard.styles = [
 __decorateClass([
   n4({ attribute: false })
 ], MapFeedCard.prototype, "hass", 2);
+__decorateClass([
+  n4({ attribute: false })
+], MapFeedCard.prototype, "layout", 2);
 __decorateClass([
   r5()
 ], MapFeedCard.prototype, "options", 2);
