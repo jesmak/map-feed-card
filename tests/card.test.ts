@@ -915,6 +915,46 @@ describe("the height", () => {
         expect(card.getGridOptions().min_rows).toBe(minRows);
     });
 
+    // A card is 64k − 8 px tall on k rows. The map's part (the body beside the list when wide) has grown by the given
+    // pixels past map_height, which the measure leaves out.
+    it.each<[string, Record<string, unknown>, string | undefined, boolean, number, number, string]>([
+        ["a title and the map, to the next row", { title: "Trains" }, "grid", false, 350, 0, "min-height: 376px"],
+        ["once filled, on the same row", { title: "Trains" }, "grid", false, 376, 26, "min-height: 376px"],
+        ["the list beside the map, 2 px short", { list: true, map_height: 500 }, "grid", true, 502, 0, "min-height: 504px"],
+        ["the list beside the map, once filled", { list: true, map_height: 500 }, "grid", true, 504, 2, "min-height: 504px"],
+        ["already on a row", { map_height: 438 }, "grid", false, 440, 0, "min-height: 440px"],
+        ["the list below, shrunk past a row", { list: true, map_height: 340 }, "grid", false, 504, 104, "min-height: 440px"],
+        ["not outside a sections view", { title: "Trains" }, undefined, false, 350, 0, ""],
+        ["not when held to a height", { title: "Trains", height: 400 }, "grid", false, 400, 52, "height: 400px"],
+        ["not when held by rows", { grid_options: { rows: 6 } }, "grid", false, 376, 76, "height: 100%"],
+    ])("ends on a whole row with %s", async (_name, extra, layout, wide, height, grown, expected) => {
+        const card = await mount({ entities: ["sensor.trains"], ...extra }, trains);
+        const internals = card as unknown as { wide: boolean; fillRows(): void };
+        card.layout = layout;
+        internals.wide = wide;
+        await card.updateComplete;
+        const root = card.shadowRoot!;
+        const haCard = root.querySelector<HTMLElement>("ha-card")!;
+        const part = root.querySelector<HTMLElement>(wide ? ".body" : ".map-wrap")!;
+        const mapHeight = Number(extra.map_height ?? 300);
+        Object.defineProperty(haCard, "clientWidth", { value: wide ? 1000 : 500, configurable: true });
+        haCard.getBoundingClientRect = () => ({ height }) as DOMRect;
+        part.getBoundingClientRect = () => ({ height: mapHeight + grown }) as DOMRect;
+        internals.fillRows();
+        await card.updateComplete;
+        expect(style(card)).toBe(expected);
+        expect(haCard.classList.contains("filled")).toBe(expected.startsWith("min-height"));
+    });
+
+    it("leaves a hidden card's rows alone", async () => {
+        const card = await mount({ entities: ["sensor.trains"], title: "Trains" }, trains);
+        card.layout = "grid";
+        await card.updateComplete;
+        (card as unknown as { fillRows(): void }).fillRows();
+        await card.updateComplete;
+        expect(style(card)).toBe("");
+    });
+
     it("refuses a height that isn't a positive number of pixels", () => {
         const card = document.createElement("map-feed-card") as InstanceType<typeof MapFeedCard>;
         expect(() => card.setConfig({ entities: ["sensor.trains"], height: -5 })).toThrow(/height/);

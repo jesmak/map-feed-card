@@ -59,6 +59,9 @@ const MAP_MIN_PX = 200;
 const LIST_MIN_PX = 162;
 /** The card's title, with its padding. */
 const TITLE_PX = 48;
+/** A sections view's row and the gap under it. */
+const ROW_PX = 64;
+const ROW_GAP_PX = 8;
 
 console.info(
     `%c  MAP-FEED-CARD \n%c  ${__CARD_VERSION__}    `,
@@ -109,6 +112,9 @@ export class MapFeedCard extends LitElement {
     @state() private featured: FeedImage | null = null;
     @state() private mapError = "";
     @state() private wide = false;
+    /** On automatic rows in a sections view, the height that ends the card on a whole row; 0 when it isn't set. */
+    @state() private filled = 0;
+    private frame?: number;
     /** The list's order as chosen on the card; undefined until someone chooses. */
     @state() private sortKey?: string | null;
     /** The rows whose details are folding away; several, when rows are tapped one after another. */
@@ -205,6 +211,7 @@ export class MapFeedCard extends LitElement {
                 this.requestUpdate();
             }
             this.fitLegend();
+            this.fillRowsSoon();
         });
         this.resizer.observe(this);
         // A card moved on the page, as the dashboard's edit mode does, lost its map; shouldUpdate would wait for a feed to change.
@@ -216,6 +223,7 @@ export class MapFeedCard extends LitElement {
     public disconnectedCallback(): void {
         super.disconnectedCallback();
         clearInterval(this.ticker);
+        cancelAnimationFrame(this.frame ?? 0);
         this.resizer?.disconnect();
         this.sheetResizer?.disconnect();
         this.sheetElement = undefined;
@@ -261,10 +269,11 @@ export class MapFeedCard extends LitElement {
         const { list, title } = this.options;
         // Wide, the list has a header of its own beside the map, and the title moves there.
         const titleInList = list && this.wide && title !== "";
+        const held = this.heightStyle();
         return html`
             <ha-card
-                class=${classMap({ wide: this.wide, "with-list": list, dark: this.dark(), held: !!this.heightStyle() })}
-                style="--map-height:${this.options.mapHeight}px;--list-height:${this.options.listHeight}px;${this.heightStyle()}"
+                class=${classMap({ wide: this.wide, "with-list": list, dark: this.dark(), held: !!held, filled: !held && !!this.filled })}
+                style="--map-height:${this.options.mapHeight}px;--list-height:${this.options.listHeight}px;${held || (this.filled ? `min-height: ${this.filled}px` : "")}"
             >
                 ${title && !titleInList ? html`<h1 class="card-title">${title}</h1>` : nothing}
                 <div class="body">
@@ -414,6 +423,7 @@ export class MapFeedCard extends LitElement {
 
     protected updated(): void {
         this.fitLegend();
+        this.fillRowsSoon();
         if (this.fitSelected) {
             this.fitSelected = false;
             this.fitRow();
@@ -447,6 +457,28 @@ export class MapFeedCard extends LitElement {
                 this.map.reveal([position.lon, position.lat], this.sheetElement?.offsetHeight ?? 0);
             }
         }
+    }
+
+    private fillRowsSoon(): void {
+        cancelAnimationFrame(this.frame ?? 0);
+        this.frame = requestAnimationFrame(() => this.fillRows());
+    }
+
+    /**
+     * On automatic rows in a sections view, the card takes the whole rows its content needs, so the cards under it stay
+     * on the rows. The map takes the height added, beside the list too, so what it has grown past its own height is left
+     * out of the measure, or a card whose list below the map gets shorter would keep the rows it no longer needs.
+     */
+    private fillRows(): void {
+        const card = this.renderRoot.querySelector<HTMLElement>("ha-card");
+        const grown = this.renderRoot.querySelector<HTMLElement>(this.wide ? ".body" : ".map-wrap");
+        if (!card || !grown || !card.clientWidth || !this.options || this.layout !== "grid" || this.heightStyle()) {
+            if (this.filled) this.filled = 0;
+            return;
+        }
+        const content = card.getBoundingClientRect().height - Math.max(0, grown.getBoundingClientRect().height - this.options.mapHeight);
+        const filled = gridMinRows(Math.round(content)) * ROW_PX - ROW_GAP_PX;
+        if (filled !== this.filled) this.filled = filled;
     }
 
     /** Follows the details' sheet's size, which changes as its pictures load, so the item is kept clear of it. */
@@ -827,6 +859,15 @@ export class MapFeedCard extends LitElement {
             .held.wide .map-wrap {
                 flex: 3 1 0;
                 min-height: 0;
+            }
+            /* Ending on a whole row: the map takes the rest of the row, starting from its own height, beside the list too. */
+            .filled:not(.wide) .map-wrap {
+                flex: 1 1 var(--map-height);
+                height: auto;
+            }
+            .filled.wide .body {
+                flex: 1 1 var(--map-height);
+                height: auto;
             }
             /* the details over the map */
             .map-note {

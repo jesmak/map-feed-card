@@ -34769,6 +34769,8 @@ var SHEET_CLEAR_PX = 96;
 var MAP_MIN_PX = 200;
 var LIST_MIN_PX = 162;
 var TITLE_PX = 48;
+var ROW_PX = 64;
+var ROW_GAP_PX = 8;
 console.info(
   `%c  MAP-FEED-CARD 
 %c  ${"1.5.0"}    `,
@@ -34793,6 +34795,7 @@ var MapFeedCard = class extends i4 {
     this.featured = null;
     this.mapError = "";
     this.wide = false;
+    this.filled = 0;
     this.closing = /* @__PURE__ */ new Set();
     /** When the selection changed, so content that grows soon after is fitted, but not once the list has been scrolled away. */
     this.selectedAt = 0;
@@ -34861,6 +34864,7 @@ var MapFeedCard = class extends i4 {
         this.requestUpdate();
       }
       this.fitLegend();
+      this.fillRowsSoon();
     });
     this.resizer.observe(this);
     this.mapError = "";
@@ -34870,6 +34874,7 @@ var MapFeedCard = class extends i4 {
   disconnectedCallback() {
     super.disconnectedCallback();
     clearInterval(this.ticker);
+    cancelAnimationFrame(this.frame ?? 0);
     this.resizer?.disconnect();
     this.sheetResizer?.disconnect();
     this.sheetElement = void 0;
@@ -34902,10 +34907,11 @@ var MapFeedCard = class extends i4 {
     }
     const { list, title } = this.options;
     const titleInList = list && this.wide && title !== "";
+    const held = this.heightStyle();
     return b2`
             <ha-card
-                class=${e7({ wide: this.wide, "with-list": list, dark: this.dark(), held: !!this.heightStyle() })}
-                style="--map-height:${this.options.mapHeight}px;--list-height:${this.options.listHeight}px;${this.heightStyle()}"
+                class=${e7({ wide: this.wide, "with-list": list, dark: this.dark(), held: !!held, filled: !held && !!this.filled })}
+                style="--map-height:${this.options.mapHeight}px;--list-height:${this.options.listHeight}px;${held || (this.filled ? `min-height: ${this.filled}px` : "")}"
             >
                 ${title && !titleInList ? b2`<h1 class="card-title">${title}</h1>` : A}
                 <div class="body">
@@ -35025,6 +35031,7 @@ var MapFeedCard = class extends i4 {
   }
   updated() {
     this.fitLegend();
+    this.fillRowsSoon();
     if (this.fitSelected) {
       this.fitSelected = false;
       this.fitRow();
@@ -35053,6 +35060,26 @@ var MapFeedCard = class extends i4 {
         this.map.reveal([position.lon, position.lat], this.sheetElement?.offsetHeight ?? 0);
       }
     }
+  }
+  fillRowsSoon() {
+    cancelAnimationFrame(this.frame ?? 0);
+    this.frame = requestAnimationFrame(() => this.fillRows());
+  }
+  /**
+   * On automatic rows in a sections view, the card takes the whole rows its content needs, so the cards under it stay
+   * on the rows. The map takes the height added, beside the list too, so what it has grown past its own height is left
+   * out of the measure, or a card whose list below the map gets shorter would keep the rows it no longer needs.
+   */
+  fillRows() {
+    const card = this.renderRoot.querySelector("ha-card");
+    const grown = this.renderRoot.querySelector(this.wide ? ".body" : ".map-wrap");
+    if (!card || !grown || !card.clientWidth || !this.options || this.layout !== "grid" || this.heightStyle()) {
+      if (this.filled) this.filled = 0;
+      return;
+    }
+    const content = card.getBoundingClientRect().height - Math.max(0, grown.getBoundingClientRect().height - this.options.mapHeight);
+    const filled = gridMinRows(Math.round(content)) * ROW_PX - ROW_GAP_PX;
+    if (filled !== this.filled) this.filled = filled;
   }
   /** Follows the details' sheet's size, which changes as its pictures load, so the item is kept clear of it. */
   followSheet() {
@@ -35402,6 +35429,15 @@ MapFeedCard.styles = [
             .held.wide .map-wrap {
                 flex: 3 1 0;
                 min-height: 0;
+            }
+            /* Ending on a whole row: the map takes the rest of the row, starting from its own height, beside the list too. */
+            .filled:not(.wide) .map-wrap {
+                flex: 1 1 var(--map-height);
+                height: auto;
+            }
+            .filled.wide .body {
+                flex: 1 1 var(--map-height);
+                height: auto;
             }
             /* the details over the map */
             .map-note {
@@ -36066,6 +36102,9 @@ __decorateClass([
 __decorateClass([
   r5()
 ], MapFeedCard.prototype, "wide", 2);
+__decorateClass([
+  r5()
+], MapFeedCard.prototype, "filled", 2);
 __decorateClass([
   r5()
 ], MapFeedCard.prototype, "sortKey", 2);
