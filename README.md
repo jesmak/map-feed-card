@@ -138,8 +138,8 @@ list takes what is left and scrolls, keeping its header and two rows. When the c
 it fill the height together. A lower height is raised to what the card keeps, which is also the least a sections view
 gives the card.
 
-On automatic rows in a sections view, the card ends on a whole row, so the cards under it stay on the rows. The map
-grows by what that takes, less than a row, beside the list too.
+On automatic rows in a sections view, a card not held to a height ends on a whole row, so the cards under it stay on the
+rows. The map grows by what that takes, less than a row, beside the list too.
 
 ## Examples
 

@@ -915,8 +915,8 @@ describe("the height", () => {
         expect(card.getGridOptions().min_rows).toBe(minRows);
     });
 
-    // A card is 64k − 8 px tall on k rows. The map's part (the body beside the list when wide) has grown by the given
-    // pixels past map_height, which the measure leaves out.
+    // A card is 64k − 8 px tall on k rows. The map's part (the body when wide) has grown by the given pixels past
+    // map_height, which the measure leaves out.
     it.each<[string, Record<string, unknown>, string | undefined, boolean, number, number, string]>([
         ["a title and the map, to the next row", { title: "Trains" }, "grid", false, 350, 0, "min-height: 376px"],
         ["once filled, on the same row", { title: "Trains" }, "grid", false, 376, 26, "min-height: 376px"],
@@ -926,8 +926,46 @@ describe("the height", () => {
         ["the list beside the map, once filled", { list: true, map_height: 500 }, "grid", true, 504, 2, "min-height: 504px"],
         ["already on a row", { map_height: 438 }, "grid", false, 440, 0, "min-height: 440px"],
         ["the list below, shrunk past a row", { list: true, map_height: 340 }, "grid", false, 504, 104, "min-height: 440px"],
+        ["the panel beside the map, with no list", { title: "Trains" }, "grid", true, 350, 0, "min-height: 376px"],
+        [
+            "the panel beside the map, once filled, a row less when the body gives it back",
+            { title: "Trains" },
+            "grid",
+            true,
+            440,
+            90,
+            "min-height: 376px",
+        ],
+        [
+            "automatic rows set in the layout tab",
+            { title: "Trains", grid_options: { rows: "auto" } },
+            "grid",
+            false,
+            350,
+            0,
+            "min-height: 376px",
+        ],
+        [
+            "the max mode with no limit, which holds nothing",
+            { title: "Trains", height_mode: "max" },
+            "grid",
+            false,
+            350,
+            0,
+            "min-height: 376px",
+        ],
+        [
+            "the fixed mode with no height, which holds nothing",
+            { title: "Trains", height_mode: "fixed" },
+            "grid",
+            false,
+            350,
+            0,
+            "min-height: 376px",
+        ],
         ["not outside a sections view", { title: "Trains" }, undefined, false, 350, 0, ""],
         ["not when held to a height", { title: "Trains", height: 400 }, "grid", false, 400, 52, "height: 400px"],
+        ["not when held up to a limit", { title: "Trains", max_height: 600 }, "grid", false, 350, 0, "max-height: 600px"],
         ["not when held by rows", { grid_options: { rows: 6 } }, "grid", false, 376, 76, "height: 100%"],
     ])("ends on a whole row with %s", async (_name, extra, layout, wide, height, grown, expected) => {
         const card = await mount({ entities: ["sensor.trains"], ...extra }, trains);
@@ -977,6 +1015,115 @@ describe("the height", () => {
         (card as unknown as { fillRows(): void }).fillRows();
         await card.updateComplete;
         expect(style(card)).toBe("");
+    });
+
+    describe("measures its rows when they may have changed", () => {
+        let frames = new Map<number, FrameRequestCallback>();
+        let nextFrame = 1;
+        let observed: Map<Element, (entries: unknown[]) => void>;
+
+        beforeEach(() => {
+            frames = new Map();
+            observed = new Map();
+            vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+                frames.set(nextFrame, callback);
+                return nextFrame++;
+            });
+            vi.stubGlobal("cancelAnimationFrame", (id: number) => frames.delete(id));
+            vi.stubGlobal(
+                "ResizeObserver",
+                class {
+                    constructor(private readonly callback: (entries: unknown[]) => void) {}
+                    observe(target: Element) {
+                        observed.set(target, this.callback);
+                    }
+                    unobserve(target: Element) {
+                        observed.delete(target);
+                    }
+                    disconnect() {
+                        observed.clear();
+                    }
+                },
+            );
+        });
+
+        afterEach(() => {
+            vi.unstubAllGlobals();
+        });
+
+        /** Runs the frames due, and those their updates ask for, until the card asks for no more. */
+        async function runFrames(card: HTMLElement & { updateComplete: Promise<boolean> }): Promise<void> {
+            while (frames.size) {
+                const due = [...frames.values()];
+                frames.clear();
+                due.forEach((frame) => frame(0));
+                await card.updateComplete;
+            }
+        }
+
+        /** The card's rows as it shows them: its min-height, and whether its map takes the height added. */
+        function rows(card: HTMLElement): [string, boolean] {
+            return [style(card), card.shadowRoot!.querySelector("ha-card")!.classList.contains("filled")];
+        }
+
+        /** A narrow card with a title over a map of its own 300 px, `height` tall in all. */
+        function laidOut(card: HTMLElement, height: number): HTMLElement {
+            const haCard = card.shadowRoot!.querySelector<HTMLElement>("ha-card")!;
+            Object.defineProperty(haCard, "clientWidth", { value: 500, configurable: true });
+            haCard.getBoundingClientRect = () => ({ height }) as DOMRect;
+            card.shadowRoot!.querySelector<HTMLElement>(".map-wrap")!.getBoundingClientRect = () => ({ height: 300 }) as DOMRect;
+            return haCard;
+        }
+
+        /** A card filled in a sections view, by only the frame of the update that put it there. */
+        async function filled() {
+            const card = await mount({ entities: ["sensor.trains"], title: "Trains" }, trains);
+            // The frames of the card's first updates, which a browser would have run long before.
+            await runFrames(card);
+            laidOut(card, 350);
+            card.layout = "grid";
+            await card.updateComplete;
+            await runFrames(card);
+            return card;
+        }
+
+        it("after the update that puts it in a sections view", async () => {
+            const card = await filled();
+            expect(rows(card)).toEqual(["min-height: 376px", true]);
+        });
+
+        it("when the card changes size with nothing else changed, such as a title wrapping", async () => {
+            const card = await filled();
+            laidOut(card, 410);
+            expect(frames.size).toBe(0);
+            // An observer sees only a block's box change size, not an inline element's.
+            expect(getComputedStyle(card).display).toBe("block");
+            observed.get(card)!([{ target: card, contentRect: { width: 500 } }]);
+            await card.updateComplete;
+            await runFrames(card);
+            expect(rows(card)).toEqual(["min-height: 440px", true]);
+        });
+
+        it("when the card changes size after it has left the page and come back, as edit mode moving it does", async () => {
+            const card = await filled();
+            card.remove();
+            document.body.append(card);
+            await card.updateComplete;
+            await runFrames(card);
+            laidOut(card, 410);
+            observed.get(card)!([{ target: card, contentRect: { width: 500 } }]);
+            await card.updateComplete;
+            await runFrames(card);
+            expect(rows(card)).toEqual(["min-height: 440px", true]);
+        });
+
+        it("and lets go of its rows on the update that takes it out of a sections view", async () => {
+            const card = await filled();
+            card.layout = undefined;
+            await card.updateComplete;
+            await runFrames(card);
+            expect(rows(card)).toEqual(["", false]);
+        });
     });
 
     it("refuses a height that isn't a positive number of pixels", () => {
