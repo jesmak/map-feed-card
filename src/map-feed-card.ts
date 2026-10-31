@@ -55,10 +55,15 @@ const WIDE_PX = 640;
 const SHEET_CLEAR_PX = 96;
 /** Held to a height, the least the map keeps when it gives way, so the details' sheet still has room over it. */
 const MAP_MIN_PX = 200;
-/** Held to a height with the list below the map, the least the list keeps: its header and two rows of two lines. */
-const LIST_MIN_PX = 162;
-/** The card's title, with its padding. */
+/**
+ * Held to a height with the list below the map, the least the list keeps: its border, its header and room below them for
+ * the rows to scroll.
+ */
+const LIST_MIN_PX = 163;
+/** The card's title, with its padding, on the one line a held card keeps it to. */
 const TITLE_PX = 48;
+/** The card's border, above and below. */
+const BORDER_PX = 2;
 /** A sections view's row and the gap under it. */
 const ROW_PX = 64;
 const ROW_GAP_PX = 8;
@@ -186,12 +191,13 @@ export class MapFeedCard extends LitElement {
     }
 
     /**
-     * Held to a height, the title and the map with room for the details' sheet still fit; with the list, the map at its
-     * own height and the list's header and two rows. Below the map is the narrow layout's, the taller of the two.
+     * Held to a height, the border, the title and the map with room for the details' sheet still fit, or with the list,
+     * the map at its own height and the list's header with room for the rows to scroll. Below the map is the narrow layout's, the
+     * taller of the two. A held card keeps its title and the list's header to one line, so this holds at any width.
      */
     private minimumHeight(): number {
         const title = this.options?.title ? TITLE_PX : 0;
-        return title + (this.options?.list ? this.options.mapHeight + LIST_MIN_PX : MAP_MIN_PX);
+        return BORDER_PX + title + (this.options?.list ? this.options.mapHeight + LIST_MIN_PX : MAP_MIN_PX);
     }
 
     private heightStyle(): string {
@@ -849,6 +855,7 @@ export class MapFeedCard extends LitElement {
             }
             .held.with-list:not(.wide) .list {
                 flex: 1 1 auto;
+                box-sizing: border-box;
                 max-height: none;
                 min-height: ${LIST_MIN_PX}px;
             }
@@ -859,6 +866,29 @@ export class MapFeedCard extends LitElement {
             .held.wide .map-wrap {
                 flex: 3 1 0;
                 min-height: 0;
+            }
+            /* Held, the title and the list's header keep to one line, cut short when longer, so the map and the list keep
+               the room the card's minimum counts on at any width. */
+            .held .card-title,
+            .held .list-title,
+            .held .count {
+                min-width: 0;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            /* Cut short, the title would otherwise give way to the map. */
+            .held .card-title {
+                flex: none;
+            }
+            /* A narrow card's order goes under the title when there is room to spare, but a held one keeps them side by side,
+               and both give way, so neither pushes the other out. */
+            .held .list-head {
+                flex-wrap: nowrap;
+            }
+            .held .sort {
+                flex: 0 1 auto;
+                min-width: 0;
             }
             /* Ending on a whole row: the map takes the rest of the row, starting from its own height, beside the list too. */
             .filled:not(.wide) .map-wrap {
@@ -972,7 +1002,8 @@ export class MapFeedCard extends LitElement {
                 display: flex;
                 align-items: center;
                 gap: 6px;
-                /* The title beside it wraps first, so the order is never cut short while there is room for it. */
+                /* Unless the card is held, the title beside it wraps first, so the order is never cut short while there is
+                   room for it. */
                 flex: none;
                 max-width: 100%;
                 height: 32px;

@@ -864,19 +864,19 @@ describe("the height", () => {
     const trains = { "sensor.trains": feedState("sensor.trains", [trainFeature()]) };
     const style = (card: HTMLElement) => card.shadowRoot!.querySelector("ha-card")!.getAttribute("style")!.split(";").at(-1)!.trim();
 
-    // Held, the card keeps its title and room for the details' sheet over a map of 200 px; with the list, the map at its
-    // own height and the list's header and two rows (162 px).
+    // Held, the card keeps its border (2 px), its title on one line (48 px) and room for the details' sheet over a map of
+    // 200 px, or with the list, the map at its own height and the list's border, header and room for the rows to scroll (163 px).
     it.each<[string, Record<string, unknown>, string | undefined, string, number]>([
         ["by its content", {}, undefined, "", 4],
-        ["to a height", { title: "Trains", height: 400 }, undefined, "height: 400px", 4],
-        ["to a height below its minimum", { title: "Trains", height: 120 }, undefined, "height: 248px", 4],
-        ["to a height below its minimum, with no title", { height: 120 }, undefined, "height: 200px", 4],
-        ["up to a limit", { title: "Trains", max_height: 600 }, undefined, "max-height: 600px", 4],
+        ["to a height", { title: "Trains", height: 400 }, undefined, "height: 400px", 5],
+        ["to a height below its minimum", { title: "Trains", height: 120 }, undefined, "height: 250px", 5],
+        ["to a height below its minimum, with no title", { height: 120 }, undefined, "height: 202px", 4],
+        ["up to a limit", { title: "Trains", max_height: 600 }, undefined, "max-height: 600px", 5],
         [
-            "with the list, to a height below the map and two rows",
+            "with the list, to a height below the map and the list's least",
             { title: "Trains", list: true, map_height: 340, height: 300 },
             undefined,
-            "height: 550px",
+            "height: 553px",
             9,
         ],
         [
@@ -890,10 +890,10 @@ describe("the height", () => {
             "with the list, no title and the map's own height, to a height below them",
             { list: true, height: 100 },
             undefined,
-            "height: 462px",
+            "height: 465px",
             8,
         ],
-        ["up to a limit below its minimum", { title: "Trains", max_height: 120 }, undefined, "max-height: 248px", 4],
+        ["up to a limit below its minimum", { title: "Trains", max_height: 120 }, undefined, "max-height: 250px", 5],
         ["by nothing in the auto mode over a height", { height_mode: "auto", height: 400 }, undefined, "", 4],
         ["by nothing in the fixed mode with no height", { height_mode: "fixed" }, undefined, "", 4],
         ["by rows in a sections view", { height: 400, grid_options: { rows: 6 } }, "grid", "height: 100%", 4],
@@ -913,6 +913,26 @@ describe("the height", () => {
         expect(style(card)).toBe(expected);
         expect(card.shadowRoot!.querySelector("ha-card")!.classList.contains("held")).toBe(expected !== "");
         expect(card.getGridOptions().min_rows).toBe(minRows);
+    });
+
+    // A held card keeps these to one line, so its minimum holds at any width: the title above the map, the list's own
+    // title when wide, or the count in its place.
+    it.each<[string, Record<string, unknown>, boolean, string[]]>([
+        ["a title and no list", { title: "Trains" }, false, ["card-title"]],
+        ["a title and no list, wide", { title: "Trains" }, true, ["card-title"]],
+        ["a title over the list", { title: "Trains", list: true }, false, ["card-title", "count"]],
+        ["a title in the list beside the map", { title: "Trains", list: true }, true, ["list-title"]],
+        ["no title, the list below", { list: true }, false, ["count"]],
+        ["no title, the list beside the map", { list: true }, true, ["count"]],
+        ["no title and no list", {}, false, []],
+        ["no title and no list, wide", {}, true, []],
+    ])("heads a held card with %s", async (_name, extra, wide, expected) => {
+        const card = await mount({ entities: ["sensor.trains"], height: 600, ...extra }, trains);
+        card["wide"] = wide;
+        await card.updateComplete;
+        const heads = [...card.shadowRoot!.querySelectorAll(".card-title, .list-title, .count")].map((element) => element.className);
+        expect(heads).toEqual(expected);
+        expect(card.shadowRoot!.querySelector("ha-card")!.classList.contains("held")).toBe(true);
     });
 
     // A card is 64k − 8 px tall on k rows. The map's part (the body when wide) has grown by the given pixels past
