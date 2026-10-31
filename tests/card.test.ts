@@ -920,6 +920,8 @@ describe("the height", () => {
     it.each<[string, Record<string, unknown>, string | undefined, boolean, number, number, string]>([
         ["a title and the map, to the next row", { title: "Trains" }, "grid", false, 350, 0, "min-height: 376px"],
         ["once filled, on the same row", { title: "Trains" }, "grid", false, 376, 26, "min-height: 376px"],
+        ["once filled, a row less when the map gives it back", { title: "Trains" }, "grid", false, 440, 90, "min-height: 376px"],
+        ["narrow turned wide, the rows of the list below given back", { list: true }, "grid", true, 700, 388, "min-height: 312px"],
         ["the list beside the map, 2 px short", { list: true, map_height: 500 }, "grid", true, 502, 0, "min-height: 504px"],
         ["the list beside the map, once filled", { list: true, map_height: 500 }, "grid", true, 504, 2, "min-height: 504px"],
         ["already on a row", { map_height: 438 }, "grid", false, 440, 0, "min-height: 440px"],
@@ -944,6 +946,28 @@ describe("the height", () => {
         await card.updateComplete;
         expect(style(card)).toBe(expected);
         expect(haCard.classList.contains("filled")).toBe(expected.startsWith("min-height"));
+    });
+
+    it.each<[string, (card: HTMLElement, haCard: HTMLElement) => void]>([
+        ["leaving a sections view", (card) => ((card as unknown as { layout?: string }).layout = undefined)],
+        ["hidden", (_card, haCard) => Object.defineProperty(haCard, "clientWidth", { value: 0, configurable: true })],
+    ])("lets go of its rows when %s", async (_name, change) => {
+        const card = await mount({ entities: ["sensor.trains"], title: "Trains" }, trains);
+        const internals = card as unknown as { fillRows(): void };
+        card.layout = "grid";
+        await card.updateComplete;
+        const haCard = card.shadowRoot!.querySelector<HTMLElement>("ha-card")!;
+        Object.defineProperty(haCard, "clientWidth", { value: 500, configurable: true });
+        haCard.getBoundingClientRect = () => ({ height: 350 }) as DOMRect;
+        internals.fillRows();
+        await card.updateComplete;
+        expect(style(card)).toBe("min-height: 376px");
+        change(card, haCard);
+        await card.updateComplete;
+        internals.fillRows();
+        await card.updateComplete;
+        expect(style(card)).toBe("");
+        expect(haCard.classList.contains("filled")).toBe(false);
     });
 
     it("leaves a hidden card's rows alone", async () => {
