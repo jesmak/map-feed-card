@@ -1529,6 +1529,41 @@ function tidyHeight(config) {
   return tidied;
 }
 
+// src/rows.ts
+var ROW_STEPS = ["full", "half"];
+var ROW_PX = 64;
+var ROW_GAP_PX = 8;
+function validRowStep(config) {
+  return config.row_step === void 0 || config.row_step === null || ROW_STEPS.includes(config.row_step);
+}
+function filledHeight(content, config) {
+  const step = config.row_step === "half" ? ROW_PX / 2 : ROW_PX;
+  return Math.max(1, Math.ceil((content + ROW_GAP_PX) / step)) * step - ROW_GAP_PX;
+}
+function rowStepSchema(config, text2) {
+  if (heightMode(config) !== "auto") {
+    return [];
+  }
+  return [
+    {
+      name: "row_step",
+      selector: {
+        select: { mode: "dropdown", options: ROW_STEPS.map((value) => ({ value, label: text2(`editor.row_step_${value}`) })) }
+      }
+    }
+  ];
+}
+function rowStepData(config) {
+  return { ...config, row_step: config.row_step ?? "full" };
+}
+function tidyRowStep(config) {
+  const tidied = { ...config };
+  if (tidied.row_step !== "half" || heightMode(tidied) !== "auto") {
+    delete tidied.row_step;
+  }
+  return tidied;
+}
+
 // src/localize/languages/en.json
 var en_default = {
   common: {
@@ -1598,7 +1633,11 @@ var en_default = {
     height: "Fixed height",
     height_helper: "The card is always this tall.",
     max_height: "Maximum height",
-    max_height_helper: "The card grows with its content up to this height."
+    max_height_helper: "The card grows with its content up to this height.",
+    row_step: "Rounding in a sections view",
+    row_step_helper: "With automatic row height, the card's height is rounded up to whole rows, or to half rows to save space.",
+    row_step_full: "Whole rows",
+    row_step_half: "Half rows"
   },
   list: {
     count: "{n} items",
@@ -1743,7 +1782,11 @@ var fi_default = {
     height: "Kiinte\xE4 korkeus",
     height_helper: "Kortti on aina n\xE4in korkea.",
     max_height: "Enimm\xE4iskorkeus",
-    max_height_helper: "Kortti kasvaa sis\xE4lt\xF6ns\xE4 mukana t\xE4h\xE4n korkeuteen asti."
+    max_height_helper: "Kortti kasvaa sis\xE4lt\xF6ns\xE4 mukana t\xE4h\xE4n korkeuteen asti.",
+    row_step: "Py\xF6ristys osioihin jaetussa n\xE4kym\xE4ss\xE4",
+    row_step_helper: "Automaattisella rivikorkeudella kortin korkeus py\xF6ristet\xE4\xE4n yl\xF6sp\xE4in kokonaisiin riveihin, tai tilan s\xE4\xE4st\xE4miseksi puolikkaisiin riveihin.",
+    row_step_full: "Kokonaisiin riveihin",
+    row_step_half: "Puolikkaisiin riveihin"
   },
   list: {
     count: "{n} kohdetta",
@@ -2086,7 +2129,8 @@ function schema(hass, text2, entities, sort, config) {
       entities.map((entry) => String(entry.entity ?? "")),
       sort
     ),
-    ...heightSchema(config, text2)
+    ...heightSchema(config, text2),
+    ...rowStepSchema(config, text2)
   ];
 }
 function sortField(hass, entities, sort) {
@@ -2132,7 +2176,7 @@ var MapFeedCardEditor = class extends i4 {
     return b2`
             <ha-form
                 .hass=${this.hass}
-                .data=${{ ...CARD_DEFAULTS, ...heightData(this.config), entities, ...sections }}
+                .data=${{ ...CARD_DEFAULTS, ...rowStepData(heightData(this.config)), entities, ...sections }}
                 .schema=${schema(this.hass, (key) => this.text(key), entities, this.config.sort, this.config)}
                 .computeLabel=${(entry) => this.text(`editor.${entry.name}`)}
                 .computeHelper=${(entry) => this.helper(entry.name)}
@@ -2151,7 +2195,7 @@ var MapFeedCardEditor = class extends i4 {
       }));
     }
     const rest = Object.fromEntries(Object.entries(value).filter(([key]) => key !== "entities" && !key.startsWith("feed_")));
-    const config = tidyHeight(withoutDefaults(rest, CARD_DEFAULTS));
+    const config = tidyRowStep(tidyHeight(withoutDefaults(rest, CARD_DEFAULTS)));
     config.type = value.type ?? "custom:map-feed-card";
     config.entities = compactFeeds(entities);
     this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
@@ -34792,8 +34836,6 @@ var MAP_MIN_PX = 200;
 var LIST_MIN_PX = 163;
 var TITLE_PX = 48;
 var BORDER_PX = 2;
-var ROW_PX = 64;
-var ROW_GAP_PX = 8;
 console.info(
   `%c  MAP-FEED-CARD 
 %c  ${"1.5.0"}    `,
@@ -34849,6 +34891,9 @@ var MapFeedCard = class extends i4 {
     const options = parseOptions(config);
     if (!validHeight(config)) {
       throw new Error("height and max_height must be positive numbers of pixels, and height_mode auto, fixed or max");
+    }
+    if (!validRowStep(config)) {
+      throw new Error("row_step must be full or half");
     }
     this.config = config;
     const previous = this.options;
@@ -35090,8 +35135,8 @@ var MapFeedCard = class extends i4 {
     this.frame = requestAnimationFrame(() => this.fillRows());
   }
   /**
-   * On automatic rows in a sections view, the card takes the whole rows its content needs, so the cards under it stay
-   * on the rows. The map takes the height added, beside the list too, so what it has grown past its own height is left
+   * On automatic rows in a sections view, the card takes the whole rows its content needs, or the half rows with
+   * `row_step: half`, so the cards under it stay on the rows. The map takes the height added, beside the list too, so what it has grown past its own height is left
    * out of the measure, or a card whose list below the map gets shorter would keep the rows it no longer needs.
    */
   fillRows() {
@@ -35102,7 +35147,7 @@ var MapFeedCard = class extends i4 {
       return;
     }
     const content = card.getBoundingClientRect().height - Math.max(0, grown.getBoundingClientRect().height - this.options.mapHeight);
-    const filled = gridMinRows(Math.round(content)) * ROW_PX - ROW_GAP_PX;
+    const filled = filledHeight(Math.round(content), this.config);
     if (filled !== this.filled) this.filled = filled;
   }
   /** Follows the details' sheet's size, which changes as its pictures load, so the item is kept clear of it. */

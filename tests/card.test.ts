@@ -1152,6 +1152,13 @@ describe("the height", () => {
         expect(() => card.setConfig({ entities: ["sensor.trains"], height_mode: "tall" })).toThrow(/height_mode/);
     });
 
+    it("refuses a row step other than whole or half rows", () => {
+        const card = document.createElement("map-feed-card") as InstanceType<typeof MapFeedCard>;
+        expect(() => card.setConfig({ entities: ["sensor.trains"], row_step: "quarter" })).toThrow(/row_step/);
+        expect(() => card.setConfig({ entities: ["sensor.trains"], row_step: "half" })).not.toThrow();
+        expect(() => card.setConfig({ entities: ["sensor.trains"], row_step: null })).not.toThrow();
+    });
+
     const scrolled = (part: Element) => {
         Object.defineProperty(part, "scrollHeight", { value: 500, configurable: true });
         Object.defineProperty(part, "clientHeight", { value: 200, configurable: true });

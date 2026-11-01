@@ -27,7 +27,8 @@ import {
     type LegendEntry,
 } from "./feed";
 import type { HomeAssistant } from "./hass";
-import { gridMinRows, heightCardSize, heightStyle, validHeight, type HeightConfig } from "./height";
+import { gridMinRows, heightCardSize, heightStyle, validHeight } from "./height";
+import { filledHeight, validRowStep, type RowStepConfig } from "./rows";
 import { countText, rowOf, sortOptions, sortRows, startingSort, type Row } from "./list";
 import { browserLanguage, translate } from "./localize/localize";
 import { FeedMap, type DrawnArea, type DrawnPoint, type DrawnShape, type MapContent } from "./map";
@@ -64,9 +65,6 @@ const LIST_MIN_PX = 163;
 const TITLE_PX = 48;
 /** The card's border, above and below. */
 const BORDER_PX = 2;
-/** A sections view's row and the gap under it. */
-const ROW_PX = 64;
-const ROW_GAP_PX = 8;
 
 console.info(
     `%c  MAP-FEED-CARD \n%c  ${__CARD_VERSION__}    `,
@@ -112,7 +110,7 @@ export class MapFeedCard extends LitElement {
     @property({ attribute: false }) public layout?: string;
     @state() private options?: CardOptions;
     /** The configuration as written, for the height's options. */
-    private config: HeightConfig = {};
+    private config: RowStepConfig = {};
     @state() private selected: string | null = null;
     @state() private featured: FeedImage | null = null;
     @state() private mapError = "";
@@ -169,10 +167,13 @@ export class MapFeedCard extends LitElement {
 
     public setConfig(config: Record<string, unknown>): void {
         const options = parseOptions(config);
-        if (!validHeight(config as HeightConfig)) {
+        if (!validHeight(config as RowStepConfig)) {
             throw new Error("height and max_height must be positive numbers of pixels, and height_mode auto, fixed or max");
         }
-        this.config = config as HeightConfig;
+        if (!validRowStep(config as RowStepConfig)) {
+            throw new Error("row_step must be full or half");
+        }
+        this.config = config as RowStepConfig;
         const previous = this.options;
         this.options = options;
         if (previous && previous.feeds.map((feed) => feed.entity).join() !== options.feeds.map((feed) => feed.entity).join()) {
@@ -471,8 +472,8 @@ export class MapFeedCard extends LitElement {
     }
 
     /**
-     * On automatic rows in a sections view, the card takes the whole rows its content needs, so the cards under it stay
-     * on the rows. The map takes the height added, beside the list too, so what it has grown past its own height is left
+     * On automatic rows in a sections view, the card takes the whole rows its content needs, or the half rows with
+     * `row_step: half`, so the cards under it stay on the rows. The map takes the height added, beside the list too, so what it has grown past its own height is left
      * out of the measure, or a card whose list below the map gets shorter would keep the rows it no longer needs.
      */
     private fillRows(): void {
@@ -483,7 +484,7 @@ export class MapFeedCard extends LitElement {
             return;
         }
         const content = card.getBoundingClientRect().height - Math.max(0, grown.getBoundingClientRect().height - this.options.mapHeight);
-        const filled = gridMinRows(Math.round(content)) * ROW_PX - ROW_GAP_PX;
+        const filled = filledHeight(Math.round(content), this.config);
         if (filled !== this.filled) this.filled = filled;
     }
 

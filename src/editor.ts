@@ -5,7 +5,8 @@ import { customElement, property, state } from "lit/decorators.js";
 
 import { isMapFeed, readFeed, type FeedType } from "./feed";
 import type { HomeAssistant } from "./hass";
-import { heightData, heightSchema, tidyHeight, type HeightConfig } from "./height";
+import { heightData, heightSchema, tidyHeight } from "./height";
+import { rowStepData, rowStepSchema, tidyRowStep, type RowStepConfig } from "./rows";
 import { browserLanguage, translate } from "./localize/localize";
 import { sortOptions } from "./list";
 import { DEFAULT_DELAY_THRESHOLDS, DEFAULT_LIST_HEIGHT, DEFAULT_MAP_HEIGHT, MAP_STYLES } from "./options";
@@ -82,7 +83,7 @@ function feedSchema(fields: string[], text: (key: string) => string) {
     return fields.map((name) => ({ name, selector: selectors[name] }));
 }
 
-function schema(hass: HomeAssistant, text: (key: string) => string, entities: FeedEntry[], sort: unknown, config: HeightConfig) {
+function schema(hass: HomeAssistant, text: (key: string) => string, entities: FeedEntry[], sort: unknown, config: RowStepConfig) {
     const feeds = Object.values(hass.states)
         .filter((entity) => isMapFeed(entity))
         .map((entity) => entity!.entity_id);
@@ -135,6 +136,7 @@ function schema(hass: HomeAssistant, text: (key: string) => string, entities: Fe
             sort,
         ),
         ...heightSchema(config, text),
+        ...rowStepSchema(config, text),
     ];
 }
 
@@ -193,7 +195,7 @@ export class MapFeedCardEditor extends LitElement {
         return html`
             <ha-form
                 .hass=${this.hass}
-                .data=${{ ...CARD_DEFAULTS, ...heightData(this.config), entities, ...sections }}
+                .data=${{ ...CARD_DEFAULTS, ...rowStepData(heightData(this.config)), entities, ...sections }}
                 .schema=${schema(this.hass, (key) => this.text(key), entities, this.config.sort, this.config)}
                 .computeLabel=${(entry: SchemaEntry) => this.text(`editor.${entry.name}`)}
                 .computeHelper=${(entry: SchemaEntry) => this.helper(entry.name)}
@@ -215,7 +217,7 @@ export class MapFeedCardEditor extends LitElement {
             }));
         }
         const rest = Object.fromEntries(Object.entries(value).filter(([key]) => key !== "entities" && !key.startsWith("feed_")));
-        const config = tidyHeight(withoutDefaults(rest, CARD_DEFAULTS));
+        const config = tidyRowStep(tidyHeight(withoutDefaults(rest, CARD_DEFAULTS)));
         config.type = value.type ?? "custom:map-feed-card";
         config.entities = compactFeeds(entities);
         this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
