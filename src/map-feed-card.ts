@@ -192,13 +192,14 @@ export class MapFeedCard extends LitElement {
     }
 
     /**
-     * Held to a height, the border, the title and the map with room for the details' sheet still fit, or with the list,
-     * the map at its own height and the list's header with room for the rows to scroll. Below the map is the narrow layout's, the
-     * taller of the two. A held card keeps its title and the list's header to one line, so this holds at any width.
+     * Held to a height, the border, the title and the map with room for the details' sheet still fit, and with the list,
+     * the list's header with room for the rows to scroll under it. The list under the map is the narrow layout's, the taller
+     * of the two, and the one counted: the config doesn't say how wide a card of "full" columns is, and the same rows
+     * hold it on a phone too. A held card keeps its title and the list's header to one line, so this holds at any width.
      */
     private minimumHeight(): number {
         const title = this.options?.title ? TITLE_PX : 0;
-        return BORDER_PX + title + (this.options?.list ? this.options.mapHeight + LIST_MIN_PX : MAP_MIN_PX);
+        return BORDER_PX + title + MAP_MIN_PX + (this.options?.list ? LIST_MIN_PX : 0);
     }
 
     private heightStyle(): string {
@@ -859,18 +860,19 @@ export class MapFeedCard extends LitElement {
                 border-left: 1px solid var(--divider-color);
             }
             /* Held to a height: without the list the map takes what is left, starting from its own height, so a card that
-               grows up to a limit gives way only once it reaches it. With the list, the list does, starting from its rows. */
+               grows up to a limit gives way only once it reaches it. With the list under it, the list takes what the map
+               leaves and gives way first, down to its least, and only then the map, down to its own. Flexbox freezes the
+               list at its least and gives the rest of the shrinking to the map. */
             .held .map-wrap {
                 flex: 1 1 var(--map-height);
                 height: auto;
                 min-height: ${MAP_MIN_PX}px;
             }
             .held.with-list:not(.wide) .map-wrap {
-                flex: none;
-                height: var(--map-height);
+                flex: 0 1 var(--map-height);
             }
             .held.with-list:not(.wide) .list {
-                flex: 1 1 auto;
+                flex: 1 1 0;
                 box-sizing: border-box;
                 max-height: none;
                 min-height: ${LIST_MIN_PX}px;

@@ -865,7 +865,8 @@ describe("the height", () => {
     const style = (card: HTMLElement) => card.shadowRoot!.querySelector("ha-card")!.getAttribute("style")!.split(";").at(-1)!.trim();
 
     // Held, the card keeps its border (2 px), its title on one line (48 px) and room for the details' sheet over a map of
-    // 200 px, or with the list, the map at its own height and the list's border, header and room for the rows to scroll (163 px).
+    // 200 px, and with the list, the list's border, header and room for the rows to scroll (163 px). The map gives way to
+    // its 200 px with the list too, whatever its own height.
     it.each<[string, Record<string, unknown>, string | undefined, string, number]>([
         ["by its content", {}, undefined, "", 4],
         ["to a height", { title: "Trains", height: 400 }, undefined, "height: 400px", 5],
@@ -873,32 +874,32 @@ describe("the height", () => {
         ["to a height below its minimum, with no title", { height: 120 }, undefined, "height: 202px", 4],
         ["up to a limit", { title: "Trains", max_height: 600 }, undefined, "max-height: 600px", 5],
         [
-            "with the list, to a height below the map and the list's least",
+            "with the list, to a height below the map's and the list's least, whatever the map's own height",
             { title: "Trains", list: true, map_height: 340, height: 300 },
             undefined,
-            "height: 553px",
-            9,
+            "height: 413px",
+            7,
         ],
         [
             "with the list up to a limit",
             { title: "Trains", list: true, map_height: 340, max_height: 700 },
             undefined,
             "max-height: 700px",
-            9,
+            7,
         ],
         [
-            "with the list, no title and the map's own height, to a height below them",
+            "with the list and no title, to a height below the map's and the list's least",
             { list: true, height: 100 },
             undefined,
-            "height: 465px",
-            8,
+            "height: 365px",
+            6,
         ],
         ["up to a limit below its minimum", { title: "Trains", max_height: 120 }, undefined, "max-height: 250px", 5],
         ["by nothing in the auto mode over a height", { height_mode: "auto", height: 400 }, undefined, "", 4],
         ["by nothing in the fixed mode with no height", { height_mode: "fixed" }, undefined, "", 4],
         ["by rows in a sections view", { height: 400, grid_options: { rows: 6 } }, "grid", "height: 100%", 4],
         ["by the older layout options' rows in a sections view", { layout_options: { grid_rows: 6 } }, "grid", "height: 100%", 4],
-        ["with the list, by rows in a sections view", { list: true, grid_options: { rows: 9 } }, "grid", "height: 100%", 8],
+        ["with the list, by rows in a sections view", { list: true, grid_options: { rows: 9 } }, "grid", "height: 100%", 6],
         [
             "by grid rows outside a sections view, which leave the mode",
             { height: 400, grid_options: { rows: 6 } },
@@ -1237,7 +1238,7 @@ describe("the height", () => {
         ["held to a height", { height: 400 }, 8],
         ["up to a limit above its content", { max_height: 900 }, 9],
         ["up to a limit below its content", { max_height: 300 }, 6],
-        ["with the list, held to a height below its minimum", { list: true, height: 300 }, 9],
+        ["with the list, held to a height below its minimum", { list: true, height: 300 }, 7],
     ])("tells a masonry view its size %s", async (_name, extra, size) => {
         const card = await mount({ entities: ["sensor.trains"], ...extra }, trains);
         expect(card.getCardSize()).toBe(size);
