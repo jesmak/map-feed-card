@@ -130,5 +130,10 @@
         "webgl": "Tämä selain ei pysty piirtämään karttaa, koska siinä ei ole WebGL 2:ta.",
         "tiles": "Home Assistantin karttatiilet eivät ole saatavilla. Kortti tarvitsee Home Assistantin version 2026.9 tai uudemman.",
         "style": "Karttaa ei saatu ladattua. Tarkista virheet selaimen konsolista."
+    },
+    "gestures": {
+        "windows": "Zoomaa karttaa vierittämällä Ctrl-näppäin pohjassa",
+        "mac": "Zoomaa karttaa vierittämällä ⌘-näppäin pohjassa",
+        "mobile": "Siirrä karttaa kahdella sormella"
     }
 }

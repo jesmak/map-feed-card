@@ -119,6 +119,8 @@ export class FeedMap {
         dark: boolean,
         theme: Record<string, string> | null,
         private readonly onSelect: (key: string | null) => void,
+        /** MapLibre's UI strings by its own IDs, read once when the map is made. */
+        private readonly locale: Record<string, string>,
         private readonly home: LngLat | null = null,
     ) {
         this.style = style;
@@ -141,6 +143,9 @@ export class FeedMap {
             center: this.home ?? [0, 0],
             zoom: this.home ? HOME_ZOOM : 1,
             attributionControl: false,
+            // The wheel and a one-finger drag scroll the page, so the map doesn't trap it. Ctrl and two fingers move the map.
+            cooperativeGestures: true,
+            locale: this.locale,
             dragRotate: false,
             pitchWithRotate: false,
             touchPitch: false,

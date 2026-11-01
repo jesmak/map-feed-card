@@ -130,5 +130,10 @@
         "webgl": "This browser can't draw the map, as it has no WebGL 2.",
         "tiles": "Home Assistant's map tiles aren't available. The card needs Home Assistant 2026.9 or newer.",
         "style": "The map couldn't be loaded. Check the errors in the browser's console."
+    },
+    "gestures": {
+        "windows": "Use Ctrl + scroll to zoom the map",
+        "mac": "Use ⌘ + scroll to zoom the map",
+        "mobile": "Use two fingers to move the map"
     }
 }

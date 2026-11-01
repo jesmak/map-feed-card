@@ -505,7 +505,20 @@ export class MapFeedCard extends LitElement {
         this.mapStarting = true;
         const { latitude, longitude } = this.hass!.config ?? {};
         const home: LngLat | null = typeof latitude === "number" && typeof longitude === "number" ? [longitude, latitude] : null;
-        const map = new FeedMap(this.mapElement!, this.options!.mapStyle, this.dark(), this.themeColors(), (key) => this.select(key), home);
+        const locale = {
+            "CooperativeGesturesHandler.WindowsHelpText": this.text("gestures.windows"),
+            "CooperativeGesturesHandler.MacHelpText": this.text("gestures.mac"),
+            "CooperativeGesturesHandler.MobileHelpText": this.text("gestures.mobile"),
+        };
+        const map = new FeedMap(
+            this.mapElement!,
+            this.options!.mapStyle,
+            this.dark(),
+            this.themeColors(),
+            (key) => this.select(key),
+            locale,
+            home,
+        );
         try {
             await ensureToken(this.hass!);
             await map.init();
@@ -930,7 +943,6 @@ export class MapFeedCard extends LitElement {
                 max-height: max(calc(100% - ${SHEET_CLEAR_PX}px), 50%);
                 overflow-y: auto;
                 scrollbar-width: thin;
-                overscroll-behavior: contain;
                 padding: 14px 16px 16px;
                 border-top: 1px solid var(--divider-color);
                 background: var(--card-background-color, var(--ha-card-background, #fff));

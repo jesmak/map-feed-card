@@ -105,7 +105,7 @@ describe("map markers", () => {
     it("keeps MapLibre's own classes when a marker changes", async () => {
         vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({} as RenderingContext);
         const container = document.createElement("div");
-        const map = new FeedMap(container, "default", true, null, () => undefined);
+        const map = new FeedMap(container, "default", true, null, () => undefined, {});
         await map.init();
         const draw = (point: FeedPoint, selected: string | null) =>
             map.update({ points: [{ key: "a", point, color: "#1565c0" }], shapes: [], areas: [], attributions: [], selected });
@@ -124,7 +124,7 @@ describe("map markers", () => {
 
     it("fades a marker through MapLibre, which owns the element's opacity", async () => {
         vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({} as RenderingContext);
-        const map = new FeedMap(document.createElement("div"), "default", true, null, () => undefined);
+        const map = new FeedMap(document.createElement("div"), "default", true, null, () => undefined, {});
         await map.init();
         map.update({
             points: [{ key: "a", point: ship({ opacity: 0.55 }), color: "#1565c0" }],
@@ -140,7 +140,7 @@ describe("map markers", () => {
 
     it("draws an aircraft as its silhouette in its colour, with no disc behind it, and a ship as a disc again", async () => {
         vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({} as RenderingContext);
-        const map = new FeedMap(document.createElement("div"), "default", true, null, () => undefined);
+        const map = new FeedMap(document.createElement("div"), "default", true, null, () => undefined, {});
         await map.init();
         const draw = (point: FeedPoint) =>
             map.update({ points: [{ key: "a", point, color: "#9b36f2" }], shapes: [], areas: [], attributions: [], selected: null });
@@ -159,7 +159,7 @@ describe("map markers", () => {
 
     it("draws a label beside the marker, escaped", async () => {
         vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({} as RenderingContext);
-        const map = new FeedMap(document.createElement("div"), "default", true, null, () => undefined);
+        const map = new FeedMap(document.createElement("div"), "default", true, null, () => undefined, {});
         await map.init();
         const point = ship({ heading: null, stationary: true });
         map.update({
@@ -204,7 +204,7 @@ describe("gliding markers", () => {
     });
 
     async function feedMap() {
-        const map = new FeedMap(document.createElement("div"), "default", true, null, () => undefined);
+        const map = new FeedMap(document.createElement("div"), "default", true, null, () => undefined, {});
         await map.init();
         return map;
     }
@@ -413,7 +413,7 @@ describe("revealing the selected item", () => {
         ["anywhere, under a sheet that leaves less than two margins clear", [200, 40], 250, -125],
     ])("moves an item into view when it is %s", async (_name, [x, y], covered, offset) => {
         vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({} as RenderingContext);
-        const map = new FeedMap(document.createElement("div"), "default", true, null, () => undefined);
+        const map = new FeedMap(document.createElement("div"), "default", true, null, () => undefined, {});
         await map.init();
         eased.length = 0;
         map.reveal([x / 100_000, y / 100_000], covered);
@@ -454,7 +454,7 @@ describe("laying the map out for a new size", () => {
         ["not started yet", false, [], false],
     ])("frames itself again when %s", async (_name, started, steps, again) => {
         vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({} as RenderingContext);
-        const map = new FeedMap(document.createElement("div"), "default", true, null, () => undefined);
+        const map = new FeedMap(document.createElement("div"), "default", true, null, () => undefined, {});
         if (started) await map.init();
         for (const done of steps) step(map, done);
         const fit = vi.spyOn(map, "fit");
@@ -470,7 +470,7 @@ describe("laying the map out for a new size", () => {
         ["after a move by hand and another tap", ["moved by hand"], true, true],
     ])("decides whether to show a hidden item %s", async (_name, steps, tappedAgain, shown) => {
         vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({} as RenderingContext);
-        const map = new FeedMap(document.createElement("div"), "default", true, null, () => undefined);
+        const map = new FeedMap(document.createElement("div"), "default", true, null, () => undefined, {});
         await map.init();
         map.tapped();
         for (const done of steps) step(map, done);

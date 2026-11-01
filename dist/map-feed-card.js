@@ -1662,6 +1662,11 @@ var en_default = {
     webgl: "This browser can't draw the map, as it has no WebGL 2.",
     tiles: "Home Assistant's map tiles aren't available. The card needs Home Assistant 2026.9 or newer.",
     style: "The map couldn't be loaded. Check the errors in the browser's console."
+  },
+  gestures: {
+    windows: "Use Ctrl + scroll to zoom the map",
+    mac: "Use \u2318 + scroll to zoom the map",
+    mobile: "Use two fingers to move the map"
   }
 };
 
@@ -1798,6 +1803,11 @@ var fi_default = {
     webgl: "T\xE4m\xE4 selain ei pysty piirt\xE4m\xE4\xE4n karttaa, koska siin\xE4 ei ole WebGL 2:ta.",
     tiles: "Home Assistantin karttatiilet eiv\xE4t ole saatavilla. Kortti tarvitsee Home Assistantin version 2026.9 tai uudemman.",
     style: "Karttaa ei saatu ladattua. Tarkista virheet selaimen konsolista."
+  },
+  gestures: {
+    windows: "Zoomaa karttaa vieritt\xE4m\xE4ll\xE4 Ctrl-n\xE4pp\xE4in pohjassa",
+    mac: "Zoomaa karttaa vieritt\xE4m\xE4ll\xE4 \u2318-n\xE4pp\xE4in pohjassa",
+    mobile: "Siirr\xE4 karttaa kahdella sormella"
   }
 };
 
@@ -34388,9 +34398,10 @@ function ensureWorker() {
   NI(URL.createObjectURL(new Blob([maplibre_gl_worker_default], { type: "text/javascript" })));
 }
 var FeedMap = class {
-  constructor(container, style, dark, theme, onSelect, home = null) {
+  constructor(container, style, dark, theme, onSelect, locale, home = null) {
     this.container = container;
     this.onSelect = onSelect;
+    this.locale = locale;
     this.home = home;
     this.markers = /* @__PURE__ */ new Map();
     this.content = { points: [], shapes: [], areas: [], attributions: [], selected: null };
@@ -34423,6 +34434,9 @@ var FeedMap = class {
       center: this.home ?? [0, 0],
       zoom: this.home ? HOME_ZOOM : 1,
       attributionControl: false,
+      // The wheel and a one-finger drag scroll the page, so the map doesn't trap it. Ctrl and two fingers move the map.
+      cooperativeGestures: true,
+      locale: this.locale,
       dragRotate: false,
       pitchWithRotate: false,
       touchPitch: false,
@@ -35100,7 +35114,20 @@ var MapFeedCard = class extends i4 {
     this.mapStarting = true;
     const { latitude, longitude } = this.hass.config ?? {};
     const home = typeof latitude === "number" && typeof longitude === "number" ? [longitude, latitude] : null;
-    const map = new FeedMap(this.mapElement, this.options.mapStyle, this.dark(), this.themeColors(), (key) => this.select(key), home);
+    const locale = {
+      "CooperativeGesturesHandler.WindowsHelpText": this.text("gestures.windows"),
+      "CooperativeGesturesHandler.MacHelpText": this.text("gestures.mac"),
+      "CooperativeGesturesHandler.MobileHelpText": this.text("gestures.mobile")
+    };
+    const map = new FeedMap(
+      this.mapElement,
+      this.options.mapStyle,
+      this.dark(),
+      this.themeColors(),
+      (key) => this.select(key),
+      locale,
+      home
+    );
     try {
       await ensureToken(this.hass);
       await map.init();
@@ -35496,7 +35523,6 @@ MapFeedCard.styles = [
                 max-height: max(calc(100% - ${SHEET_CLEAR_PX}px), 50%);
                 overflow-y: auto;
                 scrollbar-width: thin;
-                overscroll-behavior: contain;
                 padding: 14px 16px 16px;
                 border-top: 1px solid var(--divider-color);
                 background: var(--card-background-color, var(--ha-card-background, #fff));
