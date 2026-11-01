@@ -135,5 +135,9 @@
         "windows": "Zoomaa karttaa vierittämällä Ctrl-näppäin pohjassa",
         "mac": "Zoomaa karttaa vierittämällä ⌘-näppäin pohjassa",
         "mobile": "Siirrä karttaa kahdella sormella"
+    },
+    "controls": {
+        "zoom_in": "Lähennä",
+        "zoom_out": "Loitonna"
     }
 }

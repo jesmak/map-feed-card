@@ -135,5 +135,9 @@
         "windows": "Use Ctrl + scroll to zoom the map",
         "mac": "Use ⌘ + scroll to zoom the map",
         "mobile": "Use two fingers to move the map"
+    },
+    "controls": {
+        "zoom_in": "Zoom in",
+        "zoom_out": "Zoom out"
     }
 }

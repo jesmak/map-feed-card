@@ -101,6 +101,8 @@ update ago. A trail drawn behind it ends at the marker. It suits aircraft best, 
 corners cuts across them. Stationary items and anything after a gap of over two minutes still jump, as does
 everything when the system asks for reduced motion. When the card opens, the map shows the feeds' areas, or everything in
 them when they have none, leaving out any feed with `frame` turned off. The map follows the theme, light or dark, and takes the map colours a theme sets with `--ha-color-map-*` variables, as Home Assistant's own map does. Its corner credits each feed's source, with a link when the feed gives one.
+The mouse wheel zooms the map only with Ctrl held (⌘ on a Mac), and on a touch screen the map moves with two fingers,
+so the wheel and a one-finger swipe over the map scroll the page. A hint over the map says so when they are tried.
 
 <p>
 <img src="https://raw.githubusercontent.com/jesmak/map-feed-card/main/docs/images/road-traffic-light.png#gh-light-mode-only" width="830" alt="Road works, an announcement and a snow plough on a map, with the road works' stretch drawn as a line and a legend of their kinds">

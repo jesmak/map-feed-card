@@ -509,6 +509,8 @@ export class MapFeedCard extends LitElement {
             "CooperativeGesturesHandler.WindowsHelpText": this.text("gestures.windows"),
             "CooperativeGesturesHandler.MacHelpText": this.text("gestures.mac"),
             "CooperativeGesturesHandler.MobileHelpText": this.text("gestures.mobile"),
+            "NavigationControl.ZoomIn": this.text("controls.zoom_in"),
+            "NavigationControl.ZoomOut": this.text("controls.zoom_out"),
         };
         const map = new FeedMap(
             this.mapElement!,

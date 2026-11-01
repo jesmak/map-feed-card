@@ -1667,6 +1667,10 @@ var en_default = {
     windows: "Use Ctrl + scroll to zoom the map",
     mac: "Use \u2318 + scroll to zoom the map",
     mobile: "Use two fingers to move the map"
+  },
+  controls: {
+    zoom_in: "Zoom in",
+    zoom_out: "Zoom out"
   }
 };
 
@@ -1808,6 +1812,10 @@ var fi_default = {
     windows: "Zoomaa karttaa vieritt\xE4m\xE4ll\xE4 Ctrl-n\xE4pp\xE4in pohjassa",
     mac: "Zoomaa karttaa vieritt\xE4m\xE4ll\xE4 \u2318-n\xE4pp\xE4in pohjassa",
     mobile: "Siirr\xE4 karttaa kahdella sormella"
+  },
+  controls: {
+    zoom_in: "L\xE4henn\xE4",
+    zoom_out: "Loitonna"
   }
 };
 
@@ -35117,7 +35125,9 @@ var MapFeedCard = class extends i4 {
     const locale = {
       "CooperativeGesturesHandler.WindowsHelpText": this.text("gestures.windows"),
       "CooperativeGesturesHandler.MacHelpText": this.text("gestures.mac"),
-      "CooperativeGesturesHandler.MobileHelpText": this.text("gestures.mobile")
+      "CooperativeGesturesHandler.MobileHelpText": this.text("gestures.mobile"),
+      "NavigationControl.ZoomIn": this.text("controls.zoom_in"),
+      "NavigationControl.ZoomOut": this.text("controls.zoom_out")
     };
     const map = new FeedMap(
       this.mapElement,
