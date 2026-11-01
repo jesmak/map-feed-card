@@ -61,6 +61,12 @@ const MAP_MIN_PX = 200;
  * the rows to scroll.
  */
 const LIST_MIN_PX = 163;
+/**
+ * The least room a list under the map needs for an item's details to unfold in it, under their row: an aircraft's with
+ * its picture are about 360 px, with the row and the list's header besides. In a shorter list a row only selects, and
+ * its details open over the whole card from a button on the selected row.
+ */
+const DETAILS_IN_LIST_MIN_PX = 400;
 /** The card's title, with its padding, on the one line a held card keeps it to. */
 const TITLE_PX = 48;
 /** The card's border, above and below. */
@@ -122,6 +128,10 @@ export class MapFeedCard extends LitElement {
     @state() private sortKey?: string | null;
     /** The rows whose details are folding away; several, when rows are tapped one after another. */
     @state() private closing: ReadonlySet<string> = new Set();
+    /** The list under the map is too short for details to unfold in it, so they open over the card instead. */
+    @state() private compact = false;
+    /** In a compact list, whether the selected item's details are open over the card. */
+    @state() private overlayOpen = false;
     /** The theme's map colours, and the theme they were read for. */
     private theme?: { key: string; colors: Record<string, string> | null };
     /** When the selection changed, so content that grows soon after is fitted, but not once the list has been scrolled away. */
@@ -308,6 +318,7 @@ export class MapFeedCard extends LitElement {
                                 </div>`
                     }
                 </div>
+                ${this.compact && this.overlayOpen && selected ? this.overlay(selected) : nothing}
             </ha-card>
         `;
     }
@@ -342,7 +353,7 @@ export class MapFeedCard extends LitElement {
             onImage: (image) => {
                 this.featured = image;
                 // The picture opens at the top of the details, so they are scrolled there to show it.
-                if (image) this.renderRoot.querySelector(".sheet, .panel")?.scrollTo({ top: 0 });
+                if (image) this.renderRoot.querySelector(".sheet, .panel, .overlay-body")?.scrollTo({ top: 0 });
             },
             text: (key, values) => this.text(key, values),
         });
@@ -391,14 +402,30 @@ export class MapFeedCard extends LitElement {
 
     /**
      * A row, and under it its details, which unfold when the row is selected and fold away when it no longer is. The
-     * row itself stays as it is, so nothing in the list moves but the details.
+     * row itself stays as it is, so nothing in the list moves but the details. In a compact list the selected row only
+     * shows it is selected, with a button beside it that opens its details over the card.
      */
     private listItem(entry: ViewItem & { key: string }): TemplateResult {
-        const open = entry.key === this.selected;
-        const shown = open || this.closing.has(entry.key);
+        const picked = entry.key === this.selected;
+        const open = picked && !this.compact;
+        const shown = open || (!this.compact && this.closing.has(entry.key));
         const row = rowOf(entry.item, entry.point, (key, values) => this.text(key, values));
-        return html`<div class="item ${open ? "open" : ""}" data-key=${entry.key} style="--item-color:${entry.color}">
-            ${this.row(entry, row, open)}
+        return html`<div class="item ${open ? "open" : picked ? "picked" : ""}" data-key=${entry.key} style="--item-color:${entry.color}">
+            <div class="item-line">
+                ${this.row(entry, row, open)}
+                ${
+                    picked && this.compact
+                        ? html`<button
+                              class="details-button"
+                              @click=${() => this.openOverlay()}
+                              aria-label=${this.text("list.show_details")}
+                              title=${this.text("list.show_details")}
+                          >
+                              <ha-icon icon="mdi:information-outline"></ha-icon>
+                          </button>`
+                        : nothing
+                }
+            </div>
             <div class="unfold" @transitionend=${(event: TransitionEvent) => open && event.target === event.currentTarget && this.fitRow()}>
                 <div class="unfold-inner">
                     ${
@@ -415,7 +442,12 @@ export class MapFeedCard extends LitElement {
 
     private row(entry: ViewItem & { key: string }, row: Row, open: boolean): TemplateResult {
         const valueStyle = row.valueIsDelay ? `color:color-mix(in srgb, ${entry.color} 70%, var(--primary-text-color))` : "";
-        return html`<button class="row" aria-expanded=${open ? "true" : "false"} @click=${() => this.select(open ? null : entry.key)}>
+        return html`<button
+            class="row"
+            aria-expanded=${this.compact ? nothing : open ? "true" : "false"}
+            aria-pressed=${this.compact ? (entry.key === this.selected ? "true" : "false") : nothing}
+            @click=${() => this.select(entry.key === this.selected ? null : entry.key)}
+        >
             ${
                 entry.point?.badge
                     ? html`<span class="chip" style="background:${entry.color};color:${textOn(entry.color)}">${entry.point.badge}</span>`
@@ -469,7 +501,69 @@ export class MapFeedCard extends LitElement {
 
     private fillRowsSoon(): void {
         cancelAnimationFrame(this.frame ?? 0);
-        this.frame = requestAnimationFrame(() => this.fillRows());
+        this.frame = requestAnimationFrame(() => {
+            this.measureList();
+            this.fillRows();
+        });
+    }
+
+    /**
+     * Whether the list under the map has room for details to unfold in it. Held to a height, the list's room is its own
+     * height, which the card's height gives it and its rows don't change; otherwise it grows with its rows up to
+     * `list_height`, which is its room. A list beside the map is the card's whole height, so details always unfold there.
+     * A hidden card measures nothing.
+     */
+    private measureList(): void {
+        const list = this.renderRoot.querySelector<HTMLElement>(".list");
+        if (!list || !this.options?.list || this.wide) {
+            this.setCompact(false);
+            return;
+        }
+        if (!list.clientWidth) return;
+        const room = this.heightStyle() ? list.getBoundingClientRect().height : this.options.listHeight;
+        this.setCompact(room < DETAILS_IN_LIST_MIN_PX);
+    }
+
+    /** Switching, an item whose details are open keeps them open in their new place: unfolded, or over the card. */
+    private setCompact(compact: boolean): void {
+        if (compact === this.compact) return;
+        this.compact = compact;
+        this.overlayOpen = compact && this.selected !== null;
+    }
+
+    private openOverlay(): void {
+        this.overlayOpen = true;
+        void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>(".overlay-close")?.focus());
+    }
+
+    /** Closed, the focus goes back to the button that opened the details. */
+    private closeOverlay(): void {
+        this.overlayOpen = false;
+        void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>(".item.picked .details-button")?.focus());
+    }
+
+    /** An item's details over the whole card, from a compact list's button: its title, a close button and the details. */
+    private overlay(selected: ViewItem): TemplateResult {
+        const row = rowOf(selected.item, selected.point, (key, values) => this.text(key, values));
+        return html`<div
+            class="overlay"
+            role="dialog"
+            aria-modal="true"
+            aria-label=${row.title}
+            @keydown=${(event: KeyboardEvent) => event.key === "Escape" && this.closeOverlay()}
+        >
+            <div class="overlay-head">
+                <span class="overlay-title">${row.title}</span>
+                <button
+                    class="sheet-close overlay-close"
+                    @click=${() => this.closeOverlay()}
+                    aria-label=${this.text("common.close_details")}
+                >
+                    ×
+                </button>
+            </div>
+            <div class="overlay-body">${this.details(selected, row)}</div>
+        </div>`;
     }
 
     /**
@@ -566,6 +660,7 @@ export class MapFeedCard extends LitElement {
         }
         this.selectedAt = Date.now();
         this.selected = key;
+        this.overlayOpen = false;
         this.featured = null;
         this.revealSelected = key !== null;
         this.map?.tapped();
@@ -804,6 +899,7 @@ export class MapFeedCard extends LitElement {
                 height: 100%;
             }
             ha-card {
+                position: relative;
                 height: 100%;
                 overflow: hidden;
                 display: flex;
@@ -1180,7 +1276,75 @@ export class MapFeedCard extends LitElement {
                 border-bottom: 1px solid var(--divider-color);
                 transition: background-color 220ms ease;
             }
+            .item-line {
+                display: flex;
+                align-items: center;
+            }
+            .item-line .row {
+                flex: 1 1 auto;
+                min-width: 0;
+            }
+            .details-button {
+                flex: none;
+                display: grid;
+                place-items: center;
+                width: 40px;
+                height: 40px;
+                margin-right: 6px;
+                padding: 0;
+                border: 0;
+                border-radius: 50%;
+                background: transparent;
+                color: var(--primary-color);
+                cursor: pointer;
+                --mdc-icon-size: 22px;
+            }
+            .details-button:hover {
+                background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+            }
+            .details-button:focus-visible {
+                outline: 2px solid var(--primary-color);
+                outline-offset: -2px;
+            }
+            /* An item's details over the whole card, from a compact list, with their own scroll. */
+            .overlay {
+                position: absolute;
+                inset: 0;
+                z-index: 4;
+                display: flex;
+                flex-direction: column;
+                background: var(--card-background-color, var(--ha-card-background, #fff));
+            }
+            .overlay-head {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                flex: none;
+                padding: 12px 12px 6px 16px;
+            }
+            .overlay-title {
+                flex: 1 1 auto;
+                min-width: 0;
+                font-size: 18px;
+                font-weight: 500;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .overlay-close {
+                float: none;
+                margin: 0;
+                flex: none;
+            }
+            .overlay-body {
+                flex: 1 1 auto;
+                min-height: 0;
+                overflow-y: auto;
+                scrollbar-width: thin;
+                padding: 0 16px 16px;
+            }
             /* Marked by a tint and a strip drawn inside, so the row's text keeps its size and its place. */
+            .item.picked,
             .item.open {
                 background: color-mix(in srgb, var(--primary-text-color) 5%, transparent);
                 box-shadow: inset 3px 0 0 var(--item-color);

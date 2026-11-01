@@ -1643,7 +1643,8 @@ var en_default = {
     count: "{n} items",
     count_one: "{n} item",
     sort: "Order",
-    delay: "{n} min"
+    delay: "{n} min",
+    show_details: "Show details"
   },
   kinds: {
     ship_cargo: "Cargo ship",
@@ -1792,7 +1793,8 @@ var fi_default = {
     count: "{n} kohdetta",
     count_one: "{n} kohde",
     sort: "J\xE4rjestys",
-    delay: "{n} min"
+    delay: "{n} min",
+    show_details: "N\xE4yt\xE4 tiedot"
   },
   kinds: {
     ship_cargo: "Rahtialus",
@@ -34834,6 +34836,7 @@ var WIDE_PX = 640;
 var SHEET_CLEAR_PX = 96;
 var MAP_MIN_PX = 200;
 var LIST_MIN_PX = 163;
+var DETAILS_IN_LIST_MIN_PX = 400;
 var TITLE_PX = 48;
 var BORDER_PX = 2;
 console.info(
@@ -34862,6 +34865,8 @@ var MapFeedCard = class extends i4 {
     this.wide = false;
     this.filled = 0;
     this.closing = /* @__PURE__ */ new Set();
+    this.compact = false;
+    this.overlayOpen = false;
     /** When the selection changed, so content that grows soon after is fitted, but not once the list has been scrolled away. */
     this.selectedAt = 0;
     this.mapStarting = false;
@@ -34998,6 +35003,7 @@ var MapFeedCard = class extends i4 {
                                               </div>`}
                                 </div>`}
                 </div>
+                ${this.compact && this.overlayOpen && selected ? this.overlay(selected) : A}
             </ha-card>
         `;
   }
@@ -35029,7 +35035,7 @@ var MapFeedCard = class extends i4 {
       featured: this.featured,
       onImage: (image) => {
         this.featured = image;
-        if (image) this.renderRoot.querySelector(".sheet, .panel")?.scrollTo({ top: 0 });
+        if (image) this.renderRoot.querySelector(".sheet, .panel, .overlay-body")?.scrollTo({ top: 0 });
       },
       text: (key, values) => this.text(key, values)
     });
@@ -35071,14 +35077,26 @@ var MapFeedCard = class extends i4 {
   }
   /**
    * A row, and under it its details, which unfold when the row is selected and fold away when it no longer is. The
-   * row itself stays as it is, so nothing in the list moves but the details.
+   * row itself stays as it is, so nothing in the list moves but the details. In a compact list the selected row only
+   * shows it is selected, with a button beside it that opens its details over the card.
    */
   listItem(entry) {
-    const open = entry.key === this.selected;
-    const shown = open || this.closing.has(entry.key);
+    const picked = entry.key === this.selected;
+    const open = picked && !this.compact;
+    const shown = open || !this.compact && this.closing.has(entry.key);
     const row = rowOf(entry.item, entry.point, (key, values) => this.text(key, values));
-    return b2`<div class="item ${open ? "open" : ""}" data-key=${entry.key} style="--item-color:${entry.color}">
-            ${this.row(entry, row, open)}
+    return b2`<div class="item ${open ? "open" : picked ? "picked" : ""}" data-key=${entry.key} style="--item-color:${entry.color}">
+            <div class="item-line">
+                ${this.row(entry, row, open)}
+                ${picked && this.compact ? b2`<button
+                              class="details-button"
+                              @click=${() => this.openOverlay()}
+                              aria-label=${this.text("list.show_details")}
+                              title=${this.text("list.show_details")}
+                          >
+                              <ha-icon icon="mdi:information-outline"></ha-icon>
+                          </button>` : A}
+            </div>
             <div class="unfold" @transitionend=${(event) => open && event.target === event.currentTarget && this.fitRow()}>
                 <div class="unfold-inner">
                     ${shown ? b2`<div class="unfold-body" @load=${{ handleEvent: () => open && this.fitSoon(), capture: true }}>
@@ -35090,7 +35108,12 @@ var MapFeedCard = class extends i4 {
   }
   row(entry, row, open) {
     const valueStyle = row.valueIsDelay ? `color:color-mix(in srgb, ${entry.color} 70%, var(--primary-text-color))` : "";
-    return b2`<button class="row" aria-expanded=${open ? "true" : "false"} @click=${() => this.select(open ? null : entry.key)}>
+    return b2`<button
+            class="row"
+            aria-expanded=${this.compact ? A : open ? "true" : "false"}
+            aria-pressed=${this.compact ? entry.key === this.selected ? "true" : "false" : A}
+            @click=${() => this.select(entry.key === this.selected ? null : entry.key)}
+        >
             ${entry.point?.badge ? b2`<span class="chip" style="background:${entry.color};color:${textOn(entry.color)}">${entry.point.badge}</span>` : b2`<span class="dot" style="background:${entry.color};opacity:${entry.item.opacity}"></span>`}
             <span class="row-text">
                 <span class="row-title">${row.title}${row.tag ? b2` ${tagOf(row.tag, entry.color)}` : A}</span>
@@ -35133,7 +35156,64 @@ var MapFeedCard = class extends i4 {
   }
   fillRowsSoon() {
     cancelAnimationFrame(this.frame ?? 0);
-    this.frame = requestAnimationFrame(() => this.fillRows());
+    this.frame = requestAnimationFrame(() => {
+      this.measureList();
+      this.fillRows();
+    });
+  }
+  /**
+   * Whether the list under the map has room for details to unfold in it. Held to a height, the list's room is its own
+   * height, which the card's height gives it and its rows don't change; otherwise it grows with its rows up to
+   * `list_height`, which is its room. A list beside the map is the card's whole height, so details always unfold there.
+   * A hidden card measures nothing.
+   */
+  measureList() {
+    const list = this.renderRoot.querySelector(".list");
+    if (!list || !this.options?.list || this.wide) {
+      this.setCompact(false);
+      return;
+    }
+    if (!list.clientWidth) return;
+    const room = this.heightStyle() ? list.getBoundingClientRect().height : this.options.listHeight;
+    this.setCompact(room < DETAILS_IN_LIST_MIN_PX);
+  }
+  /** Switching, an item whose details are open keeps them open in their new place: unfolded, or over the card. */
+  setCompact(compact) {
+    if (compact === this.compact) return;
+    this.compact = compact;
+    this.overlayOpen = compact && this.selected !== null;
+  }
+  openOverlay() {
+    this.overlayOpen = true;
+    void this.updateComplete.then(() => this.renderRoot.querySelector(".overlay-close")?.focus());
+  }
+  /** Closed, the focus goes back to the button that opened the details. */
+  closeOverlay() {
+    this.overlayOpen = false;
+    void this.updateComplete.then(() => this.renderRoot.querySelector(".item.picked .details-button")?.focus());
+  }
+  /** An item's details over the whole card, from a compact list's button: its title, a close button and the details. */
+  overlay(selected) {
+    const row = rowOf(selected.item, selected.point, (key, values) => this.text(key, values));
+    return b2`<div
+            class="overlay"
+            role="dialog"
+            aria-modal="true"
+            aria-label=${row.title}
+            @keydown=${(event) => event.key === "Escape" && this.closeOverlay()}
+        >
+            <div class="overlay-head">
+                <span class="overlay-title">${row.title}</span>
+                <button
+                    class="sheet-close overlay-close"
+                    @click=${() => this.closeOverlay()}
+                    aria-label=${this.text("common.close_details")}
+                >
+                    ×
+                </button>
+            </div>
+            <div class="overlay-body">${this.details(selected, row)}</div>
+        </div>`;
   }
   /**
    * On automatic rows in a sections view, the card takes the whole rows its content needs, or the half rows with
@@ -35223,6 +35303,7 @@ var MapFeedCard = class extends i4 {
     }
     this.selectedAt = Date.now();
     this.selected = key;
+    this.overlayOpen = false;
     this.featured = null;
     this.revealSelected = key !== null;
     this.map?.tapped();
@@ -35436,6 +35517,7 @@ MapFeedCard.styles = [
                 height: 100%;
             }
             ha-card {
+                position: relative;
                 height: 100%;
                 overflow: hidden;
                 display: flex;
@@ -35812,7 +35894,75 @@ MapFeedCard.styles = [
                 border-bottom: 1px solid var(--divider-color);
                 transition: background-color 220ms ease;
             }
+            .item-line {
+                display: flex;
+                align-items: center;
+            }
+            .item-line .row {
+                flex: 1 1 auto;
+                min-width: 0;
+            }
+            .details-button {
+                flex: none;
+                display: grid;
+                place-items: center;
+                width: 40px;
+                height: 40px;
+                margin-right: 6px;
+                padding: 0;
+                border: 0;
+                border-radius: 50%;
+                background: transparent;
+                color: var(--primary-color);
+                cursor: pointer;
+                --mdc-icon-size: 22px;
+            }
+            .details-button:hover {
+                background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+            }
+            .details-button:focus-visible {
+                outline: 2px solid var(--primary-color);
+                outline-offset: -2px;
+            }
+            /* An item's details over the whole card, from a compact list, with their own scroll. */
+            .overlay {
+                position: absolute;
+                inset: 0;
+                z-index: 4;
+                display: flex;
+                flex-direction: column;
+                background: var(--card-background-color, var(--ha-card-background, #fff));
+            }
+            .overlay-head {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                flex: none;
+                padding: 12px 12px 6px 16px;
+            }
+            .overlay-title {
+                flex: 1 1 auto;
+                min-width: 0;
+                font-size: 18px;
+                font-weight: 500;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .overlay-close {
+                float: none;
+                margin: 0;
+                flex: none;
+            }
+            .overlay-body {
+                flex: 1 1 auto;
+                min-height: 0;
+                overflow-y: auto;
+                scrollbar-width: thin;
+                padding: 0 16px 16px;
+            }
             /* Marked by a tint and a strip drawn inside, so the row's text keeps its size and its place. */
+            .item.picked,
             .item.open {
                 background: color-mix(in srgb, var(--primary-text-color) 5%, transparent);
                 box-shadow: inset 3px 0 0 var(--item-color);
@@ -36221,6 +36371,12 @@ __decorateClass([
 __decorateClass([
   r5()
 ], MapFeedCard.prototype, "closing", 2);
+__decorateClass([
+  r5()
+], MapFeedCard.prototype, "compact", 2);
+__decorateClass([
+  r5()
+], MapFeedCard.prototype, "overlayOpen", 2);
 __decorateClass([
   e5(".map")
 ], MapFeedCard.prototype, "mapElement", 2);

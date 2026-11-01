@@ -854,6 +854,80 @@ describe("the details", () => {
         await card.updateComplete;
         expect(drawn.reveals.map(([, covered]) => covered)).toEqual([0]);
     });
+
+    describe("in a list too short for them", () => {
+        const shadow = (card: Card) => card.shadowRoot!;
+        const compactCard = async () => {
+            const card = await mount({ entities: ["sensor.trains"], list: true }, trains);
+            card["setCompact"](true);
+            await card.updateComplete;
+            return card;
+        };
+
+        it("selects a row without unfolding it, and offers its details from a button beside it", async () => {
+            const card = await compactCard();
+            shadow(card).querySelector<HTMLButtonElement>(".row")!.click();
+            await card.updateComplete;
+            expect(shadow(card).querySelector(".item.picked")).not.toBeNull();
+            expect(shadow(card).querySelector(".item.open, .unfold-body, .overlay")).toBeNull();
+            expect(shadow(card).querySelector(".row")!.getAttribute("aria-pressed")).toBe("true");
+            expect(shadow(card).querySelectorAll(".details-button")).toHaveLength(1);
+        });
+
+        it("opens the details over the card from the button, and closes them with the close button or Escape", async () => {
+            const card = await compactCard();
+            card["select"](first(card));
+            await card.updateComplete;
+            shadow(card).querySelector<HTMLButtonElement>(".details-button")!.click();
+            await card.updateComplete;
+            const overlay = shadow(card).querySelector(".overlay")!;
+            expect(overlay.getAttribute("role")).toBe("dialog");
+            expect(overlay.querySelector(".overlay-body")!.textContent!.trim()).not.toBe("");
+            shadow(card).querySelector<HTMLButtonElement>(".overlay-close")!.click();
+            await card.updateComplete;
+            expect(shadow(card).querySelector(".overlay")).toBeNull();
+            expect(shadow(card).querySelector(".item.picked")).not.toBeNull();
+            shadow(card).querySelector<HTMLButtonElement>(".details-button")!.click();
+            await card.updateComplete;
+            shadow(card)
+                .querySelector(".overlay")!
+                .dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+            await card.updateComplete;
+            expect(shadow(card).querySelector(".overlay")).toBeNull();
+        });
+
+        it("keeps an item's details open as the list switches between too short and tall enough", async () => {
+            const card = await mount({ entities: ["sensor.trains"], list: true }, trains);
+            card["select"](first(card));
+            await card.updateComplete;
+            expect(shadow(card).querySelector(".item.open")).not.toBeNull();
+            card["setCompact"](true);
+            await card.updateComplete;
+            expect(shadow(card).querySelector(".overlay")).not.toBeNull();
+            card["setCompact"](false);
+            await card.updateComplete;
+            expect(shadow(card).querySelector(".overlay")).toBeNull();
+            expect(shadow(card).querySelector(".item.open")).not.toBeNull();
+        });
+
+        // Held, the list's room is its own height; otherwise list_height, as it grows with its rows up to it.
+        it.each<[string, Record<string, unknown>, boolean, number, boolean]>([
+            ["held, with a list shorter than 400 px", { height: 450 }, false, 300, true],
+            ["held, with a list of 400 px", { height: 600 }, false, 400, false],
+            ["not held, with list_height under 400 px", { list_height: 300 }, false, 120, true],
+            ["not held, with the default list_height", {}, false, 120, false],
+            ["held and wide, with the list beside the map", { height: 450 }, true, 300, false],
+        ])("tells a list %s", async (_name, extra, wide, height, compact) => {
+            const card = await mount({ entities: ["sensor.trains"], list: true, ...extra }, trains);
+            card["wide"] = wide;
+            await card.updateComplete;
+            const list = shadow(card).querySelector<HTMLElement>(".list")!;
+            Object.defineProperty(list, "clientWidth", { value: 360, configurable: true });
+            list.getBoundingClientRect = () => ({ height }) as DOMRect;
+            card["measureList"]();
+            expect(card["compact"]).toBe(compact);
+        });
+    });
 });
 
 describe("the height", () => {

@@ -124,6 +124,11 @@ ask.
 **The list**, with `list: true`, shows every item as a row: a title, a line under it and a value, such as a delay or
 a distance. A feed can say what the list can be sorted by, such as delay and number for trains, and the order is chosen on the card when there is more than one. Tapping a row unfolds its details beneath it and brings its marker into view, and tapping it again folds them away. Tapping a marker opens its row. Above the list is the number of items, with the sensor's name when the card shows one feed.
 
+A list below the map that is shorter than 400 pixels, as in a card held to a few rows, has no room for details to
+unfold in it. There, tapping a row or a marker only selects the item and brings it into view, and a button on the
+selected row opens its details over the whole card, closed with × or Escape. Beside the map the list is as tall as the
+card, and details always unfold in it.
+
 <p>
 <img src="https://raw.githubusercontent.com/jesmak/map-feed-card/main/docs/images/list-wide-light.png#gh-light-mode-only" width="830" alt="Bird sightings with the list beside the map, the nearest place opened to its species">
 <img src="https://raw.githubusercontent.com/jesmak/map-feed-card/main/docs/images/list-wide-dark.png#gh-dark-mode-only" width="830" alt="Bird sightings with the list beside the map, the nearest place opened to its species">

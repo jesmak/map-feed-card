@@ -76,7 +76,8 @@
         "count": "{n} items",
         "count_one": "{n} item",
         "sort": "Order",
-        "delay": "{n} min"
+        "delay": "{n} min",
+        "show_details": "Show details"
     },
     "kinds": {
         "ship_cargo": "Cargo ship",
