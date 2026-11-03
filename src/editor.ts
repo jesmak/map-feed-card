@@ -5,7 +5,6 @@ import { customElement, property, state } from "lit/decorators.js";
 
 import { isMapFeed, readFeed, type FeedType } from "./feed";
 import type { HomeAssistant } from "./hass";
-import { heightData, heightSchema, tidyHeight } from "./height";
 import { rowStepData, rowStepSchema, tidyRowStep, type RowStepConfig } from "./rows";
 import { browserLanguage, translate } from "./localize/localize";
 import { sortOptions } from "./list";
@@ -135,7 +134,6 @@ function schema(hass: HomeAssistant, text: (key: string) => string, entities: Fe
             entities.map((entry) => String(entry.entity ?? "")),
             sort,
         ),
-        ...heightSchema(config, text),
         ...rowStepSchema(config, text),
     ];
 }
@@ -195,7 +193,7 @@ export class MapFeedCardEditor extends LitElement {
         return html`
             <ha-form
                 .hass=${this.hass}
-                .data=${{ ...CARD_DEFAULTS, ...rowStepData(heightData(this.config)), entities, ...sections }}
+                .data=${{ ...CARD_DEFAULTS, ...rowStepData(this.config), entities, ...sections }}
                 .schema=${schema(this.hass, (key) => this.text(key), entities, this.config.sort, this.config)}
                 .computeLabel=${(entry: SchemaEntry) => this.text(`editor.${entry.name}`)}
                 .computeHelper=${(entry: SchemaEntry) => this.helper(entry.name)}
@@ -217,7 +215,7 @@ export class MapFeedCardEditor extends LitElement {
             }));
         }
         const rest = Object.fromEntries(Object.entries(value).filter(([key]) => key !== "entities" && !key.startsWith("feed_")));
-        const config = tidyRowStep(tidyHeight(withoutDefaults(rest, CARD_DEFAULTS)));
+        const config = tidyRowStep(withoutDefaults(rest, CARD_DEFAULTS));
         config.type = value.type ?? "custom:map-feed-card";
         config.entities = compactFeeds(entities);
         this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));

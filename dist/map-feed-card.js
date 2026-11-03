@@ -1092,8 +1092,8 @@ function areaOutline(area) {
   }
   const lat = area.lat * Math.PI / 180;
   const angular = area.radiusKm / EARTH_RADIUS_KM;
-  return Array.from({ length: 65 }, (_3, step) => {
-    const bearing = step / 64 * 2 * Math.PI;
+  return Array.from({ length: 65 }, (_3, step2) => {
+    const bearing = step2 / 64 * 2 * Math.PI;
     const pointLat = Math.asin(Math.sin(lat) * Math.cos(angular) + Math.cos(lat) * Math.sin(angular) * Math.cos(bearing));
     const pointLon = area.lon * Math.PI / 180 + Math.atan2(Math.sin(bearing) * Math.sin(angular) * Math.cos(lat), Math.cos(angular) - Math.sin(lat) * Math.sin(pointLat));
     return [pointLon * 180 / Math.PI, pointLat * 180 / Math.PI];
@@ -1495,39 +1495,6 @@ function heightCardSize(config, content, minimum = 0) {
   }
   return mode === "max" && config.max_height ? Math.max(1, Math.min(content, Math.round(Math.max(config.max_height, minimum) / 50))) : content;
 }
-function heightSchema(config, text2) {
-  const mode = heightMode(config);
-  const field = (name) => ({
-    name,
-    selector: { number: { min: 100, max: 2e3, step: 10, unit_of_measurement: "px", mode: "box" } }
-  });
-  return [
-    {
-      name: "height_mode",
-      selector: {
-        select: { mode: "dropdown", options: HEIGHT_MODES.map((value) => ({ value, label: text2(`editor.height_mode_${value}`) })) }
-      }
-    },
-    ...mode === "fixed" ? [field("height")] : mode === "max" ? [field("max_height")] : []
-  ];
-}
-function heightData(config) {
-  return { ...config, height_mode: heightMode(config) };
-}
-function tidyHeight(config) {
-  const mode = heightMode(config);
-  const tidied = { ...config };
-  if (mode !== "fixed" || !tidied.height) {
-    delete tidied.height;
-  }
-  if (mode !== "max" || !tidied.max_height) {
-    delete tidied.max_height;
-  }
-  if (!tidied.height_mode || heightMode({ ...tidied, height_mode: void 0 }) === mode) {
-    delete tidied.height_mode;
-  }
-  return tidied;
-}
 
 // src/rows.ts
 var ROW_STEPS = ["full", "half"];
@@ -1536,12 +1503,34 @@ var ROW_GAP_PX = 8;
 function validRowStep(config) {
   return config.row_step === void 0 || config.row_step === null || ROW_STEPS.includes(config.row_step);
 }
-function filledHeight(content, config) {
-  const step = config.row_step === "half" ? ROW_PX / 2 : ROW_PX;
-  return Math.max(1, Math.ceil((content + ROW_GAP_PX) / step)) * step - ROW_GAP_PX;
+var step = (config) => config.row_step === "half" ? ROW_PX / 2 : ROW_PX;
+function filledHeight(content, config, limit = Infinity) {
+  return Math.min(Math.max(1, Math.ceil((content + ROW_GAP_PX) / step(config))) * step(config) - ROW_GAP_PX, limit);
+}
+function fillLimit(config, layout, minimum = 0) {
+  const rows = config.grid_options ? config.grid_options.rows : config.layout_options?.grid_rows;
+  if (layout !== "grid" || typeof rows === "number") {
+    return 0;
+  }
+  const mode = heightMode(config);
+  if (mode === "fixed" && config.height) {
+    return 0;
+  }
+  if (mode !== "max" || !config.max_height) {
+    return Infinity;
+  }
+  const down = Math.floor((config.max_height + ROW_GAP_PX) / step(config)) * step(config) - ROW_GAP_PX;
+  return Math.max(down, filledHeight(minimum, config));
+}
+function filledStyle(config, layout, minimum, filled) {
+  const limit = fillLimit(config, layout, minimum);
+  if (!limit) {
+    return heightStyle(config, layout, minimum);
+  }
+  return [limit < Infinity && `max-height: ${limit}px`, filled && `min-height: ${filled}px`].filter(Boolean).join("; ");
 }
 function rowStepSchema(config, text2) {
-  if (heightMode(config) !== "auto") {
+  if (heightMode(config) === "fixed" && config.height) {
     return [];
   }
   return [
@@ -1558,7 +1547,7 @@ function rowStepData(config) {
 }
 function tidyRowStep(config) {
   const tidied = { ...config };
-  if (tidied.row_step !== "half" || heightMode(tidied) !== "auto") {
+  if (tidied.row_step !== "half" || heightMode(tidied) === "fixed" && tidied.height) {
     delete tidied.row_step;
   }
   return tidied;
@@ -1625,15 +1614,6 @@ var en_default = {
     glide_helper: "Moves each marker smoothly from its previous position to the new one. It then shows where the item was one update ago.",
     frame: "Frame the map to this feed",
     frame_helper: "Turn off when this feed shouldn't be used to frame the map's initial view.",
-    height_mode: "Height",
-    height_mode_helper: "A height set in the layout tab of a sections view is used instead.",
-    height_mode_auto: "Fits the content",
-    height_mode_fixed: "Fixed",
-    height_mode_max: "Grows up to a limit",
-    height: "Fixed height",
-    height_helper: "The card is always this tall.",
-    max_height: "Maximum height",
-    max_height_helper: "The card grows with its content up to this height.",
     row_step: "Rounding in a sections view",
     row_step_helper: "With automatic row height, the card's height is rounded up to whole rows, or to half rows to save space.",
     row_step_full: "Whole rows",
@@ -1775,15 +1755,6 @@ var fi_default = {
     glide_helper: "Merkki liikkuu tasaisesti edellisest\xE4 sijainnista uuteen. Se n\xE4ytt\xE4\xE4 silloin, miss\xE4 kohde oli yht\xE4 p\xE4ivityst\xE4 aiemmin.",
     frame: "Rajaa kartta t\xE4h\xE4n sy\xF6tteeseen",
     frame_helper: "Ota pois k\xE4yt\xF6st\xE4, kun haluat ett\xE4 t\xE4t\xE4 sy\xF6tett\xE4 ei k\xE4ytet\xE4 n\xE4ytett\xE4v\xE4n kartta-alueen alustavaan rajaamiseen.",
-    height_mode: "Korkeus",
-    height_mode_helper: "Osioihin jaetun n\xE4kym\xE4n asettelu-v\xE4lilehdell\xE4 asetettu korkeus ohittaa t\xE4m\xE4n.",
-    height_mode_auto: "Sis\xE4ll\xF6n mukaan",
-    height_mode_fixed: "Kiinte\xE4",
-    height_mode_max: "Kasvaa rajaan asti",
-    height: "Kiinte\xE4 korkeus",
-    height_helper: "Kortti on aina n\xE4in korkea.",
-    max_height: "Enimm\xE4iskorkeus",
-    max_height_helper: "Kortti kasvaa sis\xE4lt\xF6ns\xE4 mukana t\xE4h\xE4n korkeuteen asti.",
     row_step: "Py\xF6ristys osioihin jaetussa n\xE4kym\xE4ss\xE4",
     row_step_helper: "Automaattisella rivikorkeudella kortin korkeus py\xF6ristet\xE4\xE4n yl\xF6sp\xE4in kokonaisiin riveihin, tai tilan s\xE4\xE4st\xE4miseksi puolikkaisiin riveihin.",
     row_step_full: "Kokonaisiin riveihin",
@@ -2131,7 +2102,6 @@ function schema(hass, text2, entities, sort, config) {
       entities.map((entry) => String(entry.entity ?? "")),
       sort
     ),
-    ...heightSchema(config, text2),
     ...rowStepSchema(config, text2)
   ];
 }
@@ -2178,7 +2148,7 @@ var MapFeedCardEditor = class extends i4 {
     return b2`
             <ha-form
                 .hass=${this.hass}
-                .data=${{ ...CARD_DEFAULTS, ...rowStepData(heightData(this.config)), entities, ...sections }}
+                .data=${{ ...CARD_DEFAULTS, ...rowStepData(this.config), entities, ...sections }}
                 .schema=${schema(this.hass, (key) => this.text(key), entities, this.config.sort, this.config)}
                 .computeLabel=${(entry) => this.text(`editor.${entry.name}`)}
                 .computeHelper=${(entry) => this.helper(entry.name)}
@@ -2197,7 +2167,7 @@ var MapFeedCardEditor = class extends i4 {
       }));
     }
     const rest = Object.fromEntries(Object.entries(value).filter(([key]) => key !== "entities" && !key.startsWith("feed_")));
-    const config = tidyRowStep(tidyHeight(withoutDefaults(rest, CARD_DEFAULTS)));
+    const config = tidyRowStep(withoutDefaults(rest, CARD_DEFAULTS));
     config.type = value.type ?? "custom:map-feed-card";
     config.entities = compactFeeds(entities);
     this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
@@ -35012,8 +34982,8 @@ var MapFeedCard = class extends i4 {
     const held = this.heightStyle();
     return b2`
             <ha-card
-                class=${e7({ wide: this.wide, "with-list": list, dark: this.dark(), held: !!held, filled: !held && !!this.filled })}
-                style="--map-height:${this.options.mapHeight}px;--list-height:${this.options.listHeight}px;${held || (this.filled ? `min-height: ${this.filled}px` : "")}"
+                class=${e7({ wide: this.wide, "with-list": list, dark: this.dark(), held: !!held, filled: !!this.filled })}
+                style="--map-height:${this.options.mapHeight}px;--list-height:${this.options.listHeight}px;${filledStyle(this.config, this.layout, this.minimumHeight(), this.filled)}"
             >
                 ${title && !titleInList ? b2`<h1 class="card-title">${title}</h1>` : A}
                 <div class="body">
@@ -35251,18 +35221,19 @@ var MapFeedCard = class extends i4 {
   }
   /**
    * On automatic rows in a sections view, the card takes the whole rows its content needs, or the half rows with
-   * `row_step: half`, so the cards under it stay on the rows. The map takes the height added, beside the list too, so what it has grown past its own height is left
+   * `row_step: half`, so the cards under it stay on the rows, up to the limit of a card that grows up to one. The map takes the height added, beside the list too, so what it has grown past its own height is left
    * out of the measure, or a card whose list below the map gets shorter would keep the rows it no longer needs.
    */
   fillRows() {
     const card = this.renderRoot.querySelector("ha-card");
     const grown = this.renderRoot.querySelector(this.wide ? ".body" : ".map-wrap");
-    if (!card || !grown || !card.clientWidth || !this.options || this.layout !== "grid" || this.heightStyle()) {
+    const limit = fillLimit(this.config, this.layout, this.minimumHeight());
+    if (!card || !grown || !card.clientWidth || !this.options || !limit) {
       if (this.filled) this.filled = 0;
       return;
     }
     const content = card.getBoundingClientRect().height - Math.max(0, grown.getBoundingClientRect().height - this.options.mapHeight);
-    const filled = filledHeight(Math.round(content), this.config);
+    const filled = filledHeight(Math.round(content), this.config, limit);
     if (filled !== this.filled) this.filled = filled;
   }
   /** Follows the details' sheet's size, which changes as its pictures load, so the item is kept clear of it. */
@@ -35664,6 +35635,18 @@ MapFeedCard.styles = [
             .filled.wide .body {
                 flex: 1 1 var(--map-height);
                 height: auto;
+            }
+            /* Filling its rows up to a limit, a list under the map is as tall as unheld, up to list_height, and the map takes
+               the rest of the row. Once the limit is reached the list still gives way first, down to its least, as the
+               map's shrinking is next to nothing until the list stops. The list must not grow, or fillRows would measure
+               the room it takes as content and the card would never shrink again. */
+            .held.filled.with-list:not(.wide) .map-wrap {
+                flex: 1 0.0001 var(--map-height);
+            }
+            /* Held, the list is border-box, so its top border is added to list_height as unheld. */
+            .held.filled.with-list:not(.wide) .list {
+                flex: 0 1 auto;
+                max-height: calc(var(--list-height) + 1px);
             }
             /* the details over the map */
             .map-note {

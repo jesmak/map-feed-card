@@ -28,7 +28,7 @@ import {
 } from "./feed";
 import type { HomeAssistant } from "./hass";
 import { gridMinRows, heightCardSize, heightStyle, validHeight } from "./height";
-import { filledHeight, validRowStep, type RowStepConfig } from "./rows";
+import { fillLimit, filledHeight, filledStyle, validRowStep, type RowStepConfig } from "./rows";
 import { countText, rowOf, sortOptions, sortRows, startingSort, type Row } from "./list";
 import { browserLanguage, translate } from "./localize/localize";
 import { FeedMap, type DrawnArea, type DrawnPoint, type DrawnShape, type MapContent } from "./map";
@@ -331,8 +331,8 @@ export class MapFeedCard extends LitElement {
         const held = this.heightStyle();
         return html`
             <ha-card
-                class=${classMap({ wide: this.wide, "with-list": list, dark: this.dark(), held: !!held, filled: !held && !!this.filled })}
-                style="--map-height:${this.options.mapHeight}px;--list-height:${this.options.listHeight}px;${held || (this.filled ? `min-height: ${this.filled}px` : "")}"
+                class=${classMap({ wide: this.wide, "with-list": list, dark: this.dark(), held: !!held, filled: !!this.filled })}
+                style="--map-height:${this.options.mapHeight}px;--list-height:${this.options.listHeight}px;${filledStyle(this.config, this.layout, this.minimumHeight(), this.filled)}"
             >
                 ${title && !titleInList ? html`<h1 class="card-title">${title}</h1>` : nothing}
                 <div class="body">
@@ -618,18 +618,19 @@ export class MapFeedCard extends LitElement {
 
     /**
      * On automatic rows in a sections view, the card takes the whole rows its content needs, or the half rows with
-     * `row_step: half`, so the cards under it stay on the rows. The map takes the height added, beside the list too, so what it has grown past its own height is left
+     * `row_step: half`, so the cards under it stay on the rows, up to the limit of a card that grows up to one. The map takes the height added, beside the list too, so what it has grown past its own height is left
      * out of the measure, or a card whose list below the map gets shorter would keep the rows it no longer needs.
      */
     private fillRows(): void {
         const card = this.renderRoot.querySelector<HTMLElement>("ha-card");
         const grown = this.renderRoot.querySelector<HTMLElement>(this.wide ? ".body" : ".map-wrap");
-        if (!card || !grown || !card.clientWidth || !this.options || this.layout !== "grid" || this.heightStyle()) {
+        const limit = fillLimit(this.config, this.layout, this.minimumHeight());
+        if (!card || !grown || !card.clientWidth || !this.options || !limit) {
             if (this.filled) this.filled = 0;
             return;
         }
         const content = card.getBoundingClientRect().height - Math.max(0, grown.getBoundingClientRect().height - this.options.mapHeight);
-        const filled = filledHeight(Math.round(content), this.config);
+        const filled = filledHeight(Math.round(content), this.config, limit);
         if (filled !== this.filled) this.filled = filled;
     }
 
@@ -1062,6 +1063,18 @@ export class MapFeedCard extends LitElement {
             .filled.wide .body {
                 flex: 1 1 var(--map-height);
                 height: auto;
+            }
+            /* Filling its rows up to a limit, a list under the map is as tall as unheld, up to list_height, and the map takes
+               the rest of the row. Once the limit is reached the list still gives way first, down to its least, as the
+               map's shrinking is next to nothing until the list stops. The list must not grow, or fillRows would measure
+               the room it takes as content and the card would never shrink again. */
+            .held.filled.with-list:not(.wide) .map-wrap {
+                flex: 1 0.0001 var(--map-height);
+            }
+            /* Held, the list is border-box, so its top border is added to list_height as unheld. */
+            .held.filled.with-list:not(.wide) .list {
+                flex: 0 1 auto;
+                max-height: calc(var(--list-height) + 1px);
             }
             /* the details over the map */
             .map-note {

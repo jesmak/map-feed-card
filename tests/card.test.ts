@@ -936,7 +936,15 @@ describe("the height", () => {
     });
 
     const trains = { "sensor.trains": feedState("sensor.trains", [trainFeature()]) };
-    const style = (card: HTMLElement) => card.shadowRoot!.querySelector("ha-card")!.getAttribute("style")!.split(";").at(-1)!.trim();
+    // The card's height, without the map's and the list's own heights that come first.
+    const style = (card: HTMLElement) =>
+        card
+            .shadowRoot!.querySelector("ha-card")!
+            .getAttribute("style")!
+            .split(";")
+            .map((part) => part.trim())
+            .filter((part) => part && !part.startsWith("--"))
+            .join("; ");
 
     // Held, the card keeps its border (2 px), its title on one line (48 px) and room for the details' sheet over a map of
     // 200 px, and with the list, the list's border, header and room for the rows to scroll (163 px). The map gives way to
@@ -1060,7 +1068,8 @@ describe("the height", () => {
         ],
         ["not outside a sections view", { title: "Trains" }, undefined, false, 350, 0, ""],
         ["not when held to a height", { title: "Trains", height: 400 }, "grid", false, 400, 52, "height: 400px"],
-        ["not when held up to a limit", { title: "Trains", max_height: 600 }, "grid", false, 350, 0, "max-height: 600px"],
+        ["up to a limit, under it", { title: "Trains", max_height: 600 }, "grid", false, 350, 0, "max-height: 568px; min-height: 376px"],
+        ["up to a limit, over it", { title: "Trains", max_height: 600 }, "grid", false, 900, 0, "max-height: 568px; min-height: 568px"],
         ["not when held by rows", { grid_options: { rows: 6 } }, "grid", false, 376, 76, "height: 100%"],
     ])("ends on a whole row with %s", async (_name, extra, layout, wide, height, grown, expected) => {
         const card = await mount({ entities: ["sensor.trains"], ...extra }, trains);
@@ -1078,7 +1087,7 @@ describe("the height", () => {
         internals.fillRows();
         await card.updateComplete;
         expect(style(card)).toBe(expected);
-        expect(haCard.classList.contains("filled")).toBe(expected.startsWith("min-height"));
+        expect(haCard.classList.contains("filled")).toBe(expected.includes("min-height"));
     });
 
     it.each<[string, (card: HTMLElement, haCard: HTMLElement) => void]>([
