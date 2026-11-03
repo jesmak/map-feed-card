@@ -35605,7 +35605,7 @@ MapFeedCard.styles = [
                 flex: 2 1 0;
                 max-height: none;
                 border-top: none;
-                border-left: 1px solid var(--divider-color);
+                border-inline-start: 1px solid var(--divider-color);
             }
             /* Held to a height: without the list the map takes what is left, starting from its own height, so a card that
                grows up to a limit gives way only once it reaches it. With the list under it, the list takes what the map
@@ -35702,7 +35702,7 @@ MapFeedCard.styles = [
                 box-shadow: 0 -6px 16px -8px rgba(0, 0, 0, 0.5);
             }
             .sheet-close {
-                float: right;
+                float: inline-end;
                 width: 32px;
                 height: 32px;
                 margin: -8px -8px 0 8px;
@@ -35736,7 +35736,7 @@ MapFeedCard.styles = [
                 min-width: 0;
                 max-height: none;
                 border-top: none;
-                border-left: 1px solid var(--divider-color);
+                border-inline-start: 1px solid var(--divider-color);
             }
             .list-head {
                 display: flex;
@@ -35773,8 +35773,9 @@ MapFeedCard.styles = [
                 max-width: 100%;
                 height: 32px;
                 box-sizing: border-box;
-                margin-left: auto;
-                padding: 0 10px 0 12px;
+                margin-inline-start: auto;
+                padding-block: 0;
+                padding-inline: 12px 10px;
                 border-radius: 16px;
                 border: 1px solid var(--divider-color);
                 color: var(--primary-text-color);
@@ -35836,7 +35837,7 @@ MapFeedCard.styles = [
                 background: none;
                 color: var(--primary-text-color);
                 font: inherit;
-                text-align: left;
+                text-align: start;
                 cursor: pointer;
             }
             .row:hover {
@@ -35951,7 +35952,7 @@ MapFeedCard.styles = [
                 place-items: center;
                 width: 40px;
                 height: 40px;
-                margin-right: 6px;
+                margin-inline-end: 6px;
                 padding: 0;
                 border: 0;
                 border-radius: 50%;
@@ -36354,7 +36355,7 @@ MapFeedCard.styles = [
             .featured .close {
                 position: absolute;
                 top: 6px;
-                right: 6px;
+                inset-inline-end: 6px;
                 width: 28px;
                 height: 28px;
                 padding: 0;
