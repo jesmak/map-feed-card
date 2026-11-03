@@ -109,6 +109,45 @@ interface View {
     extent: LngLat[];
 }
 
+/** A list row that doesn't fit on one line: its value under its texts, or its chip on a line of its own as well. */
+export type RowSplit = "under" | "apart";
+
+/** Whether a row's texts overflow their room, measured with their words whole. */
+function rowOverflows(row: HTMLElement): boolean {
+    return [...row.querySelectorAll<HTMLElement>(".row-title, .row-sub, .row-value")].some((text) => text.scrollWidth > text.clientWidth);
+}
+
+/**
+ * Lays out the list's rows by what fits, by the key of their item. A row keeps its value beside its texts while no
+ * word in them breaks and the row is no taller than with the value under them, as squeezed beside it the texts would
+ * take a line a word. One that doesn't puts its value under its texts, and one whose words don't fit even so puts its
+ * chip on a line of its own too. Each item is held to the height it is drawn at while its row is measured, so the
+ * list doesn't change height for a moment and scroll back.
+ */
+export function splitRows(card: HTMLElement): Map<string, RowSplit> {
+    const rows = [...card.querySelectorAll<HTMLElement>(".list .row")];
+    const items = rows.map((row) => row.closest<HTMLElement>(".item"));
+    // Their layout height, not the drawn one, which a dialog opening with a scale shrinks.
+    const heights = items.map((item) => (item ? getComputedStyle(item).height : ""));
+    items.forEach((item, index) => item?.style.setProperty("height", heights[index]));
+    card.toggleAttribute("data-measuring", true);
+    rows.forEach((row) => row.classList.remove("under", "apart"));
+    const beside = rows.map((row) => ({ over: rowOverflows(row), height: row.offsetHeight }));
+    rows.forEach((row) => row.classList.add("under"));
+    const under = rows.map((row) => ({ over: rowOverflows(row), height: row.offsetHeight }));
+    const splits = new Map<string, RowSplit>();
+    rows.forEach((row, index) => {
+        row.classList.remove("under");
+        const split = !beside[index].over && beside[index].height <= under[index].height ? null : under[index].over ? "apart" : "under";
+        const key = items[index]?.dataset.key;
+        if (split) row.classList.add(split);
+        if (split && key) splits.set(key, split);
+    });
+    card.toggleAttribute("data-measuring", false);
+    items.forEach((item) => item?.style.removeProperty("height"));
+    return splits;
+}
+
 @customElement("map-feed-card")
 export class MapFeedCard extends LitElement {
     @property({ attribute: false }) public hass?: HomeAssistant;
@@ -158,6 +197,8 @@ export class MapFeedCard extends LitElement {
     /** The details' sheet whose size is followed, so the item is kept clear of it as the sheet changes size. */
     private sheetElement?: HTMLElement;
     private sheetResizer?: ResizeObserver;
+    /** The rows last measured too wide for one line, so a render never drops a split. */
+    private rowSplits = new Map<string, RowSplit>();
 
     constructor() {
         super();
@@ -443,7 +484,7 @@ export class MapFeedCard extends LitElement {
     private row(entry: ViewItem & { key: string }, row: Row, open: boolean): TemplateResult {
         const valueStyle = row.valueIsDelay ? `color:color-mix(in srgb, ${entry.color} 70%, var(--primary-text-color))` : "";
         return html`<button
-            class="row"
+            class="row ${this.rowSplits.get(entry.key) ?? ""}"
             aria-expanded=${this.compact ? nothing : open ? "true" : "false"}
             aria-pressed=${this.compact ? (entry.key === this.selected ? "true" : "false") : nothing}
             @click=${() => this.select(entry.key === this.selected ? null : entry.key)}
@@ -463,6 +504,8 @@ export class MapFeedCard extends LitElement {
 
     protected updated(): void {
         this.fitLegend();
+        // At once, so a new row is never drawn unmeasured, and again on the frame, as a change of size comes there.
+        this.splitRows();
         this.fillRowsSoon();
         if (this.fitSelected) {
             this.fitSelected = false;
@@ -502,9 +545,16 @@ export class MapFeedCard extends LitElement {
     private fillRowsSoon(): void {
         cancelAnimationFrame(this.frame ?? 0);
         this.frame = requestAnimationFrame(() => {
+            this.splitRows();
             this.measureList();
             this.fillRows();
         });
+    }
+
+    /** A hidden card measures nothing and keeps its splits until it is shown, as its size changes then. */
+    private splitRows(): void {
+        const card = this.renderRoot.querySelector<HTMLElement>("ha-card");
+        if (card?.clientWidth) this.rowSplits = splitRows(card);
     }
 
     /**
@@ -1163,8 +1213,10 @@ export class MapFeedCard extends LitElement {
                 stroke-linecap: round;
                 stroke-linejoin: round;
             }
+            /* The rows are as wide whether the list scrolls or not, so a row splits by its data, never by whether it scrolls. */
             .rows {
                 overflow-y: auto;
+                scrollbar-gutter: stable;
                 flex: 1 1 auto;
                 min-height: 0;
             }
@@ -1214,10 +1266,34 @@ export class MapFeedCard extends LitElement {
                 color: var(--secondary-text-color);
                 white-space: nowrap;
             }
-            /* On a narrow card the value goes under the text, which would otherwise be squeezed to a letter a line. */
+            /* A row whose texts beside its value would break a word or take more lines puts the value under them (splitRows). */
+            .row.under {
+                grid-template-columns: auto minmax(0, 1fr);
+            }
+            .row:is(.under, .apart) .row-value {
+                grid-column: 2;
+                white-space: normal;
+            }
+            /* One that doesn't fit even so puts its chip on a line of its own too. */
+            .row.apart {
+                grid-template-columns: minmax(0, 1fr);
+            }
+            .row.apart > :is(.chip, .dot) {
+                justify-self: start;
+            }
+            .row.apart .row-value {
+                grid-column: 1;
+            }
+            /* Measured for splitRows: no word broken, so a text without room for its longest word overflows. */
+            ha-card[data-measuring] .row :is(.row-title, .row-sub, .row-value) {
+                overflow-wrap: normal;
+            }
+            /* Or the browser's scroll anchoring would follow a row laid out to be measured and scroll the list. */
+            ha-card[data-measuring] .rows {
+                overflow-anchor: none;
+            }
             @container card (max-width: 320px) {
                 .row {
-                    grid-template-columns: auto minmax(0, 1fr);
                     padding: 10px 12px;
                 }
                 ha-card .unfold-body {
@@ -1231,10 +1307,6 @@ export class MapFeedCard extends LitElement {
                 }
                 ha-card .table dd + dt {
                     margin-top: 8px;
-                }
-                .row-value {
-                    grid-column: 2;
-                    white-space: normal;
                 }
                 .list-head {
                     padding: 8px 12px;
@@ -1257,19 +1329,6 @@ export class MapFeedCard extends LitElement {
                     grid-column: 2;
                     justify-self: start;
                     margin-top: 4px;
-                }
-            }
-            /* Narrower still, the chip gets a line of its own, so a name never breaks in the middle of a word. */
-            @container card (max-width: 220px) {
-                .row {
-                    grid-template-columns: minmax(0, 1fr);
-                }
-                .row > .chip,
-                .row > .dot {
-                    justify-self: start;
-                }
-                .row-value {
-                    grid-column: 1;
                 }
             }
             .item {

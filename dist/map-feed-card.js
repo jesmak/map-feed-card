@@ -34854,6 +34854,31 @@ registry.customCards.push({
   documentationURL: "https://github.com/jesmak/map-feed-card",
   preview: true
 });
+function rowOverflows(row) {
+  return [...row.querySelectorAll(".row-title, .row-sub, .row-value")].some((text2) => text2.scrollWidth > text2.clientWidth);
+}
+function splitRows(card) {
+  const rows = [...card.querySelectorAll(".list .row")];
+  const items = rows.map((row) => row.closest(".item"));
+  const heights = items.map((item) => item ? getComputedStyle(item).height : "");
+  items.forEach((item, index) => item?.style.setProperty("height", heights[index]));
+  card.toggleAttribute("data-measuring", true);
+  rows.forEach((row) => row.classList.remove("under", "apart"));
+  const beside = rows.map((row) => ({ over: rowOverflows(row), height: row.offsetHeight }));
+  rows.forEach((row) => row.classList.add("under"));
+  const under = rows.map((row) => ({ over: rowOverflows(row), height: row.offsetHeight }));
+  const splits = /* @__PURE__ */ new Map();
+  rows.forEach((row, index) => {
+    row.classList.remove("under");
+    const split = !beside[index].over && beside[index].height <= under[index].height ? null : under[index].over ? "apart" : "under";
+    const key = items[index]?.dataset.key;
+    if (split) row.classList.add(split);
+    if (split && key) splits.set(key, split);
+  });
+  card.toggleAttribute("data-measuring", false);
+  items.forEach((item) => item?.style.removeProperty("height"));
+  return splits;
+}
 var MapFeedCard = class extends i4 {
   constructor() {
     super();
@@ -34882,6 +34907,8 @@ var MapFeedCard = class extends i4 {
     this.revealSelected = false;
     /** Where the selected item was when the map was last asked to show it, so its moving asks again. */
     this.shownAt = "";
+    /** The rows last measured too wide for one line, so a render never drops a split. */
+    this.rowSplits = /* @__PURE__ */ new Map();
     new ScrollFade(this, () => this.heightStyle() ? this.renderRoot.querySelectorAll(".list .rows") : []);
   }
   static getConfigElement() {
@@ -35109,7 +35136,7 @@ var MapFeedCard = class extends i4 {
   row(entry, row, open) {
     const valueStyle = row.valueIsDelay ? `color:color-mix(in srgb, ${entry.color} 70%, var(--primary-text-color))` : "";
     return b2`<button
-            class="row"
+            class="row ${this.rowSplits.get(entry.key) ?? ""}"
             aria-expanded=${this.compact ? A : open ? "true" : "false"}
             aria-pressed=${this.compact ? entry.key === this.selected ? "true" : "false" : A}
             @click=${() => this.select(entry.key === this.selected ? null : entry.key)}
@@ -35124,6 +35151,7 @@ var MapFeedCard = class extends i4 {
   }
   updated() {
     this.fitLegend();
+    this.splitRows();
     this.fillRowsSoon();
     if (this.fitSelected) {
       this.fitSelected = false;
@@ -35157,9 +35185,15 @@ var MapFeedCard = class extends i4 {
   fillRowsSoon() {
     cancelAnimationFrame(this.frame ?? 0);
     this.frame = requestAnimationFrame(() => {
+      this.splitRows();
       this.measureList();
       this.fillRows();
     });
+  }
+  /** A hidden card measures nothing and keeps its splits until it is shown, as its size changes then. */
+  splitRows() {
+    const card = this.renderRoot.querySelector("ha-card");
+    if (card?.clientWidth) this.rowSplits = splitRows(card);
   }
   /**
    * Whether the list under the map has room for details to unfold in it. Held to a height, the list's room is its own
@@ -35781,8 +35815,10 @@ MapFeedCard.styles = [
                 stroke-linecap: round;
                 stroke-linejoin: round;
             }
+            /* The rows are as wide whether the list scrolls or not, so a row splits by its data, never by whether it scrolls. */
             .rows {
                 overflow-y: auto;
+                scrollbar-gutter: stable;
                 flex: 1 1 auto;
                 min-height: 0;
             }
@@ -35832,10 +35868,34 @@ MapFeedCard.styles = [
                 color: var(--secondary-text-color);
                 white-space: nowrap;
             }
-            /* On a narrow card the value goes under the text, which would otherwise be squeezed to a letter a line. */
+            /* A row whose texts beside its value would break a word or take more lines puts the value under them (splitRows). */
+            .row.under {
+                grid-template-columns: auto minmax(0, 1fr);
+            }
+            .row:is(.under, .apart) .row-value {
+                grid-column: 2;
+                white-space: normal;
+            }
+            /* One that doesn't fit even so puts its chip on a line of its own too. */
+            .row.apart {
+                grid-template-columns: minmax(0, 1fr);
+            }
+            .row.apart > :is(.chip, .dot) {
+                justify-self: start;
+            }
+            .row.apart .row-value {
+                grid-column: 1;
+            }
+            /* Measured for splitRows: no word broken, so a text without room for its longest word overflows. */
+            ha-card[data-measuring] .row :is(.row-title, .row-sub, .row-value) {
+                overflow-wrap: normal;
+            }
+            /* Or the browser's scroll anchoring would follow a row laid out to be measured and scroll the list. */
+            ha-card[data-measuring] .rows {
+                overflow-anchor: none;
+            }
             @container card (max-width: 320px) {
                 .row {
-                    grid-template-columns: auto minmax(0, 1fr);
                     padding: 10px 12px;
                 }
                 ha-card .unfold-body {
@@ -35849,10 +35909,6 @@ MapFeedCard.styles = [
                 }
                 ha-card .table dd + dt {
                     margin-top: 8px;
-                }
-                .row-value {
-                    grid-column: 2;
-                    white-space: normal;
                 }
                 .list-head {
                     padding: 8px 12px;
@@ -35875,19 +35931,6 @@ MapFeedCard.styles = [
                     grid-column: 2;
                     justify-self: start;
                     margin-top: 4px;
-                }
-            }
-            /* Narrower still, the chip gets a line of its own, so a name never breaks in the middle of a word. */
-            @container card (max-width: 220px) {
-                .row {
-                    grid-template-columns: minmax(0, 1fr);
-                }
-                .row > .chip,
-                .row > .dot {
-                    justify-self: start;
-                }
-                .row-value {
-                    grid-column: 1;
                 }
             }
             .item {
@@ -36384,5 +36427,6 @@ MapFeedCard = __decorateClass([
   t3("map-feed-card")
 ], MapFeedCard);
 export {
-  MapFeedCard
+  MapFeedCard,
+  splitRows
 };

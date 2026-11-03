@@ -41,7 +41,7 @@ vi.mock("../src/map", () => ({
 }));
 vi.mock("../src/map-tiles", () => ({ ensureToken: async () => {} }));
 
-const { MapFeedCard } = await import("../src/map-feed-card");
+const { MapFeedCard, splitRows } = await import("../src/map-feed-card");
 
 function hass(states: Record<string, ReturnType<typeof feedState>>): HomeAssistant {
     return {
@@ -1316,5 +1316,79 @@ describe("the height", () => {
     ])("tells a masonry view its size %s", async (_name, extra, size) => {
         const card = await mount({ entities: ["sensor.trains"], ...extra }, trains);
         expect(card.getCardSize()).toBe(size);
+    });
+});
+
+describe("a list row's layout", () => {
+    /**
+     * A card whose rows each need `whole` px for their texts with no word broken, and have 200 px beside a value on
+     * one line, 260 px with the value under them, and 300 px with the chip on a line of its own as well. Each row is
+     * `heights` tall with its value beside its texts and under them.
+     */
+    function rowsOf(needs: Array<[string, number, [number, number]?]>): HTMLElement {
+        const card = document.createElement("ha-card");
+        const list = document.createElement("div");
+        list.className = "list";
+        for (const [key, whole, heights = [40, 60]] of needs) {
+            const item = document.createElement("div");
+            item.className = "item";
+            item.dataset.key = key;
+            const row = document.createElement("button");
+            row.className = "row";
+            Object.defineProperty(row, "offsetHeight", { get: () => (row.classList.length > 1 ? heights[1] : heights[0]) });
+            for (const name of ["row-title", "row-value"]) {
+                const text = document.createElement("span");
+                text.className = name;
+                const room = () => (row.classList.contains("apart") ? 300 : row.classList.contains("under") ? 260 : 200);
+                Object.defineProperty(text, "clientWidth", { get: room });
+                // Not measuring, a long word breaks to fit, as overflow-wrap lets it.
+                Object.defineProperty(text, "scrollWidth", {
+                    get: () => (card.hasAttribute("data-measuring") ? whole : Math.min(whole, room())),
+                });
+                row.append(text);
+            }
+            item.append(row);
+            list.append(item);
+        }
+        card.append(list);
+        document.body.append(card);
+        return card;
+    }
+
+    it("keeps a row on one line while it fits, and splits only those that don't, as far as they need", () => {
+        const card = rowsOf([
+            ["fits", 200],
+            ["under", 201],
+            ["apart", 261],
+            ["never", 400],
+        ]);
+        card.querySelector(".row")!.classList.add("apart");
+        const splits = splitRows(card);
+        expect([...splits]).toEqual([
+            ["under", "under"],
+            ["apart", "apart"],
+            ["never", "apart"],
+        ]);
+        const classes = [...card.querySelectorAll<HTMLElement>(".row")].map((row) => row.className);
+        expect(classes).toEqual(["row", "row under", "row apart", "row apart"]);
+        expect(card.hasAttribute("data-measuring")).toBe(false);
+        expect([...card.querySelectorAll<HTMLElement>(".item")].every((item) => item.style.height === "")).toBe(true);
+    });
+
+    it("puts the value under texts that beside it would take more lines, and keeps it beside when no taller", () => {
+        const card = rowsOf([
+            ["squeezed", 150, [96, 80]],
+            ["even", 150, [60, 60]],
+        ]);
+        expect([...splitRows(card)]).toEqual([["squeezed", "under"]]);
+    });
+
+    it("measures with no word broken and keeps the rows' widths from depending on whether the list scrolls", () => {
+        const styles = (customElements.get("map-feed-card") as unknown as { styles: Array<{ cssText: string }> }).styles
+            .map((sheet) => sheet.cssText)
+            .join("\n");
+        expect(styles).toMatch(/ha-card\[data-measuring\] \.row :is\(\.row-title, \.row-sub, \.row-value\)\s*\{\s*overflow-wrap: normal/);
+        expect(styles).toMatch(/\.rows \{[^}]*scrollbar-gutter: stable/);
+        expect(styles).toMatch(/ha-card\[data-measuring\] \.rows \{\s*overflow-anchor: none/);
     });
 });
