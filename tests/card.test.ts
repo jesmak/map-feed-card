@@ -995,6 +995,8 @@ describe("the height", () => {
         await card.updateComplete;
         expect(style(card)).toBe(expected);
         expect(card.shadowRoot!.querySelector("ha-card")!.classList.contains("held")).toBe(expected !== "");
+        // Growing up to a limit, its list is as tall as unheld until the card reaches it.
+        expect(card.shadowRoot!.querySelector("ha-card")!.classList.contains("growing")).toBe(expected.startsWith("max-height"));
         expect(card.getGridOptions().min_rows).toBe(minRows);
     });
 

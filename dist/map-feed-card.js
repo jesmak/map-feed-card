@@ -34982,7 +34982,7 @@ var MapFeedCard = class extends i4 {
     const held = this.heightStyle();
     return b2`
             <ha-card
-                class=${e7({ wide: this.wide, "with-list": list, dark: this.dark(), held: !!held, filled: !!this.filled })}
+                class=${e7({ wide: this.wide, "with-list": list, dark: this.dark(), held: !!held, growing: held.startsWith("max-height"), filled: !!this.filled })}
                 style="--map-height:${this.options.mapHeight}px;--list-height:${this.options.listHeight}px;${filledStyle(this.config, this.layout, this.minimumHeight(), this.filled)}"
             >
                 ${title && !titleInList ? b2`<h1 class="card-title">${title}</h1>` : A}
@@ -35636,15 +35636,18 @@ MapFeedCard.styles = [
                 flex: 1 1 var(--map-height);
                 height: auto;
             }
-            /* Filling its rows up to a limit, a list under the map is as tall as unheld, up to list_height, and the map takes
-               the rest of the row. Once the limit is reached the list still gives way first, down to its least, as the
-               map's shrinking is next to nothing until the list stops. The list must not grow, or fillRows would measure
+            /* Growing up to a limit, a list under the map is as tall as unheld, up to list_height, and once the limit is
+               reached it still gives way first, down to its least, as the map's shrinking is next to nothing until the list
+               stops. Filling its rows, the map takes the rest of the row. The list must not grow, or fillRows would measure
                the room it takes as content and the card would never shrink again. */
-            .held.filled.with-list:not(.wide) .map-wrap {
-                flex: 1 0.0001 var(--map-height);
+            .held.growing.with-list:not(.wide) .map-wrap {
+                flex: 0 0.0001 var(--map-height);
+            }
+            .held.growing.filled.with-list:not(.wide) .map-wrap {
+                flex-grow: 1;
             }
             /* Held, the list is border-box, so its top border is added to list_height as unheld. */
-            .held.filled.with-list:not(.wide) .list {
+            .held.growing.with-list:not(.wide) .list {
                 flex: 0 1 auto;
                 max-height: calc(var(--list-height) + 1px);
             }

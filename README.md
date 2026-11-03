@@ -145,7 +145,8 @@ When the card is at least 640 pixels wide, the details or the list sit beside th
 
 Held to a height, by `height_mode` or by rows in a sections view, the card keeps its title, and without the list the
 map takes what is left, never less than 200 pixels. With the list below the map, the map starts from `map_height` and
-the list takes what is left, keeping its header and scrolling the rows below it. When there isn't room for both, the
+the list takes what is left, keeping its header and scrolling the rows below it. Growing up to `max_height`, the list
+is as tall as without a height mode, up to `list_height`, until the card reaches that height. When there isn't room for both, the
 list gives way first, down to its header and room for a few rows, and then the map, down to 200 pixels. When the card
 is wide, the map and what is beside it fill the height together. The title and the list's header keep to one line, cut short with an ellipsis
 when they are longer, so this holds at any width. A lower height is raised to what the card keeps, which is also the
@@ -153,8 +154,7 @@ least a sections view gives the card.
 
 On automatic rows in a sections view, a card not held to a height ends on a whole row, so the cards under it stay on the
 rows. The map grows by what that takes, less than a row, beside the list too. With `max_height`, the card grows the same
-way, its list below the map as tall as without a height mode, up to that height rounded down to its rows, so it stays on
-the rows when it reaches it too. There the list gives way first, as above.
+way, up to that height rounded down to its rows, so it stays on the rows when it reaches it too.
 
 ## Examples
 
