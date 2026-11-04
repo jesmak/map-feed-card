@@ -3,7 +3,7 @@
 Home Assistant dashboard card that draws map feeds, such as trains, ships, buses, aircraft, road works and birds, on Home
 Assistant's own map, with the selected item's details beside it.
 
-[![GitHub Release][releases-shield]][releases] [![GitHub Release Date][release-date-shield]][releases] [![HACS][hacs-shield]][hacs] [![License][license-shield]](LICENSE)
+[![GitHub Release][releases-shield]][releases] [![GitHub Release Date][release-date-shield]][releases] [![Marketplace][marketplace-shield]][marketplace] [![License][license-shield]](LICENSE)
 
 <p>
 <img src="https://raw.githubusercontent.com/jesmak/map-feed-card/main/docs/images/trains-light.png#gh-light-mode-only" width="400" alt="Trains on a map coloured by their delay, a late train's details opened in the list below it">
@@ -38,10 +38,11 @@ make one, give its repository the topic too. A template entity can write the for
 
 ## Installation
 
-### With HACS
+### With the Marketplace
 
-1. Search for Map feed card in HACS and download it
-2. Refresh your browser
+1. Open Settings › Marketplace and search for Map feed card
+2. Open it and choose Install
+3. Refresh your browser
 
 ### Manual
 
@@ -218,7 +219,7 @@ npm run check
 ```
 
 `npm run check` typechecks, lints, checks formatting, runs the tests and builds `dist/map-feed-card.js`, which is the
-file HACS installs and is committed to the repository. MapLibre is bundled with the card, its worker included, so the
+file the Marketplace installs and is committed to the repository. MapLibre is bundled with the card, its worker included, so the
 card stays one file.
 
 | Path                      | What it contains                                       |
@@ -265,6 +266,6 @@ MIT, see [LICENSE](LICENSE).
 [releases-shield]: https://img.shields.io/github/release/jesmak/map-feed-card.svg?style=for-the-badge
 [release-date-shield]: https://img.shields.io/github/release-date/jesmak/map-feed-card?style=for-the-badge
 [releases]: https://github.com/jesmak/map-feed-card/releases
-[hacs-shield]: https://img.shields.io/badge/HACS-Default-green.svg?style=for-the-badge
-[hacs]: https://my.home-assistant.io/redirect/hacs_repository/?owner=jesmak&repository=map-feed-card&category=plugin
+[marketplace-shield]: https://img.shields.io/badge/Marketplace-Default-green.svg?style=for-the-badge
+[marketplace]: https://my.home-assistant.io/redirect/marketplace_repository/?owner=jesmak&repository=map-feed-card&category=plugin
 [license-shield]: https://img.shields.io/github/license/jesmak/map-feed-card.svg?style=for-the-badge
