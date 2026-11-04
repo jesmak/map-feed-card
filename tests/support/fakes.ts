@@ -58,22 +58,6 @@ export function trainFeature(overrides: Record<string, unknown> = {}): Record<st
     };
 }
 
-/** A road work's warning sign. Its line is roadworkLine(). */
-export function roadworkPoint(overrides: Record<string, unknown> = {}): Record<string, unknown> {
-    return {
-        type: "Feature",
-        id: "roadwork:1",
-        geometry: { type: "Point", coordinates: [27.2, 60.6] },
-        properties: {
-            name: "Tie 26, Luumäki. Tietyö.",
-            kind: "road.roadwork",
-            subtitle: "Tie 26 välillä Hamina - Lappeenranta.",
-            details: [{ label: "Rajoitukset", value: "Yksi ajokaista suljettu" }],
-            ...overrides,
-        },
-    };
-}
-
 export function roadworkLine(overrides: Record<string, unknown> = {}): Record<string, unknown> {
     return {
         type: "Feature",

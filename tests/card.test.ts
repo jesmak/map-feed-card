@@ -127,6 +127,39 @@ describe("map-feed-card", () => {
         );
     });
 
+    it("doesn't call a detail action of an integration the feed doesn't come from", async () => {
+        const states = { "sensor.trains": feedState("sensor.trains", [trainFeature()]) };
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+        const card = document.createElement("map-feed-card") as InstanceType<typeof MapFeedCard>;
+        card.setConfig({ type: "custom:map-feed-card", entities: ["sensor.trains"] });
+        card.hass = { ...hass(states), entities: { "sensor.trains": { platform: "template" } } };
+        document.body.append(card);
+        await card.updateComplete;
+        (card as unknown as { select(key: string): void }).select("sensor.trains|train:2026-09-14/8");
+        await card.updateComplete;
+        await new Promise((resolve) => setTimeout(resolve));
+        await card.updateComplete;
+        expect(card.hass!.callService).not.toHaveBeenCalled();
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining("not calling digitraffic_live.get_train_composition"));
+        expect(shadowText(card)).toContain("Joensuu → Helsinki");
+        warn.mockRestore();
+    });
+
+    it("drops an item past its max age on the tick, with no change to the feed", async () => {
+        vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
+        try {
+            const updated = new Date(Date.now() - 9 * 60_000).toISOString();
+            const states = { "sensor.ships": feedState("sensor.ships", [shipFeature({ updated })]) };
+            const card = await mount({ entities: [{ entity: "sensor.ships", max_age_minutes: 10 }] }, states);
+            expect((drawn.updates.at(-1)!.points as unknown[]).length).toBe(1);
+            vi.advanceTimersByTime(90_000);
+            await card.updateComplete;
+            expect((drawn.updates.at(-1)!.points as unknown[]).length).toBe(0);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     it("colours by delay only what can be late, and explains both colourings", async () => {
         const legend = [{ color: "#2e7d32", label: "Harbour" }];
         const both = await mount(
@@ -465,7 +498,7 @@ describe("redrawing for a new hass", () => {
             }),
             0,
         ],
-        ["a new language", (state) => ({ ...state, locale: { ...state.locale!, language: "en" }, language: "en" }), 1],
+        ["a new language", (state) => ({ ...state, locale: { ...state.locale!, language: "fi" }, language: "fi" }), 1],
         ["a new locale alone", (state) => ({ ...state, locale: { ...state.locale! } }), 1],
         ["a new language in the older field alone", (state) => ({ ...state, language: "sv" }), 1],
     ])("redraws as it should for %s", async (_name, change, renders) => {

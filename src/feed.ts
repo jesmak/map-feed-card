@@ -7,10 +7,10 @@
 import type { HassEntity } from "./hass";
 
 /** The only feed version this card understands. */
-export const SUPPORTED_FEED_VERSION = 1;
+const SUPPORTED_FEED_VERSION = 1;
 
 /** The faintest an item is drawn, whatever its feed asks for. */
-export const MIN_OPACITY = 0.3;
+const MIN_OPACITY = 0.3;
 
 /** A popup with more pictures than this gets too long to use. */
 const MAX_IMAGES = 6;
@@ -19,7 +19,7 @@ export type FeedArea =
     | { type: "circle"; lat: number; lon: number; radiusKm: number }
     | { type: "bbox"; south: number; west: number; north: number; east: number };
 
-export type TagTone = "warning" | "info" | "neutral" | "item";
+type TagTone = "warning" | "info" | "neutral" | "item";
 
 export interface RowTag {
     text: string;
@@ -37,7 +37,7 @@ export interface DetailRow {
 }
 
 /** An action that returns more detail rows: {"details": [rows]}. */
-export interface DetailAction {
+interface DetailAction {
     domain: string;
     service: string;
     data: Record<string, unknown>;
@@ -53,7 +53,7 @@ export interface FeedImage {
     link: string | null;
 }
 
-export interface FeedLink {
+interface FeedLink {
     /** Always an https URL. */
     url: string;
     label: string;
@@ -65,11 +65,11 @@ export interface LegendEntry {
 }
 
 /** What a feed is about, as the format's kind families; the editor offers only the options that make sense for it. */
-export const FEED_TYPES = ["ship", "train", "transit", "air", "road", "nature", "other"] as const;
+const FEED_TYPES = ["ship", "train", "transit", "air", "road", "nature", "other"] as const;
 export type FeedType = (typeof FEED_TYPES)[number];
 
 /** An order the feed offers for the card's list. */
-export interface SortKey {
+interface SortKey {
     key: string;
     label: string;
     property: string;
@@ -87,7 +87,7 @@ export interface FeedList {
 }
 
 /** The parts of an item's row in the list that the feed gives; null leaves the card's own. */
-export interface ListRow {
+interface ListRow {
     title: string | null;
     text: string | null;
     value: string | null;
@@ -138,7 +138,7 @@ export interface FeedPoint extends FeedItem {
     detailAction: DetailAction | null;
 }
 
-export type ShapeGeometry = { type: "line"; paths: LngLat[][] } | { type: "polygon"; polygons: LngLat[][][] };
+type ShapeGeometry = { type: "line"; paths: LngLat[][] } | { type: "polygon"; polygons: LngLat[][][] };
 
 /** A line or polygon: a road work, a maintenance route, a road section, an area. */
 export interface FeedShape extends FeedItem {
@@ -147,7 +147,7 @@ export interface FeedShape extends FeedItem {
     pointId: string;
 }
 
-export interface Feed {
+interface Feed {
     /** null when the feed doesn't say, or says something the card doesn't know. */
     type: FeedType | null;
     attribution: string;
@@ -603,7 +603,7 @@ function propertiesOf(feature: Record<string, unknown>): Record<string, unknown>
     return isRecord(feature.properties) ? feature.properties : {};
 }
 
-export function isRecord(value: unknown): value is Record<string, unknown> {
+function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 

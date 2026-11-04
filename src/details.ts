@@ -10,7 +10,7 @@ import { DELAY_COLORS, delayClass, textOn } from "./style";
 
 export type Text = (key: string, values?: Record<string, string | number>) => string;
 
-export const KMH_PER_KNOT = 1.852;
+const KMH_PER_KNOT = 1.852;
 
 /** "just now", "5 min ago", "3 h ago" or "2 d ago"; '' when the time is unknown. */
 export function formatAge(epochMs: number | null, text: Text, now = Date.now()): string {

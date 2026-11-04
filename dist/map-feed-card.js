@@ -34525,6 +34525,10 @@ var FeedMap = class {
     this.markers = /* @__PURE__ */ new Map();
     this.content = { points: [], shapes: [], areas: [], attributions: [], selected: null };
     this.attributionText = "";
+    /** Counts the style requests, so only the newest one is drawn. */
+    this.styleRequest = 0;
+    /** Set when the newest style couldn't be loaded, so the same one is asked for again. */
+    this.styleFailed = false;
     this.refused = false;
     this.lastRecovery = 0;
     this.destroyed = false;
@@ -34599,15 +34603,28 @@ var FeedMap = class {
     await new Promise((resolve) => map.isStyleLoaded() ? resolve() : map.once("style.load", () => resolve()));
   }
   async setStyle(style, dark, theme, force = false) {
-    const same = style === this.style && dark === this.dark && JSON.stringify(theme) === JSON.stringify(this.theme);
+    const same = !this.styleFailed && style === this.style && dark === this.dark && JSON.stringify(theme) === JSON.stringify(this.theme);
     if (!this.map || !force && same) return;
     delete this.container.dataset.mapReady;
     this.style = style;
     this.dark = dark;
     this.theme = theme;
-    const loaded = await loadStyle(style, dark, theme);
-    if (!this.destroyed && style === this.style && dark === this.dark && theme === this.theme)
-      this.map.setStyle(loaded, { diff: false });
+    const request = ++this.styleRequest;
+    this.styleFailed = false;
+    let loaded;
+    try {
+      loaded = await loadStyle(style, dark, theme);
+    } catch (error) {
+      if (request === this.styleRequest) {
+        this.styleFailed = true;
+        this.container.dataset.mapReady = "";
+      }
+      console.warn(`map-feed-card: the ${style} map style couldn't be loaded`, error);
+      return;
+    }
+    if (this.destroyed || request !== this.styleRequest) return;
+    this.styleFailed = false;
+    this.map.setStyle(loaded, { diff: false });
   }
   update(content) {
     this.content = content;
@@ -34861,7 +34878,7 @@ var FeedMap = class {
   }
   click(event) {
     if (event.originalEvent.target?.closest?.(".feed-marker")) return;
-    const hit = this.map?.queryRenderedFeatures(event.point, { layers: TAP_LAYERS }).at(-1);
+    const hit = this.map?.queryRenderedFeatures(event.point, { layers: TAP_LAYERS })[0];
     const selects = hit?.properties?.selects;
     this.onSelect(typeof selects === "string" && selects !== "" ? selects : null);
   }
@@ -34962,6 +34979,8 @@ var MapFeedCard = class extends i4 {
     this.mapStarting = false;
     this.fitted = false;
     this.loader = new DetailLoader();
+    /** Set by the tick when a feed has max_age_minutes, so the view is built again to drop what has aged out. */
+    this.ageing = false;
     /** Set when something is selected, so the list scrolls its row into view once it is drawn. */
     this.fitSelected = false;
     /**
@@ -35022,7 +35041,10 @@ var MapFeedCard = class extends i4 {
   }
   connectedCallback() {
     super.connectedCallback();
-    this.ticker = setInterval(() => (this.selected || this.options?.list) && this.requestUpdate(), TICK_MS);
+    this.ticker = setInterval(() => {
+      this.ageing = this.options?.feeds.some((feed) => feed.maxAgeMinutes !== null) ?? false;
+      if (this.ageing || this.selected || this.options?.list) this.requestUpdate();
+    }, TICK_MS);
     this.resizer = new ResizeObserver(([entry]) => {
       this.wide = (entry?.contentRect.width ?? 0) >= WIDE_PX;
       this.map?.resize();
@@ -35056,7 +35078,8 @@ var MapFeedCard = class extends i4 {
     previous.themes?.theme !== this.hass?.themes?.theme || previous.selectedTheme !== this.hass?.selectedTheme || this.options.feeds.some(({ entity }) => previous.states[entity] !== this.hass?.states[entity]);
   }
   willUpdate(changed) {
-    if (changed.has("hass") || changed.has("options")) this.view = this.buildView();
+    if (this.ageing || changed.has("hass") || changed.has("options")) this.view = this.buildView();
+    this.ageing = false;
     if (this.selected && !this.view?.items.has(this.selected)) {
       this.selected = null;
       this.featured = null;

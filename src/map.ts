@@ -100,6 +100,10 @@ export class FeedMap {
     private dark: boolean;
     /** The theme's map colours (map-theme.ts), or null for none. */
     private theme: Record<string, string> | null;
+    /** Counts the style requests, so only the newest one is drawn. */
+    private styleRequest = 0;
+    /** Set when the newest style couldn't be loaded, so the same one is asked for again. */
+    private styleFailed = false;
     private refused = false;
     private lastRecovery = 0;
     private unsubscribe?: () => void;
@@ -199,16 +203,32 @@ export class FeedMap {
     }
 
     async setStyle(style: MapStyle, dark: boolean, theme: Record<string, string> | null, force = false): Promise<void> {
-        const same = style === this.style && dark === this.dark && JSON.stringify(theme) === JSON.stringify(this.theme);
+        const same =
+            !this.styleFailed && style === this.style && dark === this.dark && JSON.stringify(theme) === JSON.stringify(this.theme);
         if (!this.map || (!force && same)) return;
         delete this.container.dataset.mapReady;
         this.style = style;
         this.dark = dark;
         this.theme = theme;
-        const loaded: StyleSpecification = await loadStyle(style, dark, theme);
+        const request = ++this.styleRequest;
+        // A request on its way counts as the style asked for, so updates while it loads don't start more.
+        this.styleFailed = false;
+        let loaded: StyleSpecification;
+        try {
+            loaded = await loadStyle(style, dark, theme);
+        } catch (error) {
+            // The map keeps the style it has, and the next update asks for this one again.
+            if (request === this.styleRequest) {
+                this.styleFailed = true;
+                this.container.dataset.mapReady = "";
+            }
+            console.warn(`map-feed-card: the ${style} map style couldn't be loaded`, error);
+            return;
+        }
         // Only the newest request is drawn, when several were made while styles were loading.
-        if (!this.destroyed && style === this.style && dark === this.dark && theme === this.theme)
-            this.map.setStyle(loaded, { diff: false });
+        if (this.destroyed || request !== this.styleRequest) return;
+        this.styleFailed = false;
+        this.map.setStyle(loaded, { diff: false });
     }
 
     update(content: MapContent): void {
@@ -494,7 +514,8 @@ export class FeedMap {
     private click(event: MapLayerMouseEvent): void {
         // A marker's own click handler selects it; the click still reaches the map, which must not undo that.
         if ((event.originalEvent.target as Element | null)?.closest?.(".feed-marker")) return;
-        const hit = this.map?.queryRenderedFeatures(event.point, { layers: TAP_LAYERS }).at(-1);
+        // The topmost first, so a line wins over the polygon under it.
+        const hit = this.map?.queryRenderedFeatures(event.point, { layers: TAP_LAYERS })[0];
         // A shape with nothing to show has no key to select, and a tap on it is a tap on the map.
         const selects = hit?.properties?.selects;
         this.onSelect(typeof selects === "string" && selects !== "" ? selects : null);

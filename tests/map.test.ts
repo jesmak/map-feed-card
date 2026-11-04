@@ -9,6 +9,11 @@ const sources = vi.hoisted(() => ({}) as Record<string, { data?: unknown; setDat
 const handlers = vi.hoisted(() => ({}) as Record<string, (event: unknown) => void>);
 // Where the map was moved to, and with what offset.
 const eased = vi.hoisted(() => [] as Array<{ center: unknown; offset?: [number, number] }>);
+// The styles loaded from Home Assistant, and those the map was given to draw.
+const styles = vi.hoisted(() => ({
+    load: vi.fn(async () => ({ version: 8, sources: {}, layers: [] }) as unknown),
+    drawn: [] as unknown[],
+}));
 
 // MapLibre needs WebGL, which happy-dom lacks. The fakes do only what matters here: a marker added to the map gets
 // MapLibre's own class, which places it on the map, and a marker and a source remember what they were given.
@@ -39,6 +44,7 @@ vi.mock("maplibre-gl", () => {
         resize = () => undefined;
         fitBounds = () => undefined;
         easeTo = (options: { center: unknown; offset?: [number, number] }) => eased.push(options);
+        setStyle = (style: unknown) => styles.drawn.push(style);
     }
     class Marker {
         private readonly element: HTMLElement;
@@ -63,7 +69,7 @@ vi.mock("maplibre-gl", () => {
 });
 vi.mock("maplibre-gl/dist/maplibre-gl-worker.mjs?raw", () => ({ default: "" }));
 vi.mock("../src/map-tiles", () => ({
-    loadStyle: async () => ({ version: 8, sources: {}, layers: [] }),
+    loadStyle: styles.load,
     onTokenChange: () => () => undefined,
     refreshToken: async () => {},
     transformRequest: (url: string) => ({ url }),
@@ -478,5 +484,40 @@ describe("laying the map out for a new size", () => {
         eased.length = 0;
         map.reveal([10 / 100_000, 150 / 100_000]);
         expect(eased).toHaveLength(shown ? 1 : 0);
+    });
+});
+
+describe("a new map style", () => {
+    beforeEach(() => {
+        vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({} as RenderingContext);
+        vi.spyOn(console, "warn").mockImplementation(() => {});
+    });
+
+    afterEach(() => vi.restoreAllMocks());
+
+    it("keeps the style the map has when it can't be loaded, and asks for it again on the next update", async () => {
+        const container = document.createElement("div");
+        const map = new FeedMap(container, "default", true, null, () => undefined, {});
+        await map.init();
+        styles.drawn.length = 0;
+        styles.load.mockRejectedValueOnce(new Error("offline"));
+        await map.setStyle("colorful", false, null);
+        expect(styles.drawn).toHaveLength(0);
+        expect(container.dataset.mapReady).toBe("");
+        expect(console.warn).toHaveBeenCalledOnce();
+        await map.setStyle("colorful", false, null);
+        expect(styles.drawn).toHaveLength(1);
+    });
+
+    it("loads a style only once while it is on its way", async () => {
+        const map = new FeedMap(document.createElement("div"), "default", true, null, () => undefined, {});
+        await map.init();
+        styles.load.mockRejectedValueOnce(new Error("offline"));
+        await map.setStyle("colorful", false, null);
+        styles.load.mockClear();
+        const first = map.setStyle("colorful", false, null);
+        await map.setStyle("colorful", false, null);
+        await first;
+        expect(styles.load).toHaveBeenCalledOnce();
     });
 });

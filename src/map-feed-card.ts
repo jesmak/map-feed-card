@@ -183,6 +183,8 @@ export class MapFeedCard extends LitElement {
     private view?: View;
     private readonly loader = new DetailLoader();
     private ticker?: ReturnType<typeof setInterval>;
+    /** Set by the tick when a feed has max_age_minutes, so the view is built again to drop what has aged out. */
+    private ageing = false;
     private resizer?: ResizeObserver;
     /** Set when something is selected, so the list scrolls its row into view once it is drawn. */
     private fitSelected = false;
@@ -260,7 +262,11 @@ export class MapFeedCard extends LitElement {
     public connectedCallback(): void {
         super.connectedCallback();
         // Ages are drawn in the details, and in every row of the list, so they are redrawn between the feeds' updates.
-        this.ticker = setInterval(() => (this.selected || this.options?.list) && this.requestUpdate(), TICK_MS);
+        // An item past its feed's max_age_minutes leaves the map then too, however quiet the feed.
+        this.ticker = setInterval(() => {
+            this.ageing = this.options?.feeds.some((feed) => feed.maxAgeMinutes !== null) ?? false;
+            if (this.ageing || this.selected || this.options?.list) this.requestUpdate();
+        }, TICK_MS);
         this.resizer = new ResizeObserver(([entry]) => {
             this.wide = (entry?.contentRect.width ?? 0) >= WIDE_PX;
             this.map?.resize();
@@ -307,7 +313,8 @@ export class MapFeedCard extends LitElement {
     }
 
     protected willUpdate(changed: PropertyValues): void {
-        if (changed.has("hass") || changed.has("options")) this.view = this.buildView();
+        if (this.ageing || changed.has("hass") || changed.has("options")) this.view = this.buildView();
+        this.ageing = false;
         // A selected item that has left the feed has nothing left to show.
         if (this.selected && !this.view?.items.has(this.selected)) {
             this.selected = null;

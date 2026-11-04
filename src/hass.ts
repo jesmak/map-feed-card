@@ -38,8 +38,3 @@ export interface HomeAssistant {
         returnResponse?: boolean,
     ): Promise<unknown>;
 }
-
-export interface LovelaceCardConfig {
-    type: string;
-    [key: string]: unknown;
-}
