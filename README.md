@@ -40,9 +40,8 @@ make one, give its repository the topic too. A template entity can write the for
 
 ### With HACS
 
-1. Add this repository to HACS custom repositories with type **Dashboard**
-2. Search for Map feed card in HACS and download it
-3. Refresh your browser
+1. Search for Map feed card in HACS and download it
+2. Refresh your browser
 
 ### Manual
 
@@ -266,6 +265,6 @@ MIT, see [LICENSE](LICENSE).
 [releases-shield]: https://img.shields.io/github/release/jesmak/map-feed-card.svg?style=for-the-badge
 [release-date-shield]: https://img.shields.io/github/release-date/jesmak/map-feed-card?style=for-the-badge
 [releases]: https://github.com/jesmak/map-feed-card/releases
-[hacs-shield]: https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge
-[hacs]: https://hacs.xyz/docs/faq/custom_repositories/
+[hacs-shield]: https://img.shields.io/badge/HACS-Default-green.svg?style=for-the-badge
+[hacs]: https://my.home-assistant.io/redirect/hacs_repository/?owner=jesmak&repository=map-feed-card&category=plugin
 [license-shield]: https://img.shields.io/github/license/jesmak/map-feed-card.svg?style=for-the-badge
