@@ -137,8 +137,8 @@ card, and details always unfold in it.
 <img src="https://raw.githubusercontent.com/jesmak/map-feed-card/main/docs/images/list-wide-dark.png#gh-dark-mode-only" width="830" alt="Bird sightings with the list beside the map, the nearest place opened to its species">
 </p>
 
-**The legend** over the map explains the colours: the delay classes with `color_by: delay`, the feed's own colours
-when it explains them, and otherwise the kinds on the map when there is more than one. With `color_by: delay`, only trains, public transport and anything the feed gives a delay or
+**The legend** over the map explains the colours. It shows the delay classes with `color_by: delay`, the feed's own
+colours when it explains them, and otherwise the kinds on the map when there is more than one. With `color_by: delay`, only trains, public transport and anything the feed gives a delay or
 marks cancelled are coloured by their delay. Everything else, such as birds or road works, keeps its own colour.
 
 When the card is at least 640 pixels wide, the details or the list sit beside the map instead of over or below it.
@@ -235,6 +235,8 @@ card stays one file.
 | `src/list.ts`             | The list's rows and orders                             |
 | `src/details.ts`          | An item's details, in the sheet, the panel or the list |
 | `src/height.ts`           | The card's height mode and its grid rows               |
+| `src/rows.ts`             | Rounding the height on automatic rows to whole or half |
+| `src/hass.ts`             | The parts of Home Assistant's objects the card uses    |
 | `src/fade.ts`             | The fade at a scrolling part's edges                   |
 | `src/style.ts`            | Colours and markers                                    |
 | `src/localize/languages/` | The card's texts, one JSON file per language           |

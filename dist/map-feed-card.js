@@ -1754,7 +1754,7 @@ var fi_default = {
     glide: "Liu'uta merkkej\xE4 p\xE4ivitysten v\xE4lill\xE4",
     glide_helper: "Merkki liikkuu tasaisesti edellisest\xE4 sijainnista uuteen. Se n\xE4ytt\xE4\xE4 silloin, miss\xE4 kohde oli yht\xE4 p\xE4ivityst\xE4 aiemmin.",
     frame: "Rajaa kartta t\xE4h\xE4n sy\xF6tteeseen",
-    frame_helper: "Ota pois k\xE4yt\xF6st\xE4, kun haluat ett\xE4 t\xE4t\xE4 sy\xF6tett\xE4 ei k\xE4ytet\xE4 n\xE4ytett\xE4v\xE4n kartta-alueen alustavaan rajaamiseen.",
+    frame_helper: "Ota pois k\xE4yt\xF6st\xE4, kun haluat, ett\xE4 t\xE4t\xE4 sy\xF6tett\xE4 ei k\xE4ytet\xE4 n\xE4ytett\xE4v\xE4n kartta-alueen alustavaan rajaamiseen.",
     row_step: "Py\xF6ristys osioihin jaetussa n\xE4kym\xE4ss\xE4",
     row_step_helper: "Automaattisella rivikorkeudella kortin korkeus py\xF6ristet\xE4\xE4n yl\xF6sp\xE4in kokonaisiin riveihin, tai tilan s\xE4\xE4st\xE4miseksi puolikkaisiin riveihin.",
     row_step_full: "Kokonaisiin riveihin",

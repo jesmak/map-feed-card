@@ -327,7 +327,7 @@ road under construction, the route a snow plough has driven, a road section's dr
 
 They take the same properties as points, apart from the ones about movement and markers (`heading`,
 `stationary`, `speed_kmh`, `delay_minutes`, `cancelled`, `badge`, `label`, `detail_action`), which are ignored.
-The card colours them by `kind` or `color`, shows `name` on hover, and show their details when they are tapped and
+The card colours them by `kind` or `color`, shows `name` on hover, and shows their details when they are tapped and
 have something to show. Road kinds are drawn wider than other lines, and `road.maintenance_track` is drawn thin and
 faint, so routes stay in the background.
 
