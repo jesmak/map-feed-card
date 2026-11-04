@@ -30,7 +30,7 @@
         "check": "npm run typecheck && npm run lint && npm run format:check && npm test && npm run build"
     },
     "dependencies": {
-        "@versatiles/style": "^6.4.1",
+        "@versatiles/style": "^7.1.0",
         "lit": "^3.3.3",
         "maplibre-gl": "^6.16.0"
     },
@@ -44,6 +44,7 @@
         "prettier": "^3.9.10",
         "typescript": "~6.0.3",
         "typescript-eslint": "^8.72.1",
+        "vite": "^8.3.5",
         "vitest": "^5.0.5"
     }
 }

@@ -28695,7 +28695,7 @@ function wrap(lon) {
   return lon > 180 ? lon - 360 : lon < -180 ? lon + 360 : lon;
 }
 
-// node_modules/@versatiles/style/dist/chunks/satellite-BwaG3I13.js
+// node_modules/@versatiles/style/dist/chunks/satellite-CtBttCmi.js
 var colorOptionsKeys = Object.freeze([
   "background",
   "land",
@@ -29024,6 +29024,26 @@ function preReleaseHint(label, path) {
     return `${prefix}${at3.slice(0, -"default".length)}font`;
   return void 0;
 }
+var REMOVED_IN_V7 = {
+  "features.hillshade.anchor": { use: "light.fixedToScreen", note: "'viewport' is `true`" },
+  sun: { use: "light", note: "the same values; `anchor: 'viewport'` is `fixedToScreen: true`" }
+};
+function v6Hint(label, path) {
+  if (label !== "osm" && label !== "satellite" && label !== "omt" && label !== "protomaps")
+    return void 0;
+  return Object.hasOwn(REMOVED_IN_V7, path) ? REMOVED_IN_V7[path] : void 0;
+}
+var RENAMED_AFTER_V7_0 = {
+  "light.rotateWithMap": {
+    use: "light.fixedToScreen",
+    note: "the opposite: `rotateWithMap: false` is `fixedToScreen: true`"
+  }
+};
+function v7Hint(label, path) {
+  if (label !== "osm" && label !== "satellite" && label !== "omt" && label !== "protomaps")
+    return void 0;
+  return Object.hasOwn(RENAMED_AFTER_V7_0, path) ? RENAMED_AFTER_V7_0[path] : void 0;
+}
 var sink;
 function reportIssues(issues, errorMessage) {
   if (sink) {
@@ -29079,6 +29099,22 @@ function checkKeys(value, known, path) {
       return { path: at3, message: `"${at3}" was removed in v6` };
     if (hint !== void 0)
       return { path: at3, message: `"${at3}" \u2014 in v6 this is "${hint}"`, suggestion: hint };
+    const removed = v6Hint(label, at3);
+    if (removed !== void 0) {
+      return {
+        path: at3,
+        message: `"${at3}" was removed in v7 \u2014 use "${removed.use}" (${removed.note})`,
+        suggestion: removed.use
+      };
+    }
+    const replaced = v7Hint(label, at3);
+    if (replaced !== void 0) {
+      return {
+        path: at3,
+        message: `"${at3}" \u2014 this is now "${replaced.use}" (${replaced.note})`,
+        suggestion: replaced.use
+      };
+    }
     const renamed = preReleaseHint(label, at3);
     if (renamed !== void 0)
       return { path: at3, message: `"${at3}" \u2014 this is now "${renamed}"`, suggestion: renamed };
@@ -29097,6 +29133,12 @@ function checkFinite(value, path) {
     for (const [key, child] of Object.entries(value))
       checkFinite(child, `${path}.${key}`);
   }
+}
+function checkRange(value, min, max, path) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value >= min && value <= max)
+    return;
+  const range = max === Infinity ? `${min} or more` : `from ${min} to ${max}`;
+  reportIssue({ path, message: `expected a number ${range}, got ${value}` });
 }
 function srgbToLinear(value) {
   return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
@@ -30043,8 +30085,10 @@ function resolveColors(theme, overrides, path = "colors") {
   return result;
 }
 function resolveHillshade(hillshade, path = "hillshade") {
-  checkKeys(hillshade, { exaggeration: true, shadowColor: true, highlightColor: true, accentColor: true, anchor: true }, path);
+  checkKeys(hillshade, { exaggeration: true, shadowColor: true, highlightColor: true, accentColor: true }, path);
   checkFinite(hillshade, path);
+  if (typeof hillshade === "object")
+    checkRange(hillshade.exaggeration, 0, 1, `${path}.exaggeration`);
   checkColors(hillshade, ["shadowColor", "highlightColor", "accentColor"], path);
   if (!hillshade)
     return false;
@@ -30053,13 +30097,14 @@ function resolveHillshade(hillshade, path = "hillshade") {
     exaggeration: h4.exaggeration ?? 0.1,
     shadowColor: h4.shadowColor ?? "#000000",
     highlightColor: h4.highlightColor ?? "#ffffff",
-    accentColor: h4.accentColor ?? "#000000",
-    anchor: h4.anchor ?? "map"
+    accentColor: h4.accentColor ?? "#000000"
   };
 }
 function resolveTerrain(terrain, path = "terrain") {
   checkKeys(terrain, { exaggeration: true }, path);
   checkFinite(terrain, path);
+  if (typeof terrain === "object")
+    checkRange(terrain.exaggeration, 0, Infinity, `${path}.exaggeration`);
   if (!terrain)
     return false;
   return { exaggeration: (typeof terrain === "object" ? terrain.exaggeration : void 0) ?? 1 };
@@ -30267,6 +30312,32 @@ function resolveLayerGroups(opts, path = "layers", preset) {
     icons: leaf(o7.icons, void 0, true, `${path}.icons`)
   };
 }
+var LIGHT_DEFAULTS = {
+  direction: 315,
+  altitude: 45,
+  fixedToScreen: false,
+  color: "#ffffff",
+  intensity: 0.5
+};
+function resolveLight(light, base) {
+  if (light === false)
+    return false;
+  const options = light === void 0 || light === true ? {} : light;
+  const path = `${base}.light`;
+  checkKeys(options, { direction: true, altitude: true, fixedToScreen: true, color: true, intensity: true }, path);
+  checkFinite(options, path);
+  checkColor(options.color, `${path}.color`);
+  checkRange(options.altitude, 0, 90, `${path}.altitude`);
+  checkRange(options.intensity, 0, 1, `${path}.intensity`);
+  return {
+    // Any angle, wrapped to 0–360: `-45` is `315`.
+    direction: ((options.direction ?? LIGHT_DEFAULTS.direction) % 360 + 360) % 360,
+    altitude: options.altitude ?? LIGHT_DEFAULTS.altitude,
+    fixedToScreen: options.fixedToScreen ?? LIGHT_DEFAULTS.fixedToScreen,
+    color: options.color ?? LIGHT_DEFAULTS.color,
+    intensity: options.intensity ?? LIGHT_DEFAULTS.intensity
+  };
+}
 function resolveProjection(projection) {
   return projection ?? "globe";
 }
@@ -30344,6 +30415,9 @@ function resolveSky(sky, path = "sky") {
   }, path);
   checkFinite(options, path);
   checkColors(options, ["fogColor", "horizonColor", "skyColor"], path);
+  for (const key of ["atmosphereBlend", "fogGroundBlend", "horizonFogBlend", "skyHorizonBlend"]) {
+    checkRange(options[key], 0, 1, `${path}.${key}`);
+  }
   return {
     fogColor: options.fogColor ?? SKY_DEFAULTS.fogColor,
     horizonColor: options.horizonColor ?? SKY_DEFAULTS.horizonColor,
@@ -30360,22 +30434,6 @@ function resolveSprite(base, sprite) {
     return resolveUrl(base, input);
   }
   return input.map(({ id: id2, url }) => ({ id: id2, url: resolveUrl(base, url) }));
-}
-function resolveSun(sun, path = "sun") {
-  if (sun === true)
-    sun = {};
-  if (sun === void 0)
-    return void 0;
-  checkKeys(sun, { direction: true, altitude: true, anchor: true, color: true, intensity: true }, path);
-  checkFinite(sun, path);
-  checkColor(sun?.color, `${path}.color`);
-  return {
-    direction: sun?.direction ?? 210,
-    altitude: sun?.altitude ?? 60,
-    anchor: sun?.anchor ?? "viewport",
-    color: sun?.color ?? "#ffffff",
-    intensity: sun?.intensity ?? 0.5
-  };
 }
 var TEXT_GROUPS = {
   boundaries: ["countries", "states"],
@@ -30590,7 +30648,7 @@ function resolveOsm(options) {
     recolor: true,
     urls: true,
     features: true,
-    sun: true,
+    light: true,
     sky: true,
     projection: true
   }, "osm");
@@ -30599,7 +30657,7 @@ function resolveOsm(options) {
   return {
     urls: resolveOsmUrls(options?.urls, "osm.urls"),
     features: resolveOsmFeatures(options?.features, "osm.features"),
-    sun: resolveSun(options?.sun, "osm.sun"),
+    light: resolveLight(options?.light, "osm"),
     sky: resolveSky(options?.sky, "osm.sky"),
     projection: resolveProjection(options?.projection),
     theme,
@@ -30656,13 +30714,13 @@ var OVERLAY_LABEL_STYLES = mapTopics((topic) => {
   };
 });
 function resolveSatellite(options) {
-  checkKeys(options, { urls: true, osmOverlay: true, raster: true, features: true, sun: true, sky: true, projection: true }, "satellite");
+  checkKeys(options, { urls: true, osmOverlay: true, raster: true, features: true, light: true, sky: true, projection: true }, "satellite");
   const overlay = options?.osmOverlay;
   const osmOverlay = overlay === false ? false : resolveSatelliteOverlay(typeof overlay === "object" ? overlay : {});
   return {
     urls: resolveSatelliteUrls(options?.urls, "satellite.urls"),
     features: resolveSatelliteFeatures(options?.features, "satellite.features"),
-    sun: resolveSun(options?.sun, "satellite.sun"),
+    light: resolveLight(options?.light, "satellite"),
     sky: resolveSky(options?.sky, "satellite.sky"),
     projection: resolveProjection(options?.projection),
     raster: resolveSatelliteRaster(options?.raster, "satellite.raster"),
@@ -30699,8 +30757,7 @@ function sameValue(a4, b4) {
   return JSON.stringify(a4) === JSON.stringify(b4);
 }
 var ENABLED = /* @__PURE__ */ (() => ({
-  features: { terrain: resolveTerrain(true), hillshade: resolveHillshade(true) },
-  sun: resolveSun(true)
+  features: { terrain: resolveTerrain(true), hillshade: resolveHillshade(true) }
 }))();
 function withoutDefaults2(value, defaults, enabled) {
   if (value === void 0)
@@ -31281,8 +31338,29 @@ function inlinedFields(tj2) {
     ...tj2.bounds && { bounds: tj2.bounds },
     ...tj2.attribution && { attribution: normalizeAttribution(tj2.attribution) },
     // Only declare tileSize when the document states one (see the tile_size fix).
-    ...tj2.tile_size !== void 0 && { tileSize: tj2.tile_size }
+    ...tj2.tile_size !== void 0 && { tileSize: tj2.tile_size },
+    ...encodingField(tj2)
   };
+}
+function vectorEncoding(tj2) {
+  if (tj2.encoding === "mvt" || tj2.encoding === "mlt")
+    return tj2.encoding;
+  if (tj2.tile_format && /^(application\/)?vnd\.maplibre(-vector)?-tile$/i.test(tj2.tile_format))
+    return "mlt";
+  return void 0;
+}
+function encodingField(tj2) {
+  const encoding = vectorEncoding(tj2);
+  return encoding ? { encoding } : {};
+}
+function demEncoding(tj2) {
+  if (tj2.encoding === "terrarium" || tj2.encoding === "mapbox")
+    return tj2.encoding;
+  if (tj2.tile_schema === "dem/terrarium")
+    return "terrarium";
+  if (tj2.tile_schema === "dem/mapbox")
+    return "mapbox";
+  return void 0;
 }
 var OPACITY_PROPS = {
   fill: ["fill-opacity"],
@@ -32220,6 +32298,7 @@ function* boundaries$1(ctx, vocab) {
     });
   }
 }
+var BUILDINGS_APPEAR_ZOOM = 14;
 function* buildings$1(ctx, vocab) {
   const { c: c5 } = ctx;
   if (ctx.features.buildings === "extruded")
@@ -32227,14 +32306,14 @@ function* buildings$1(ctx, vocab) {
   yield fill("building:outline", {
     sourceLayer: vocab.sourceLayer,
     color: c5.buildingBg,
-    appear: 14,
+    appear: BUILDINGS_APPEAR_ZOOM,
     // fade in over z14→15 (matches OSM Bright `building-top`)
     group: "buildings"
   });
   yield fill("building", {
     sourceLayer: vocab.sourceLayer,
     color: c5.building,
-    appear: 14,
+    appear: BUILDINGS_APPEAR_ZOOM,
     fillTranslate: [-2, -2],
     group: "buildings"
   });
@@ -32249,7 +32328,7 @@ function* buildings3d$1(ctx, vocab) {
     sourceLayer: vocab.sourceLayer,
     filter: ["!=", ["get", "hide_3d"], true],
     color: c5.building,
-    appear: 14,
+    appear: BUILDINGS_APPEAR_ZOOM,
     opacity,
     fillExtrusionHeight: ["coalesce", ["get", vocab.height], 5],
     fillExtrusionBase: ["coalesce", ["get", vocab.minHeight], 0],
@@ -33565,10 +33644,7 @@ function buildElevationSource(elevation) {
   if (typeof elevation === "string") {
     return elevation.includes("{z}") ? { type: "raster-dem", tiles: [elevation], encoding: "terrarium" } : { type: "raster-dem", url: elevation, encoding: "terrarium" };
   }
-  let encoding = "terrarium";
-  if (elevation.encoding === "mapbox" || elevation.tile_schema === "dem/mapbox") {
-    encoding = "mapbox";
-  }
+  const encoding = demEncoding(elevation) ?? "terrarium";
   return {
     type: "raster-dem",
     tiles: elevation.tiles,
@@ -33582,9 +33658,11 @@ function buildElevationSource(elevation) {
   };
 }
 function addTerrain(style, options, elevation) {
+  const shared = style.layers.some((l4) => l4.type === "hillshade" && l4.source === "elevation");
+  const source = shared ? "elevation-terrain" : "elevation";
   style.sources ?? (style.sources = {});
-  style.sources["elevation"] = buildElevationSource(elevation);
-  style.terrain = { source: "elevation", exaggeration: options.exaggeration };
+  style.sources[source] = buildElevationSource(elevation);
+  style.terrain = { source, exaggeration: options.exaggeration };
 }
 function hillshadeInsertIndex(layers) {
   let index = 0;
@@ -33597,7 +33675,7 @@ function hillshadeInsertIndex(layers) {
   }
   return index;
 }
-function addHillshade(style, options, sun, elevation) {
+function addHillshade(style, options, light, elevation) {
   style.sources ?? (style.sources = {});
   style.sources["elevation"] = buildElevationSource(elevation);
   const layer = {
@@ -33608,14 +33686,17 @@ function addHillshade(style, options, sun, elevation) {
       "hillshade-exaggeration": options.exaggeration,
       "hillshade-shadow-color": Color.parse(options.shadowColor).asString(),
       "hillshade-highlight-color": Color.parse(options.highlightColor).asString(),
-      "hillshade-accent-color": Color.parse(options.accentColor).asString(),
-      "hillshade-illumination-anchor": options.anchor,
-      // No 'hillshade-method': 'standard' is the default, and MapLibre below 5.5.0 rejects the property.
-      // 'hillshade-illumination-altitude' is 5.5.0+ as well, so `sun` + hillshade needs that version.
-      ...sun ? {
-        "hillshade-illumination-direction": sun.direction,
-        "hillshade-illumination-altitude": sun.altitude
-      } : {}
+      // Without a light, 'map', MapLibre's own light for hillshade.
+      "hillshade-illumination-anchor": light && light.fixedToScreen ? "viewport" : "map",
+      // With a light, 'combined' — the one method that takes the light's altitude and leaves flat ground
+      // clear. It and 'hillshade-illumination-altitude' are why this package needs MapLibre 5.5.0.
+      // Without a light, 'standard', the default and not written; only it draws the accent colour.
+      ...light ? {
+        "hillshade-method": "combined",
+        // Whole degrees in 0–359, the range the spec documents, so 359.6 becomes 0.
+        "hillshade-illumination-direction": Math.round(light.direction) % 360,
+        "hillshade-illumination-altitude": light.altitude
+      } : { "hillshade-accent-color": Color.parse(options.accentColor).asString() }
     }
   };
   const insertAt = hillshadeInsertIndex(style.layers);
@@ -33667,13 +33748,27 @@ function applyIcon(style, icon) {
     }
   }
 }
-function configure3DLighting(style, sun) {
-  if (sun) {
+function lightPosition(light) {
+  return [1.15, light.direction, 90 - light.altitude];
+}
+function globeLightPosition(light) {
+  return [1.15, ((180 - light.direction) % 360 + 360) % 360, 90 + light.altitude];
+}
+function usesLight(style, projection, sky) {
+  const buildings2 = style.layers.some((layer) => layer.type === "fill-extrusion" && layer.layout?.visibility !== "none");
+  const atmosphere = projection !== "mercator" && sky !== false && sky.atmosphereBlend !== 0;
+  return buildings2 || atmosphere;
+}
+function configure3DLighting(style, light, projection, sky) {
+  if (light && usesLight(style, projection, sky)) {
+    const position = lightPosition(light);
+    const anchor = light.fixedToScreen ? "viewport" : "map";
+    const globe = projection !== "mercator";
     style.light = {
-      anchor: sun.anchor,
-      position: [1.15, sun.direction, 90 - sun.altitude],
-      color: Color.parse(sun.color).asString(),
-      intensity: sun.intensity
+      anchor: globe && anchor === "map" ? ["step", ["zoom"], "viewport", BUILDINGS_APPEAR_ZOOM, "map"] : anchor,
+      position: globe ? ["step", ["zoom"], ["literal", globeLightPosition(light)], BUILDINGS_APPEAR_ZOOM, ["literal", position]] : position,
+      color: Color.parse(light.color).asString(),
+      intensity: light.intensity
     };
   } else {
     delete style.light;
@@ -33841,16 +33936,16 @@ function osmFn(options) {
   const ctx = buildContext(resolved);
   style.layers = buildStyleLayers(ctx);
   applyIcon(style, resolved.icon);
+  if (resolved.features.hillshade !== false) {
+    addHillshade(style, resolved.features.hillshade, resolved.light, resolved.urls.elevation);
+  }
   if (resolved.features.terrain !== false) {
     addTerrain(style, resolved.features.terrain, resolved.urls.elevation);
-  }
-  if (resolved.features.hillshade !== false) {
-    addHillshade(style, resolved.features.hillshade, resolved.sun, resolved.urls.elevation);
   }
   if (resolved.features.landcover) {
     addLandcover(style, LANDCOVER_LAYERS);
   }
-  configure3DLighting(style, resolved.sun);
+  configure3DLighting(style, resolved.light, resolved.projection, resolved.sky);
   if (resolved.sky) {
     applySky(style, { skyColor: resolved.colors.water, ...resolved.sky });
   }
@@ -33978,13 +34073,13 @@ function satelliteFn(options) {
     layers.push(slotLayer(SLOT_BELOW_LABELS));
   }
   style.layers = layers;
+  if (resolved.features.hillshade !== false) {
+    addHillshade(style, resolved.features.hillshade, resolved.light, resolved.urls.elevation);
+  }
   if (resolved.features.terrain !== false) {
     addTerrain(style, resolved.features.terrain, resolved.urls.elevation);
   }
-  if (resolved.features.hillshade !== false) {
-    addHillshade(style, resolved.features.hillshade, resolved.sun, resolved.urls.elevation);
-  }
-  configure3DLighting(style, resolved.sun);
+  configure3DLighting(style, resolved.light, resolved.projection, resolved.sky);
   if (resolved.sky) {
     if (resolved.osmOverlay) {
       applySky(style, {
@@ -34031,7 +34126,7 @@ var satellite = Object.assign(satelliteFn, {
   resolveOptions: resolveSatellite
 });
 
-// node_modules/@versatiles/style/dist/chunks/code-CboVGd8q.js
+// node_modules/@versatiles/style/dist/chunks/code-Buy737mr.js
 function validateOptions(resolve, options, root) {
   const { value, issues } = collectIssues(() => resolve(options));
   if (issues.length === 0)
