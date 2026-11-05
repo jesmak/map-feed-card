@@ -957,6 +957,8 @@ export class MapFeedCard extends LitElement {
                 height: 100%;
             }
             ha-card {
+                /* ha-card's own transition covers every property, so a change in the rows filled would animate. */
+                transition: none;
                 position: relative;
                 height: 100%;
                 overflow: hidden;

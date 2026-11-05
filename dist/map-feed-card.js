@@ -1,4 +1,4 @@
-/*! map-feed-card 1.5.0 | MIT License */
+/*! map-feed-card 1.5.1 | MIT License */
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
@@ -34923,7 +34923,7 @@ var TITLE_PX = 48;
 var BORDER_PX = 2;
 console.info(
   `%c  MAP-FEED-CARD 
-%c  ${"1.5.0"}    `,
+%c  ${"1.5.1"}    `,
   "color: orange; font-weight: bold; background: black",
   "color: white; font-weight: bold; background: dimgray"
 );
@@ -35640,6 +35640,8 @@ MapFeedCard.styles = [
                 height: 100%;
             }
             ha-card {
+                /* ha-card's own transition covers every property, so a change in the rows filled would animate. */
+                transition: none;
                 position: relative;
                 height: 100%;
                 overflow: hidden;
