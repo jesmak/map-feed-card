@@ -3,7 +3,7 @@
 Home Assistant dashboard card that draws map feeds, such as trains, ships, buses, aircraft, road works and birds, on Home
 Assistant's own map, with the selected item's details beside it.
 
-[![GitHub Release][releases-shield]][releases] [![GitHub Release Date][release-date-shield]][releases] [![Marketplace][marketplace-shield]][marketplace] [![License][license-shield]](LICENSE)
+[![GitHub Release][releases-shield]][releases] [![GitHub Release Date][release-date-shield]][releases] [![Downloads][downloads-shield]][releases] [![Marketplace][marketplace-shield]][marketplace] [![License][license-shield]](LICENSE)
 
 <p>
 <img src="https://raw.githubusercontent.com/jesmak/map-feed-card/main/docs/images/trains-light.png#gh-light-mode-only" width="400" alt="Trains on a map coloured by their delay, a late train's details opened in the list below it">
@@ -266,6 +266,7 @@ MIT, see [LICENSE](LICENSE).
 [releases-shield]: https://img.shields.io/github/release/jesmak/map-feed-card.svg?style=for-the-badge
 [release-date-shield]: https://img.shields.io/github/release-date/jesmak/map-feed-card?style=for-the-badge
 [releases]: https://github.com/jesmak/map-feed-card/releases
+[downloads-shield]: https://img.shields.io/github/downloads/jesmak/map-feed-card/total.svg?style=for-the-badge
 [marketplace-shield]: https://img.shields.io/badge/Marketplace-Default-green.svg?style=for-the-badge
 [marketplace]: https://my.home-assistant.io/redirect/marketplace_repository/?owner=jesmak&repository=map-feed-card&category=plugin
 [license-shield]: https://img.shields.io/github/license/jesmak/map-feed-card.svg?style=for-the-badge
