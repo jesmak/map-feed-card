@@ -315,6 +315,21 @@ describe("map-feed-card", () => {
         expect(card.shadowRoot!.querySelector(".count")!.textContent).toBe("1 ilma-alus");
     });
 
+    it("names a single feed as Home Assistant composes its sensor's name, or by its friendly name before 2025.10", async () => {
+        const states = {
+            "sensor.aircraft": feedState("sensor.aircraft", [aircraftFeature()], {
+                friendly_name: "Old name",
+                list: { count: "ilma-alusta", count_one: "ilma-alus" },
+            }),
+        };
+        const card = await mount({ list: true, entities: ["sensor.aircraft"] }, states);
+        const count = () => card.shadowRoot!.querySelector(".count")!.textContent;
+        expect(count()).toBe("Old name · 1 ilma-alus");
+        card.hass = { ...hass(states), formatEntityName: () => "Aircraft nearby" };
+        await card.updateComplete;
+        expect(count()).toBe("Aircraft nearby · 1 ilma-alus");
+    });
+
     it("frames a feed of lines by its lines, and offers only those that have something to show", async () => {
         const route = roadworkLine({ point: undefined, kind: "road.maintenance_track" });
         const named = { ...roadworkLine({ point: undefined, name: "Road 6" }), id: "road:6" };
@@ -1123,6 +1138,26 @@ describe("the height", () => {
         await card.updateComplete;
         expect(style(card)).toBe(expected);
         expect(haCard.classList.contains("filled")).toBe(expected.includes("min-height"));
+    });
+
+    // A card 312.4 px tall, a fraction over five rows, and then 380 px with its map grown 20 px, drawn at 0.8 as a dialog
+    // opening draws it.
+    it.each([
+        ["a fraction of a pixel over a row, on the next one", 312.4, 0, 1, "min-height: 376px"],
+        ["drawn scaled, in the layout's pixels", 380, 20, 0.8, "min-height: 376px"],
+    ])("ends %s", async (_name, height, grown, scale, expected) => {
+        const card = await mount({ entities: ["sensor.trains"], title: "Trains" }, trains);
+        card.layout = "grid";
+        await card.updateComplete;
+        const root = card.shadowRoot!;
+        const haCard = root.querySelector<HTMLElement>("ha-card")!;
+        Object.defineProperty(haCard, "clientWidth", { value: 500, configurable: true });
+        haCard.style.width = "500px";
+        haCard.getBoundingClientRect = () => ({ height: height * scale, width: 500 * scale }) as DOMRect;
+        root.querySelector<HTMLElement>(".map-wrap")!.getBoundingClientRect = () => ({ height: (300 + grown) * scale }) as DOMRect;
+        (card as unknown as { fillRows(): void }).fillRows();
+        await card.updateComplete;
+        expect(style(card)).toBe(expected);
     });
 
     it.each<[string, (card: HTMLElement, haCard: HTMLElement) => void]>([

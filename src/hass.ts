@@ -37,4 +37,17 @@ export interface HomeAssistant {
         notifyOnError?: boolean,
         returnResponse?: boolean,
     ): Promise<unknown>;
+    /** Present in Home Assistant 2025.10 and later. */
+    formatEntityName?(state: HassEntity, parts: NamePart[]): string;
+}
+
+/** One part of an entity's name, as `formatEntityName` puts them together. */
+interface NamePart {
+    type: "entity" | "device" | "area" | "floor";
+}
+
+/** An entity's name as Home Assistant composes it from its device's and its own, or its friendly name before 2025.10. */
+export function entityName(hass: HomeAssistant | undefined, state: HassEntity | undefined): string {
+    const name = (state && hass?.formatEntityName?.(state, [{ type: "device" }, { type: "entity" }])) || state?.attributes.friendly_name;
+    return typeof name === "string" ? name : "";
 }

@@ -4,7 +4,7 @@ import type { TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
 import { isMapFeed, readFeed, type FeedType } from "./feed";
-import type { HomeAssistant } from "./hass";
+import { entityName, type HomeAssistant } from "./hass";
 import { rowStepData, rowStepSchema, tidyRowStep, type RowStepConfig } from "./rows";
 import { browserLanguage, translate } from "./localize/localize";
 import { sortOptions } from "./list";
@@ -109,7 +109,7 @@ function schema(hass: HomeAssistant, text: (key: string) => string, entities: Fe
             return {
                 type: "expandable",
                 name: `feed_${index}`,
-                title: String(state?.attributes?.friendly_name ?? entry.entity ?? ""),
+                title: entityName(hass, state) || String(entry.entity ?? ""),
                 schema: feedSchema(feedFields(feed?.type ?? null, feed?.area != null, entry), text),
             };
         }),

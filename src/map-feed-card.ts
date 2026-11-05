@@ -26,9 +26,9 @@ import {
     type LngLat,
     type LegendEntry,
 } from "./feed";
-import type { HomeAssistant } from "./hass";
+import { entityName, type HomeAssistant } from "./hass";
 import { gridMinRows, heightCardSize, heightStyle, validHeight } from "./height";
-import { fillLimit, filledHeight, filledStyle, validRowStep, type RowStepConfig } from "./rows";
+import { drawnScale, fillLimit, filledHeight, filledStyle, validRowStep, type RowStepConfig } from "./rows";
 import { countText, rowOf, sortOptions, sortRows, startingSort, type Row } from "./list";
 import { browserLanguage, translate } from "./localize/localize";
 import { FeedMap, type DrawnArea, type DrawnPoint, type DrawnShape, type MapContent } from "./map";
@@ -419,8 +419,8 @@ export class MapFeedCard extends LitElement {
         const number = countText(entries.length, lists, (key, values) => this.text(key, values));
         // A single feed says what the items are, by its sensor's name.
         const feeds = this.options!.feeds;
-        const name = feeds.length === 1 ? this.hass?.states[feeds[0]!.entity]?.attributes?.friendly_name : undefined;
-        const count = typeof name === "string" && name ? `${name} · ${number}` : number;
+        const name = feeds.length === 1 ? entityName(this.hass, this.hass?.states[feeds[0]!.entity]) : "";
+        const count = name ? `${name} · ${number}` : number;
         return html`<div class="list">
             <div class="list-head">
                 ${title ? html`<h1 class="list-title">${title}</h1>` : html`<span class="count">${count}</span>`}
@@ -636,8 +636,12 @@ export class MapFeedCard extends LitElement {
             if (this.filled) this.filled = 0;
             return;
         }
-        const content = card.getBoundingClientRect().height - Math.max(0, grown.getBoundingClientRect().height - this.options.mapHeight);
-        const filled = filledHeight(Math.round(content), this.config, limit);
+        // Drawn heights unscaled, as the map's own height is the layout's.
+        const scale = drawnScale(card);
+        const content =
+            card.getBoundingClientRect().height / scale -
+            Math.max(0, grown.getBoundingClientRect().height / scale - this.options.mapHeight);
+        const filled = filledHeight(content, this.config, limit);
         if (filled !== this.filled) this.filled = filled;
     }
 

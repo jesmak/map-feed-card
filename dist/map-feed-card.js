@@ -1463,6 +1463,12 @@ function linkedPicture(image, loading) {
     </a>`;
 }
 
+// src/hass.ts
+function entityName(hass, state) {
+  const name = state && hass?.formatEntityName?.(state, [{ type: "device" }, { type: "entity" }]) || state?.attributes.friendly_name;
+  return typeof name === "string" ? name : "";
+}
+
 // src/height.ts
 var HEIGHT_MODES = ["auto", "fixed", "max"];
 var pixels = (value) => value == null || typeof value === "number" && Number.isFinite(value) && value > 0;
@@ -1504,8 +1510,14 @@ function validRowStep(config) {
   return config.row_step === void 0 || config.row_step === null || ROW_STEPS.includes(config.row_step);
 }
 var step = (config) => config.row_step === "half" ? ROW_PX / 2 : ROW_PX;
+var SLACK_PX = 0.01;
+function drawnScale(card) {
+  const layout = Number.parseFloat(getComputedStyle(card).width) || 0;
+  const drawn = card.getBoundingClientRect().width;
+  return layout > 0 && drawn > 0 ? drawn / layout : 1;
+}
 function filledHeight(content, config, limit = Infinity) {
-  return Math.min(Math.max(1, Math.ceil((content + ROW_GAP_PX) / step(config))) * step(config) - ROW_GAP_PX, limit);
+  return Math.min(Math.max(1, Math.ceil((content - SLACK_PX + ROW_GAP_PX) / step(config))) * step(config) - ROW_GAP_PX, limit);
 }
 function fillLimit(config, layout, minimum = 0) {
   const rows = config.grid_options ? config.grid_options.rows : config.layout_options?.grid_rows;
@@ -2077,7 +2089,7 @@ function schema(hass, text2, entities, sort, config) {
       return {
         type: "expandable",
         name: `feed_${index}`,
-        title: String(state?.attributes?.friendly_name ?? entry.entity ?? ""),
+        title: entityName(hass, state) || String(entry.entity ?? ""),
         schema: feedSchema(feedFields(feed?.type ?? null, feed?.area != null, entry), text2)
       };
     }),
@@ -35166,8 +35178,8 @@ var MapFeedCard = class extends i4 {
     );
     const number3 = countText(entries.length, lists, (key2, values) => this.text(key2, values));
     const feeds = this.options.feeds;
-    const name = feeds.length === 1 ? this.hass?.states[feeds[0].entity]?.attributes?.friendly_name : void 0;
-    const count = typeof name === "string" && name ? `${name} \xB7 ${number3}` : number3;
+    const name = feeds.length === 1 ? entityName(this.hass, this.hass?.states[feeds[0].entity]) : "";
+    const count = name ? `${name} \xB7 ${number3}` : number3;
     return b2`<div class="list">
             <div class="list-head">
                 ${title ? b2`<h1 class="list-title">${title}</h1>` : b2`<span class="count">${count}</span>`}
@@ -35350,8 +35362,9 @@ var MapFeedCard = class extends i4 {
       if (this.filled) this.filled = 0;
       return;
     }
-    const content = card.getBoundingClientRect().height - Math.max(0, grown.getBoundingClientRect().height - this.options.mapHeight);
-    const filled = filledHeight(Math.round(content), this.config, limit);
+    const scale = drawnScale(card);
+    const content = card.getBoundingClientRect().height / scale - Math.max(0, grown.getBoundingClientRect().height / scale - this.options.mapHeight);
+    const filled = filledHeight(content, this.config, limit);
     if (filled !== this.filled) this.filled = filled;
   }
   /** Follows the details' sheet's size, which changes as its pictures load, so the item is kept clear of it. */
