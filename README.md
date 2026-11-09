@@ -86,6 +86,7 @@ Each feed in `entities` can have options of its own:
 | `labels`            | boolean | Show each item's name beside its marker                                                                                              | `false`  |
 | `glide`             | boolean | Move the markers smoothly between updates instead of jumping, an update behind                                                       | `false`  |
 | `frame`             | string  | Frame the map to the feed's `area` or `items` (its area while empty) when the card opens. `off` for a feed far wider than the others | `area`   |
+| `in_list`           | boolean | With `list`, show the feed's items in it. When off, they are only on the map, and a tapped one shows its details over the map        | `true`   |
 
 Every option is in the card's visual editor, which offers each feed only the options that make sense for its [type](docs/map-feed-format.md#feed-type), such as no delays for bird sightings,
 except `height_mode`, `height` and `max_height`, which are set in YAML. In a sections view the layout tab sets the
@@ -98,7 +99,9 @@ card is inside, even in a sections view.
 an item with a short label, such as a train's number, shows it in the marker. Road works, road cameras and birds have
 symbols of their own, and an aircraft is the silhouette of its kind, such as a light aircraft, an airliner or a
 helicopter, turned the way it flies. Lines and areas, such as a road under construction or the stretch a snow plough has cleared, are
-drawn in their item's colour, and tapping one selects it. Pointing at a line or an area shows its name, and with
+drawn in their item's colour, and tapping one selects it. A line or area with [`dashed: true`](docs/map-feed-format.md#lines-and-polygons)
+in the feed is drawn as a thin dashed outline under the others, for what stays in the background, such as an airspace
+area that is always in force. Pointing at a line or an area shows its name, and with
 `labels` every marker has its name beside it. With `glide`, a moving marker travels in a straight line from its
 previous position to the new one, taking as long as the source took between them, so it shows where the item was an
 update ago. A trail drawn behind it ends at the marker. It suits aircraft best, which fly straight between updates, and trains well enough, while a bus turning
@@ -126,7 +129,7 @@ below them. Tapping a picture shows it large, or opens its page when the feed li
 ask.
 
 **The list**, with `list: true`, shows every item as a row: a title, a line under it and a value, such as a delay or
-a distance. A feed can say what the list can be sorted by, such as delay and number for trains, and the order is chosen on the card when there is more than one. Tapping a row unfolds its details beneath it and brings its marker into view, and tapping it again folds them away. Tapping a marker opens its row. Above the list is the number of items, with the sensor's name when the card shows one feed.
+a distance. A feed can say what the list can be sorted by, such as delay and number for trains, and the order is chosen on the card when there is more than one. Tapping a row unfolds its details beneath it and brings its marker into view, and tapping it again folds them away. Tapping a marker opens its row. Above the list is the number of items, with the sensor's name when the card shows one feed. A feed with `in_list: false` stays out of the list, and its items show their details over the map when tapped.
 
 A list below the map that is shorter than 400 pixels, as in a card held to a few rows, has no room for details to
 unfold in it. There, tapping a row or a marker only selects the item and brings it into view, and a button on the

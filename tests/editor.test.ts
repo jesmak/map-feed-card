@@ -22,6 +22,14 @@ describe("a feed's options in the editor", () => {
         expect(feedFields("nature", false, {})).toEqual(["labels", "frame"]);
     });
 
+    it("offers a place in the list only when the card has a list, or one is set anyway", () => {
+        expect(feedFields("air", false, {}, true)).toEqual(["max_age_minutes", "labels", "glide", "frame", "in_list"]);
+        expect(feedFields("air", false, {})).not.toContain("in_list");
+        expect(feedFields("air", false, { in_list: false })).toContain("in_list");
+        // The default, left in the entry by the form, is no reason to show it.
+        expect(feedFields("air", false, { in_list: true })).not.toContain("in_list");
+    });
+
     it("offers everything to a feed that doesn't say what it is", () => {
         expect(feedFields(null, true, { color_by: "delay", show_area: true })).toEqual([
             "color_by",

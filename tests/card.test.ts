@@ -344,6 +344,66 @@ describe("map-feed-card", () => {
         expect([...card.shadowRoot!.querySelectorAll(".row-title")].map((title) => title.textContent)).toEqual(["Road 6"]);
     });
 
+    it("keeps a feed out of the list, shows its item's details over the map, and gives a shared legend entry once", async () => {
+        const area = (id: string, name: string, dashed: boolean) => ({
+            type: "Feature",
+            id,
+            geometry: {
+                type: "Polygon",
+                coordinates: [
+                    [
+                        [27.2, 60.6],
+                        [27.3, 60.6],
+                        [27.3, 60.7],
+                        [27.2, 60.6],
+                    ],
+                ],
+            },
+            properties: { name, kind: "air.area", color: "#d4603f", dashed, details: [{ label: "Height", value: "SFC – 1900 ft" }] },
+        });
+        const restricted = { color: "#d4603f", label: "Restricted area" };
+        const card = await mount(
+            // A feed that can't be drawn, so the list has a problem to show.
+            { list: true, entities: ["sensor.notams", { entity: "sensor.standing", in_list: false }, "sensor.gone"] },
+            {
+                "sensor.notams": feedState("sensor.notams", [area("area:EFR1", "Exercise", false)], {
+                    legend: [restricted],
+                    list: { sort: [{ key: "distance", label: "Distance", property: "distance_km" }] },
+                }),
+                "sensor.standing": feedState("sensor.standing", [area("area:EFR2", "Range", true)], {
+                    // The same colour and label dashed is an entry of its own.
+                    legend: [restricted, { ...restricted, dashed: true }],
+                    list: { sort: [{ key: "code", label: "Code", property: "code" }] },
+                }),
+            },
+        );
+        expect([...card.shadowRoot!.querySelectorAll(".row-title")].map((title) => title.textContent)).toEqual(["Exercise"]);
+        // Neither counted nor offering its order.
+        expect(card.shadowRoot!.querySelector(".count")!.textContent).toBe("1 item");
+        expect(card.shadowRoot!.querySelector(".sort")).toBeNull();
+        expect((drawn.updates.at(-1)!.shapes as Array<{ shape: { dashed: boolean } }>).map(({ shape }) => shape.dashed)).toEqual([
+            false,
+            true,
+        ]);
+        const legend = [...card.shadowRoot!.querySelectorAll(".legend span")];
+        expect(legend.map((entry) => [entry.textContent!.trim(), entry.querySelector("i.dashed") !== null])).toEqual([
+            ["Restricted area", false],
+            ["Restricted area", true],
+        ]);
+
+        expect(card.shadowRoot!.querySelector(".sheet")).toBeNull();
+        (card as unknown as { select(key: string): void }).select("sensor.standing|area:EFR2");
+        await card.updateComplete;
+        const sheet = card.shadowRoot!.querySelector(".sheet")!;
+        expect(sheet.textContent).toContain("SFC – 1900 ft");
+        // The list shows the problem, and the sheet doesn't repeat it.
+        expect(card.shadowRoot!.querySelector(".rows .problem")).not.toBeNull();
+        expect(sheet.querySelector(".problem")).toBeNull();
+        (card as unknown as { select(key: string): void }).select("sensor.notams|area:EFR1");
+        await card.updateComplete;
+        expect(card.shadowRoot!.querySelector(".sheet")).toBeNull();
+    });
+
     it("explains a cancelled train's grey in the delay legend", async () => {
         const card = await mount(
             { entities: [{ entity: "sensor.trains", color_by: "delay" }] },

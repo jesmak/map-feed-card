@@ -61,6 +61,8 @@
         "frame_area": "To the area",
         "frame_items": "To the items",
         "frame_off": "Leave this feed out",
+        "in_list": "Show this feed's items in the list",
+        "in_list_helper": "When off, the items are only on the map, and tapping one shows its details over the map. For a feed in the background, such as areas that never change.",
         "row_step": "Rounding in a sections view",
         "row_step_helper": "With automatic row height, the card's height is rounded up to whole rows, or to half rows to save space.",
         "row_step_full": "Whole rows",

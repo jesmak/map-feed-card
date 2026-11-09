@@ -98,7 +98,7 @@ const RECOVERY_THROTTLE_MS = 30_000;
 const SHAPES = "feed-shapes";
 const AREAS = "feed-areas";
 /** The layers a tap can hit, polygons below lines. */
-const TAP_LAYERS = ["feed-fill", "feed-line"];
+const TAP_LAYERS = ["feed-dashed-fill", "feed-dashed", "feed-fill", "feed-line"];
 
 let workerReady = false;
 
@@ -134,6 +134,7 @@ export class FeedMap {
     /** Set when someone moves the map, so it no longer moves by itself to show the selected item until the next tap. */
     private movedByHand = false;
     private frame?: number;
+    private resizer?: ResizeObserver;
     /** The points whose lines are trails cut at their gliding marker, by key. */
     private trailOwners = new Set<string>();
 
@@ -174,8 +175,13 @@ export class FeedMap {
             pitchWithRotate: false,
             touchPitch: false,
             transformRequest: (url) => transformRequest(url),
+            // The map follows its container's size itself, so a change the card doesn't see, such as the map moving
+            // beside the list when the card is laid out wide, fits it again too.
+            trackResize: false,
         });
         this.map = map;
+        this.resizer = new ResizeObserver(() => this.resize());
+        this.resizer.observe(this.container);
         map.touchZoomRotate.disableRotation();
         map.keyboard.disableRotation();
         map.addControl(new NavigationControl({ showCompass: false }), "top-right");
@@ -312,6 +318,7 @@ export class FeedMap {
 
     destroy(): void {
         this.destroyed = true;
+        this.resizer?.disconnect();
         if (this.frame !== undefined) cancelAnimationFrame(this.frame);
         this.unsubscribe?.();
         this.map?.remove();
@@ -453,12 +460,39 @@ export class FeedMap {
             source: AREAS,
             paint: { "line-color": ["get", "color"], "line-width": 2, "line-dasharray": [3, 2], "line-opacity": 0.8 },
         });
+        // What is dashed stays in the background, under the filled shapes, and so does a tap on it: a dashed polygon's
+        // see-through fill takes a tap inside it only where no other shape does.
+        const polygon: FilterSpecification = ["==", ["geometry-type"], "Polygon"];
+        const dashed: FilterSpecification = ["==", ["get", "dashed"], true];
+        map.addLayer({
+            id: "feed-dashed-fill",
+            type: "fill",
+            source: SHAPES,
+            filter: ["all", polygon, dashed],
+            paint: { "fill-color": ["get", "color"], "fill-opacity": 0 },
+        });
+        map.addLayer({
+            id: "feed-dashed",
+            type: "line",
+            source: SHAPES,
+            filter: dashed,
+            paint: {
+                "line-color": ["get", "color"],
+                "line-width": 1.5,
+                "line-dasharray": [3, 2],
+                "line-opacity": ["*", 0.85, ["get", "opacity"]],
+            },
+        });
+        // A selected dashed polygon is filled faintly, over the others, like any selected shape.
         map.addLayer({
             id: "feed-fill",
             type: "fill",
             source: SHAPES,
-            filter: ["==", ["geometry-type"], "Polygon"],
-            paint: { "fill-color": ["get", "color"], "fill-opacity": ["*", 0.25, ["get", "opacity"]] },
+            filter: ["all", polygon, ["any", ["!=", ["get", "dashed"], true], ["==", ["get", "selected"], true]]],
+            paint: {
+                "fill-color": ["get", "color"],
+                "fill-opacity": ["case", ["get", "dashed"], 0.15, ["*", 0.25, ["get", "opacity"]]],
+            },
         });
         // The selected line is cased, a white band with a dark edge under it, so it stands out among lines of its own
         // colour, such as a road among roads in the same condition. Width alone doesn't.
@@ -483,6 +517,8 @@ export class FeedMap {
             id: "feed-line",
             type: "line",
             source: SHAPES,
+            // A selected dashed shape is drawn whole, over its casing, like any other selected shape.
+            filter: ["any", ["!=", ["get", "dashed"], true], ["==", ["get", "selected"], true]],
             layout: { "line-cap": "round", "line-join": "round", "line-sort-key": ["case", ["get", "selected"], 1, 0] },
             paint: {
                 "line-color": ["get", "color"],
@@ -514,6 +550,7 @@ export class FeedMap {
                     name: shapeName,
                     width: lineWidth(shape.kind),
                     opacity: shape.kind === "road.maintenance_track" ? shape.opacity * 0.5 : shape.opacity,
+                    dashed: shape.dashed,
                     selected: selects === selected || key === selected,
                 },
             })),

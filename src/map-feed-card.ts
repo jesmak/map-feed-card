@@ -271,8 +271,7 @@ export class MapFeedCard extends LitElement {
         }, TICK_MS);
         this.resizer = new ResizeObserver(([entry]) => {
             this.wide = (entry?.contentRect.width ?? 0) >= WIDE_PX;
-            this.map?.resize();
-            // A new size, or the details moving between the sheet and the panel, can hide the selected item.
+            // The map follows its own size (map.ts). A new size, or the details moving between the sheet and the panel, can hide the selected item.
             if (this.selected) {
                 this.revealSelected = true;
                 this.requestUpdate();
@@ -350,6 +349,10 @@ export class MapFeedCard extends LitElement {
                         ${this.options.legend && view?.legend.length ? this.legend(view.legend) : nothing}
                         ${this.mapError ? html`<div class="map-error">${this.mapError}</div>` : nothing}
                         ${!list && !this.wide ? this.sheet(view, selected) : nothing}
+                        ${
+                            // Without the view, so the problems the list already shows aren't shown twice.
+                            list && selected && !selected.feed.inList ? this.sheet(undefined, selected) : nothing
+                        }
                     </div>
                     ${
                         list
@@ -375,7 +378,8 @@ export class MapFeedCard extends LitElement {
 
     /**
      * Narrow and without the list, the details go in a sheet over the bottom of the map, so the card keeps its size;
-     * with nothing selected, a note on the map says what to do, or what is wrong with a feed.
+     * with nothing selected, a note on the map says what to do, or what is wrong with a feed. With the list, an item of
+     * a feed kept out of it has no row to open, so its details go in the sheet too.
      */
     private sheet(view: View | undefined, selected: ViewItem | undefined): TemplateResult {
         const problems = view?.problems.map((problem) => html`<div class="problem">${problem}</div>`);
@@ -414,7 +418,7 @@ export class MapFeedCard extends LitElement {
         const options = sortOptions(lists);
         const key = this.sortKey !== undefined ? this.sortKey : startingSort(this.options!.sort, lists);
         const entries = sortRows(
-            [...(view?.items ?? [])].map(([itemKey, entry]) => ({ ...entry, key: itemKey })),
+            [...(view?.items ?? [])].filter(([, entry]) => entry.feed.inList).map(([itemKey, entry]) => ({ ...entry, key: itemKey })),
             key,
             this.language(),
         );
@@ -804,7 +808,7 @@ export class MapFeedCard extends LitElement {
                 continue;
             }
             const { points, shapes, area, attribution, attributionUrl, list } = result.feed;
-            view.lists.push(list);
+            if (feed.inList) view.lists.push(list);
             const pointKeys = new Map<string, DrawnPoint>();
             const feedChangedMs = Date.parse(this.hass?.states[feed.entity]?.last_updated ?? "");
             const tooOld = (item: FeedItem) =>
@@ -877,11 +881,12 @@ export class MapFeedCard extends LitElement {
                 );
             }
             // The delay classes explain what is coloured by delay, the feed's legend what keeps the feed's own colours.
-            for (const legend of [byDelay ? this.delayLegend(feed, delays) : [], ownColours ? result.feed.legend : []]) {
-                const signature = JSON.stringify(legend);
-                if (legend.length && !legends.has(signature)) {
+            // An entry another feed already gave is left out, as two feeds of one kind share their colours.
+            for (const entry of [...(byDelay ? this.delayLegend(feed, delays) : []), ...(ownColours ? result.feed.legend : [])]) {
+                const signature = `${entry.color}|${entry.label}|${entry.dashed === true}`;
+                if (!legends.has(signature)) {
                     legends.add(signature);
-                    view.legend.push(...legend);
+                    view.legend.push(entry);
                 }
             }
         }
@@ -908,7 +913,11 @@ export class MapFeedCard extends LitElement {
 
     private legend(entries: LegendEntry[]): TemplateResult {
         return html`<div class="legend">
-            ${entries.map((entry) => html`<span><i style="background:${entry.color}"></i>${entry.label}</span>`)}
+            ${entries.map((entry) =>
+                entry.dashed
+                    ? html`<span><i class="dashed" style="border-color:${entry.color}"></i>${entry.label}</span>`
+                    : html`<span><i style="background:${entry.color}"></i>${entry.label}</span>`,
+            )}
         </div>`;
     }
 
@@ -1504,6 +1513,12 @@ export class MapFeedCard extends LitElement {
                 width: 9px;
                 height: 9px;
                 border-radius: 50%;
+            }
+            .legend i.dashed {
+                box-sizing: border-box;
+                width: 13px;
+                border: 1.5px dashed;
+                border-radius: 2px;
             }
             .map-error {
                 position: absolute;

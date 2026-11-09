@@ -899,7 +899,8 @@ function readShape(feature, geometry, index, sortProperties) {
   return {
     ...readItem(identifier(feature.id) || `shape:${index}`, props, "", sortProperties),
     geometry: shapeGeometry,
-    pointId: identifier(props.point)
+    pointId: identifier(props.point),
+    dashed: props.dashed === true
   };
 }
 function readShapeGeometry(geometry) {
@@ -960,7 +961,8 @@ function readLegend(value) {
     if (!isRecord(entry)) return [];
     const entryColor = color(entry.color);
     const label = text(entry.label);
-    return entryColor && label ? [{ color: entryColor, label }] : [];
+    if (!entryColor || !label) return [];
+    return [entry.dashed === true ? { color: entryColor, label, dashed: true } : { color: entryColor, label }];
   });
 }
 function readList(value) {
@@ -1629,6 +1631,8 @@ var en_default = {
     frame_area: "To the area",
     frame_items: "To the items",
     frame_off: "Leave this feed out",
+    in_list: "Show this feed's items in the list",
+    in_list_helper: "When off, the items are only on the map, and tapping one shows its details over the map. For a feed in the background, such as areas that never change.",
     row_step: "Rounding in a sections view",
     row_step_helper: "With automatic row height, the card's height is rounded up to whole rows, or to half rows to save space.",
     row_step_full: "Whole rows",
@@ -1773,6 +1777,8 @@ var fi_default = {
     frame_area: "Alueeseen",
     frame_items: "Kohteisiin",
     frame_off: "J\xE4t\xE4 t\xE4m\xE4 sy\xF6te pois",
+    in_list: "N\xE4yt\xE4 sy\xF6tteen kohteet listassa",
+    in_list_helper: "Pois p\xE4\xE4lt\xE4 kohteet ovat vain kartalla, ja kohteen napauttaminen n\xE4ytt\xE4\xE4 sen tiedot kartan p\xE4\xE4ll\xE4. Sy\xF6tteelle, joka on taustalla, kuten alueille, jotka eiv\xE4t muutu.",
     row_step: "Py\xF6ristys osioihin jaetussa n\xE4kym\xE4ss\xE4",
     row_step_helper: "Automaattisella rivikorkeudella kortin korkeus py\xF6ristet\xE4\xE4n yl\xF6sp\xE4in kokonaisiin riveihin, tai tilan s\xE4\xE4st\xE4miseksi puolikkaisiin riveihin.",
     row_step_full: "Kokonaisiin riveihin",
@@ -1977,7 +1983,8 @@ function parseFeed(options) {
     areaColor: parseAreaColor(options.area_color),
     labels: options.labels === true,
     glide: options.glide === true,
-    frame: parseFrame(options.frame)
+    frame: parseFrame(options.frame),
+    inList: options.in_list !== false
   };
 }
 function parseMapStyle(value) {
@@ -2038,10 +2045,11 @@ var FEED_DEFAULTS = {
   show_area: false,
   labels: false,
   glide: false,
-  frame: "area"
+  frame: "area",
+  in_list: true
 };
 var MINUTES = { number: { min: 0, max: 1440, step: 1, mode: "box", unit_of_measurement: "min" } };
-function feedFields(type, hasArea, options) {
+function feedFields(type, hasArea, options, list = false) {
   const set = (name) => options[name] !== void 0 && options[name] !== null && options[name] !== "" && options[name] !== FEED_DEFAULTS[name];
   const late = type === null || type === "train" || type === "transit" || type === "other";
   const colorBy = late || set("color_by");
@@ -2054,7 +2062,8 @@ function feedFields(type, hasArea, options) {
     ...type !== "road" && type !== "nature" || set("glide") ? ["glide"] : [],
     ...area ? ["show_area"] : [],
     ...area && options.show_area === true || set("area_color") ? ["area_color"] : [],
-    "frame"
+    "frame",
+    ...list || set("in_list") ? ["in_list"] : []
   ];
   for (const name of ["late_minutes", "very_late_minutes"])
     if (set(name) && !fields.includes(name)) fields.splice(fields.indexOf("labels"), 0, name);
@@ -2073,11 +2082,13 @@ function feedSchema(fields, text2) {
     glide: { boolean: {} },
     show_area: { boolean: {} },
     area_color: { text: {} },
-    frame: { select: { mode: "dropdown", options: FRAMES.map((value) => ({ value, label: text2(`editor.frame_${value}`) })) } }
+    frame: { select: { mode: "dropdown", options: FRAMES.map((value) => ({ value, label: text2(`editor.frame_${value}`) })) } },
+    in_list: { boolean: {} }
   };
   return fields.map((name) => ({ name, selector: selectors[name] }));
 }
 function schema(hass, text2, entities, sort, config) {
+  const list = config.list === true;
   const feeds = Object.values(hass.states).filter((entity) => isMapFeed(entity)).map((entity) => entity.entity_id);
   return [
     { name: "title", selector: { text: {} } },
@@ -2103,7 +2114,7 @@ function schema(hass, text2, entities, sort, config) {
         type: "expandable",
         name: `feed_${index}`,
         title: entityName(hass, state) || String(entry.entity ?? ""),
-        schema: feedSchema(feedFields(feed?.type ?? null, feed?.area != null, entry), text2)
+        schema: feedSchema(feedFields(feed?.type ?? null, feed?.area != null, entry, list), text2)
       };
     }),
     {
@@ -34542,7 +34553,7 @@ var TRAIL_STEP_PX = 1;
 var RECOVERY_THROTTLE_MS = 3e4;
 var SHAPES = "feed-shapes";
 var AREAS = "feed-areas";
-var TAP_LAYERS = ["feed-fill", "feed-line"];
+var TAP_LAYERS = ["feed-dashed-fill", "feed-dashed", "feed-fill", "feed-line"];
 var workerReady = false;
 function ensureWorker() {
   if (workerReady) return;
@@ -34598,9 +34609,14 @@ var FeedMap = class {
       dragRotate: false,
       pitchWithRotate: false,
       touchPitch: false,
-      transformRequest: (url) => transformRequest(url)
+      transformRequest: (url) => transformRequest(url),
+      // The map follows its container's size itself, so a change the card doesn't see, such as the map moving
+      // beside the list when the card is laid out wide, fits it again too.
+      trackResize: false
     });
     this.map = map;
+    this.resizer = new ResizeObserver(() => this.resize());
+    this.resizer.observe(this.container);
     map.touchZoomRotate.disableRotation();
     map.keyboard.disableRotation();
     map.addControl(new zF({ showCompass: false }), "top-right");
@@ -34714,6 +34730,7 @@ var FeedMap = class {
   }
   destroy() {
     this.destroyed = true;
+    this.resizer?.disconnect();
     if (this.frame !== void 0) cancelAnimationFrame(this.frame);
     this.unsubscribe?.();
     this.map?.remove();
@@ -34841,12 +34858,36 @@ var FeedMap = class {
       source: AREAS,
       paint: { "line-color": ["get", "color"], "line-width": 2, "line-dasharray": [3, 2], "line-opacity": 0.8 }
     });
+    const polygon = ["==", ["geometry-type"], "Polygon"];
+    const dashed = ["==", ["get", "dashed"], true];
+    map.addLayer({
+      id: "feed-dashed-fill",
+      type: "fill",
+      source: SHAPES,
+      filter: ["all", polygon, dashed],
+      paint: { "fill-color": ["get", "color"], "fill-opacity": 0 }
+    });
+    map.addLayer({
+      id: "feed-dashed",
+      type: "line",
+      source: SHAPES,
+      filter: dashed,
+      paint: {
+        "line-color": ["get", "color"],
+        "line-width": 1.5,
+        "line-dasharray": [3, 2],
+        "line-opacity": ["*", 0.85, ["get", "opacity"]]
+      }
+    });
     map.addLayer({
       id: "feed-fill",
       type: "fill",
       source: SHAPES,
-      filter: ["==", ["geometry-type"], "Polygon"],
-      paint: { "fill-color": ["get", "color"], "fill-opacity": ["*", 0.25, ["get", "opacity"]] }
+      filter: ["all", polygon, ["any", ["!=", ["get", "dashed"], true], ["==", ["get", "selected"], true]]],
+      paint: {
+        "fill-color": ["get", "color"],
+        "fill-opacity": ["case", ["get", "dashed"], 0.15, ["*", 0.25, ["get", "opacity"]]]
+      }
     });
     const selected = ["==", ["get", "selected"], true];
     map.addLayer({
@@ -34869,6 +34910,8 @@ var FeedMap = class {
       id: "feed-line",
       type: "line",
       source: SHAPES,
+      // A selected dashed shape is drawn whole, over its casing, like any other selected shape.
+      filter: ["any", ["!=", ["get", "dashed"], true], ["==", ["get", "selected"], true]],
       layout: { "line-cap": "round", "line-join": "round", "line-sort-key": ["case", ["get", "selected"], 1, 0] },
       paint: {
         "line-color": ["get", "color"],
@@ -34896,6 +34939,7 @@ var FeedMap = class {
           name: shapeName,
           width: lineWidth(shape.kind),
           opacity: shape.kind === "road.maintenance_track" ? shape.opacity * 0.5 : shape.opacity,
+          dashed: shape.dashed,
           selected: selects === selected || key === selected
         }
       }))
@@ -35088,7 +35132,6 @@ var MapFeedCard = class extends i4 {
     }, TICK_MS);
     this.resizer = new ResizeObserver(([entry]) => {
       this.wide = (entry?.contentRect.width ?? 0) >= WIDE_PX;
-      this.map?.resize();
       if (this.selected) {
         this.revealSelected = true;
         this.requestUpdate();
@@ -35151,6 +35194,8 @@ var MapFeedCard = class extends i4 {
                         ${this.options.legend && view?.legend.length ? this.legend(view.legend) : A}
                         ${this.mapError ? b2`<div class="map-error">${this.mapError}</div>` : A}
                         ${!list && !this.wide ? this.sheet(view, selected) : A}
+                        ${// Without the view, so the problems the list already shows aren't shown twice.
+    list && selected && !selected.feed.inList ? this.sheet(void 0, selected) : A}
                     </div>
                     ${list ? this.renderList(view, titleInList ? title : "") : !this.wide ? A : b2`<div class="panel">
                                     ${view?.problems.map((problem) => b2`<div class="problem">${problem}</div>`)}
@@ -35165,7 +35210,8 @@ var MapFeedCard = class extends i4 {
   }
   /**
    * Narrow and without the list, the details go in a sheet over the bottom of the map, so the card keeps its size;
-   * with nothing selected, a note on the map says what to do, or what is wrong with a feed.
+   * with nothing selected, a note on the map says what to do, or what is wrong with a feed. With the list, an item of
+   * a feed kept out of it has no row to open, so its details go in the sheet too.
    */
   sheet(view, selected) {
     const problems = view?.problems.map((problem) => b2`<div class="problem">${problem}</div>`);
@@ -35201,7 +35247,7 @@ var MapFeedCard = class extends i4 {
     const options = sortOptions(lists);
     const key = this.sortKey !== void 0 ? this.sortKey : startingSort(this.options.sort, lists);
     const entries = sortRows(
-      [...view?.items ?? []].map(([itemKey, entry]) => ({ ...entry, key: itemKey })),
+      [...view?.items ?? []].filter(([, entry]) => entry.feed.inList).map(([itemKey, entry]) => ({ ...entry, key: itemKey })),
       key,
       this.language()
     );
@@ -35543,7 +35589,7 @@ var MapFeedCard = class extends i4 {
         continue;
       }
       const { points, shapes, area, attribution, attributionUrl, list } = result.feed;
-      view.lists.push(list);
+      if (feed.inList) view.lists.push(list);
       const pointKeys = /* @__PURE__ */ new Map();
       const feedChangedMs = Date.parse(this.hass?.states[feed.entity]?.last_updated ?? "");
       const tooOld = (item) => feed.maxAgeMinutes !== null && item.updatedMs !== null && now - item.updatedMs > feed.maxAgeMinutes * 6e4;
@@ -35605,11 +35651,11 @@ var MapFeedCard = class extends i4 {
           attributionUrl ? `<a href="${escapeHtml(attributionUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(attribution)}</a>` : escapeHtml(attribution)
         );
       }
-      for (const legend of [byDelay ? this.delayLegend(feed, delays) : [], ownColours ? result.feed.legend : []]) {
-        const signature = JSON.stringify(legend);
-        if (legend.length && !legends.has(signature)) {
+      for (const entry of [...byDelay ? this.delayLegend(feed, delays) : [], ...ownColours ? result.feed.legend : []]) {
+        const signature = `${entry.color}|${entry.label}|${entry.dashed === true}`;
+        if (!legends.has(signature)) {
           legends.add(signature);
-          view.legend.push(...legend);
+          view.legend.push(entry);
         }
       }
     }
@@ -35633,7 +35679,9 @@ var MapFeedCard = class extends i4 {
   }
   legend(entries) {
     return b2`<div class="legend">
-            ${entries.map((entry) => b2`<span><i style="background:${entry.color}"></i>${entry.label}</span>`)}
+            ${entries.map(
+      (entry) => entry.dashed ? b2`<span><i class="dashed" style="border-color:${entry.color}"></i>${entry.label}</span>` : b2`<span><i style="background:${entry.color}"></i>${entry.label}</span>`
+    )}
         </div>`;
   }
   /**
@@ -36221,6 +36269,12 @@ MapFeedCard.styles = [
                 width: 9px;
                 height: 9px;
                 border-radius: 50%;
+            }
+            .legend i.dashed {
+                box-sizing: border-box;
+                width: 13px;
+                border: 1.5px dashed;
+                border-radius: 2px;
             }
             .map-error {
                 position: absolute;

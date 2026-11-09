@@ -88,8 +88,10 @@ their age. A feed without a type, or with one the card doesn't know, is offered 
 ```
 
 A feed that colours its items with `color` says what the colours mean, since the card can't. Each entry is a CSS hex
-`color` and a `label`, and entries without both are left out. The card shows the legend over the map. Without one, it
-shows its own, the delay classes when it colours by delay, and the kinds on the map when there is more than one.
+`color` and a `label`, and entries without both are left out. An entry with `dashed: true` is drawn as a dashed
+outline, for [dashed shapes](#lines-and-polygons). The card shows the legend over the map, an entry that another feed
+on the card already gave only once. Without one, it shows its own, the delay classes when it colours by delay, and the
+kinds on the map when there is more than one.
 
 ### List
 
@@ -159,6 +161,7 @@ the property come last, in the feed's order. Without sort keys, the list keeps t
 | `link`          | object   | MAY      | A link at the end of the details, such as the item's page on the source's site. See [links](#links).                                      |
 | `opacity`       | number   | MAY      | 0–1, how strongly the item is drawn. Defaults to 1. See [opacity](#opacity).                                                              |
 | `point`         | string   | MAY      | The `id` of the Point feature a line or polygon belongs to.                                                                               |
+| `dashed`        | boolean  | MAY      | Draws a line dashed, and a polygon as a dashed outline without fill. See [lines and polygons](#lines-and-polygons).                       |
 | `list`          | object   | MAY      | The item's row in the card's list, where its name and subtitle aren't the best fit. See [a row in the list](#a-row-in-the-list).          |
 
 Properties the card doesn't know are ignored, apart from a feed's own properties that a [sort key](#list) names.
@@ -330,6 +333,11 @@ They take the same properties as points, apart from the ones about movement and 
 The card colours them by `kind` or `color`, shows `name` on hover, and shows their details when they are tapped and
 have something to show. Road kinds are drawn wider than other lines, and `road.maintenance_track` is drawn thin and
 faint, so routes stay in the background.
+
+A shape with `dashed: true` is drawn as a thin dashed line, and a polygon as a dashed outline without fill, under the
+other shapes. It is for what stays in the background, such as airspace areas that are always in force beside those
+switched on today. A tap anywhere inside the polygon still selects it, and once selected it is drawn like any other
+selected shape. A legend entry with `dashed: true` explains them with a dashed outline in place of a dot.
 
 A line or polygon MAY belong to a Point feature, named in its `point` property. It is then drawn in that point's
 colour, and tapping it selects the point, so the details are written once, on the point:

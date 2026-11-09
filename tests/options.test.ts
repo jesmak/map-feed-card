@@ -17,6 +17,7 @@ describe("parseOptions", () => {
                     labels: false,
                     glide: false,
                     frame: "area",
+                    inList: true,
                 },
             ],
             mapStyle: "default",
@@ -60,6 +61,8 @@ describe("parseOptions", () => {
             sort: "distance",
         });
         expect(() => parseOptions({ entities: ["sensor.birds"], list_height: 50 })).toThrow(/list_height/);
+        const { feeds } = parseOptions({ entities: ["sensor.notams", { entity: "sensor.standing", in_list: false }] });
+        expect(feeds.map((feed) => feed.inList)).toEqual([true, false]);
     });
 
     it("refuses what it can't draw, saying what is wrong", () => {

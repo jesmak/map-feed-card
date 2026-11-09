@@ -389,6 +389,7 @@ function shape(geometry: FeedShape["geometry"]): FeedShape {
         sortValues: {},
         geometry,
         pointId: "ship:230000001",
+        dashed: false,
     };
 }
 
@@ -468,6 +469,37 @@ describe("laying the map out for a new size", () => {
         const fit = vi.spyOn(map, "fit");
         map.resize();
         expect(fit).toHaveBeenCalledTimes(again ? 1 : 0);
+    });
+
+    it("follows its own container's size, which changes without the card's when the card is laid out wide", async () => {
+        vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({} as RenderingContext);
+        const observed: Array<[Element, () => void]> = [];
+        let disconnected = 0;
+        vi.stubGlobal(
+            "ResizeObserver",
+            class {
+                constructor(private readonly callback: () => void) {}
+                observe(element: Element) {
+                    observed.push([element, this.callback]);
+                }
+                disconnect() {
+                    disconnected += 1;
+                }
+            },
+        );
+        const container = document.createElement("div");
+        const map = new FeedMap(container, "default", true, null, () => undefined, {});
+        await map.init();
+        map.fit(BOUNDS);
+        const fit = vi.spyOn(map, "fit");
+
+        const [element, resized] = observed.find(([element]) => element === container)!;
+        expect(element).toBe(container);
+        resized();
+        expect(fit).toHaveBeenCalledTimes(1);
+        map.destroy();
+        expect(disconnected).toBe(1);
+        vi.unstubAllGlobals();
     });
 
     it("fits an area up to zoom 13 and items up to 12, padded clear of what covers the map, again on a new size", async () => {

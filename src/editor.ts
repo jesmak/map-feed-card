@@ -32,17 +32,19 @@ const FEED_DEFAULTS: Record<string, unknown> = {
     labels: false,
     glide: false,
     frame: "area",
+    in_list: true,
 };
 
 const MINUTES = { number: { min: 0, max: 1440, step: 1, mode: "box", unit_of_measurement: "min" } };
 
 /**
  * A feed's options that make sense for it: delays only for what can be late, an age limit for what has positions,
- * gliding for what moves, the area only when the feed has one. A feed that doesn't say its type gets them all, since it could be anything.
+ * gliding for what moves, the area only when the feed has one, a place in the list only when the card has one. A feed
+ * that doesn't say its type gets them all, since it could be anything.
  * Thresholds and the area's colour appear once the option they belong to is on. An option that doesn't make sense but
  * is set anyway, such as one left from the feed the entry had before, still shows, so it can be cleared.
  */
-export function feedFields(type: FeedType | null, hasArea: boolean, options: Record<string, unknown>): string[] {
+export function feedFields(type: FeedType | null, hasArea: boolean, options: Record<string, unknown>, list = false): string[] {
     const set = (name: string) =>
         options[name] !== undefined && options[name] !== null && options[name] !== "" && options[name] !== FEED_DEFAULTS[name];
     const late = type === null || type === "train" || type === "transit" || type === "other";
@@ -57,6 +59,7 @@ export function feedFields(type: FeedType | null, hasArea: boolean, options: Rec
         ...(area ? ["show_area"] : []),
         ...((area && options.show_area === true) || set("area_color") ? ["area_color"] : []),
         "frame",
+        ...(list || set("in_list") ? ["in_list"] : []),
     ];
     // Thresholds set without delay colouring do nothing, but are shown, so they can be cleared.
     for (const name of ["late_minutes", "very_late_minutes"])
@@ -78,11 +81,13 @@ function feedSchema(fields: string[], text: (key: string) => string) {
         show_area: { boolean: {} },
         area_color: { text: {} },
         frame: { select: { mode: "dropdown", options: FRAMES.map((value) => ({ value, label: text(`editor.frame_${value}`) })) } },
+        in_list: { boolean: {} },
     };
     return fields.map((name) => ({ name, selector: selectors[name] }));
 }
 
 function schema(hass: HomeAssistant, text: (key: string) => string, entities: FeedEntry[], sort: unknown, config: RowStepConfig) {
+    const list = (config as Record<string, unknown>).list === true;
     const feeds = Object.values(hass.states)
         .filter((entity) => isMapFeed(entity))
         .map((entity) => entity!.entity_id);
@@ -110,7 +115,7 @@ function schema(hass: HomeAssistant, text: (key: string) => string, entities: Fe
                 type: "expandable",
                 name: `feed_${index}`,
                 title: entityName(hass, state) || String(entry.entity ?? ""),
-                schema: feedSchema(feedFields(feed?.type ?? null, feed?.area != null, entry), text),
+                schema: feedSchema(feedFields(feed?.type ?? null, feed?.area != null, entry, list), text),
             };
         }),
         {

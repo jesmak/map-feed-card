@@ -62,6 +62,8 @@ interface FeedLink {
 export interface LegendEntry {
     color: string;
     label: string;
+    /** Explains dashed shapes, drawn as a dashed outline rather than a dot. */
+    dashed?: boolean;
 }
 
 /** What a feed is about, as the format's kind families; the editor offers only the options that make sense for it. */
@@ -145,6 +147,8 @@ export interface FeedShape extends FeedItem {
     geometry: ShapeGeometry;
     /** Id of the Point feature the shape belongs to, or ''. Tapping the shape selects that point. */
     pointId: string;
+    /** Drawn as a dashed line, and a polygon as a dashed outline without fill, so it stays in the background. */
+    dashed: boolean;
 }
 
 interface Feed {
@@ -319,6 +323,7 @@ function readShape(
         ...readItem(identifier(feature.id) || `shape:${index}`, props, "", sortProperties),
         geometry: shapeGeometry,
         pointId: identifier(props.point),
+        dashed: props.dashed === true,
     };
 }
 
@@ -390,7 +395,8 @@ function readLegend(value: unknown): LegendEntry[] {
         if (!isRecord(entry)) return [];
         const entryColor = color(entry.color);
         const label = text(entry.label);
-        return entryColor && label ? [{ color: entryColor, label }] : [];
+        if (!entryColor || !label) return [];
+        return [entry.dashed === true ? { color: entryColor, label, dashed: true } : { color: entryColor, label }];
     });
 }
 

@@ -37,6 +37,8 @@ export interface FeedOptions {
     glide: boolean;
     /** The map opens framed to this feed, with the others that are. */
     frame: Frame;
+    /** Whether the feed's items are rows in the card's list, or only on the map. */
+    inList: boolean;
 }
 
 export interface CardOptions {
@@ -87,6 +89,7 @@ function parseFeed(options: Record<string, unknown>): FeedOptions {
         labels: options.labels === true,
         glide: options.glide === true,
         frame: parseFrame(options.frame),
+        inList: options.in_list !== false,
     };
 }
 

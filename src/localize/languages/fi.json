@@ -61,6 +61,8 @@
         "frame_area": "Alueeseen",
         "frame_items": "Kohteisiin",
         "frame_off": "Jätä tämä syöte pois",
+        "in_list": "Näytä syötteen kohteet listassa",
+        "in_list_helper": "Pois päältä kohteet ovat vain kartalla, ja kohteen napauttaminen näyttää sen tiedot kartan päällä. Syötteelle, joka on taustalla, kuten alueille, jotka eivät muutu.",
         "row_step": "Pyöristys osioihin jaetussa näkymässä",
         "row_step_helper": "Automaattisella rivikorkeudella kortin korkeus pyöristetään ylöspäin kokonaisiin riveihin, tai tilan säästämiseksi puolikkaisiin riveihin.",
         "row_step_full": "Kokonaisiin riveihin",
