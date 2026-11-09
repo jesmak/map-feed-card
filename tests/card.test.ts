@@ -8,6 +8,7 @@ const drawn = vi.hoisted(() => ({
     updates: [] as Array<Record<string, unknown>>,
     fits: 0,
     bounds: null as unknown,
+    byItems: false,
     moved: false,
     reveals: [] as Array<[unknown, number]>,
     /** Fits and reveals in the order the card asked for them. */
@@ -23,10 +24,11 @@ vi.mock("../src/map", () => ({
         get moved() {
             return drawn.moved;
         }
-        fit(bounds: unknown) {
+        fit(bounds: unknown, byItems: boolean) {
             drawn.order.push("fit");
             drawn.fits += 1;
             drawn.bounds = bounds;
+            drawn.byItems = byItems;
         }
         reveal(position: unknown, covered: number) {
             drawn.order.push("reveal");
@@ -433,6 +435,59 @@ describe("map-feed-card", () => {
             moved.hass = hass(states([shipFeature()]));
             await moved.updateComplete;
             expect(drawn.fits).toBe(0);
+        });
+
+        describe("a feed with an area", () => {
+            const bbox = { bbox: [60.4, 27.0, 60.7, 27.5] };
+            const areaBounds = [
+                [27.0, 60.4],
+                [27.5, 60.7],
+            ];
+            const ships = (features: unknown[]) => ({ "sensor.ships": feedState("sensor.ships", features, { area: bbox }) });
+
+            it("frames the map to the area by default", async () => {
+                await mount({ entities: ["sensor.ships"] }, ships([shipFeature()]));
+                expect(drawn.bounds).toEqual(areaBounds);
+                expect(drawn.byItems).toBe(false);
+            });
+
+            it("frames the map to its items with frame: items, zoomed in less far", async () => {
+                await mount({ entities: [{ entity: "sensor.ships", frame: "items" }] }, ships([shipFeature()]));
+                expect(drawn.bounds).toEqual([
+                    [27.17012, 60.53044],
+                    [27.17012, 60.53044],
+                ]);
+                expect(drawn.byItems).toBe(true);
+            });
+
+            it("frames the map to the area with frame: items while the feed is empty", async () => {
+                await mount({ entities: [{ entity: "sensor.ships", frame: "items" }] }, ships([]));
+                expect(drawn.bounds).toEqual(areaBounds);
+                expect(drawn.byItems).toBe(false);
+            });
+        });
+
+        it("frames the map to every feed's part together, capped as by items when one feed frames by its items", async () => {
+            const farShip = { ...shipFeature(), id: "ship:230000002", geometry: { type: "Point", coordinates: [27.9, 61.2] } };
+            await mount(
+                {
+                    entities: [
+                        { entity: "sensor.ferries", frame: "area" },
+                        { entity: "sensor.ships", frame: "items" },
+                        { entity: "sensor.airspace", frame: "off" },
+                    ],
+                },
+                {
+                    "sensor.ferries": feedState("sensor.ferries", [], { area: { bbox: [60.4, 27.0, 60.7, 27.5] } }),
+                    "sensor.ships": feedState("sensor.ships", [farShip], { area: { bbox: [60.0, 26.0, 62.0, 29.0] } }),
+                    "sensor.airspace": feedState("sensor.airspace", [area("area:EFD910")]),
+                },
+            );
+            expect(drawn.bounds).toEqual([
+                [27.0, 60.4],
+                [27.9, 61.2],
+            ]);
+            expect(drawn.byItems).toBe(true);
         });
 
         it("leaves the map where it opens when every feed is left out", async () => {

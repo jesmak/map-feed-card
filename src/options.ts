@@ -10,6 +10,10 @@ export type MapStyle = (typeof MAP_STYLES)[number];
 export type ColorBy = "kind" | "delay";
 const COLOR_BY: readonly ColorBy[] = ["kind", "delay"];
 
+/** What frames the map when the card opens: the feed's area, its items, or nothing of this feed. */
+export const FRAMES = ["area", "items", "off"] as const;
+export type Frame = (typeof FRAMES)[number];
+
 export const DEFAULT_DELAY_THRESHOLDS: [number, number] = [3, 10];
 export const DEFAULT_MAP_HEIGHT = 300;
 export const DEFAULT_LIST_HEIGHT = 450;
@@ -32,7 +36,7 @@ export interface FeedOptions {
     /** Move markers between updates instead of jumping (glide.ts). */
     glide: boolean;
     /** The map opens framed to this feed, with the others that are. */
-    frame: boolean;
+    frame: Frame;
 }
 
 export interface CardOptions {
@@ -82,7 +86,7 @@ function parseFeed(options: Record<string, unknown>): FeedOptions {
         areaColor: parseAreaColor(options.area_color),
         labels: options.labels === true,
         glide: options.glide === true,
-        frame: options.frame !== false,
+        frame: parseFrame(options.frame),
     };
 }
 
@@ -90,6 +94,14 @@ function parseMapStyle(value: unknown): MapStyle {
     if (value === undefined) return "default";
     if ((MAP_STYLES as readonly unknown[]).includes(value)) return value as MapStyle;
     throw new Error(`map_style must be one of ${MAP_STYLES.join(", ")}`);
+}
+
+/** `true` and `false` are what the option took before it had a third value. */
+export function parseFrame(value: unknown): Frame {
+    if (value === undefined || value === true) return "area";
+    if (value === false) return "off";
+    if ((FRAMES as readonly unknown[]).includes(value)) return value as Frame;
+    throw new Error(`frame must be one of ${FRAMES.join(", ")}`);
 }
 
 function parseHeight(value: unknown, fallback: number, name: string): number {

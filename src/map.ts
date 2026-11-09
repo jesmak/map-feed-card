@@ -68,8 +68,26 @@ const REVEAL_MARGIN_PX = 32;
 
 /** Not much point in zooming a single item in to its doorstep. */
 const FIT_MAX_ZOOM = 13;
+/** Framed by its items, a lone item keeps enough around it to show where it is: a shoreline, a village. */
+const ITEMS_FIT_MAX_ZOOM = 12;
 /** Home's surroundings, a region rather than streets, while there is nothing to fit the map to. */
 const HOME_ZOOM = 9;
+
+/** Room around a fit, and around whatever covers the map's top or bottom: half a marker's badge, and some air. */
+const FIT_PADDING_PX = 40;
+const FIT_CLEARANCE_PX = 24;
+
+/** How far, in pixels, something drawn over the map reaches into it from its top and its bottom. */
+export interface Covered {
+    top: number;
+    bottom: number;
+}
+
+/** A fit's padding, so the items at its edges stay clear of a legend over the map's top and a note over its bottom. */
+export function fitPadding({ top, bottom }: Covered): { top: number; bottom: number; left: number; right: number } {
+    const clear = (covered: number) => Math.max(FIT_PADDING_PX, covered > 0 ? covered + FIT_CLEARANCE_PX : 0);
+    return { top: clear(top), bottom: clear(bottom), left: FIT_PADDING_PX, right: FIT_PADDING_PX };
+}
 
 /** A gliding marker's trail is drawn again once its end has moved this far, not on every frame. */
 const TRAIL_STEP_PX = 1;
@@ -110,6 +128,8 @@ export class FeedMap {
     private destroyed = false;
     /** What the map was last fitted to, fitted again when its size changes until someone moves it. */
     private fittedTo: [LngLat, LngLat] | null = null;
+    private fittedByItems = false;
+    private fittedCovered: () => Covered = () => ({ top: 0, bottom: 0 });
     private movedSinceFit = false;
     /** Set when someone moves the map, so it no longer moves by itself to show the selected item until the next tap. */
     private movedByHand = false;
@@ -245,11 +265,17 @@ export class FeedMap {
         return this.movedSinceFit;
     }
 
-    /** Shows everything in `bounds`, as [[west, south], [east, north]]. */
-    fit(bounds: [LngLat, LngLat]): void {
+    /**
+     * Shows everything in `bounds`, as [[west, south], [east, north]]; `byItems` when they are a feed's items, not an
+     * area. `covered` is asked again on every fit, as a new size can wrap the legend onto more lines.
+     */
+    fit(bounds: [LngLat, LngLat], byItems = false, covered: () => Covered = () => ({ top: 0, bottom: 0 })): void {
         this.fittedTo = bounds;
+        this.fittedByItems = byItems;
+        this.fittedCovered = covered;
         this.movedSinceFit = false;
-        this.map?.fitBounds(bounds, { padding: 40, maxZoom: FIT_MAX_ZOOM, animate: false });
+        const maxZoom = byItems ? ITEMS_FIT_MAX_ZOOM : FIT_MAX_ZOOM;
+        this.map?.fitBounds(bounds, { padding: fitPadding(covered()), maxZoom, animate: false });
     }
 
     /** An item was tapped: it is shown again, wherever the map had been moved to before. */
@@ -281,7 +307,7 @@ export class FeedMap {
         delete this.container.dataset.mapReady;
         this.map.resize();
         // A dashboard lays its columns out after the card has started, so the first fit can be for another width.
-        if (this.fittedTo && !this.movedSinceFit) this.fit(this.fittedTo);
+        if (this.fittedTo && !this.movedSinceFit) this.fit(this.fittedTo, this.fittedByItems, this.fittedCovered);
     }
 
     destroy(): void {

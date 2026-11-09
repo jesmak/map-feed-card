@@ -1,4 +1,4 @@
-/*! map-feed-card 1.5.1 | MIT License */
+/*! map-feed-card 1.6.0 | MIT License */
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
@@ -1624,8 +1624,11 @@ var en_default = {
     labels: "Show names beside the markers",
     glide: "Glide markers between updates",
     glide_helper: "Moves each marker smoothly from its previous position to the new one. It then shows where the item was one update ago.",
-    frame: "Frame the map to this feed",
-    frame_helper: "Turn off when this feed shouldn't be used to frame the map's initial view.",
+    frame: "Frame the map when the card opens",
+    frame_helper: "To the feed's area, or to what's in the feed (its area while it's empty). Leave a feed out when it shouldn't frame the map's initial view.",
+    frame_area: "To the area",
+    frame_items: "To the items",
+    frame_off: "Leave this feed out",
     row_step: "Rounding in a sections view",
     row_step_helper: "With automatic row height, the card's height is rounded up to whole rows, or to half rows to save space.",
     row_step_full: "Whole rows",
@@ -1765,8 +1768,11 @@ var fi_default = {
     labels: "N\xE4yt\xE4 nimet merkkien vieress\xE4",
     glide: "Liu'uta merkkej\xE4 p\xE4ivitysten v\xE4lill\xE4",
     glide_helper: "Merkki liikkuu tasaisesti edellisest\xE4 sijainnista uuteen. Se n\xE4ytt\xE4\xE4 silloin, miss\xE4 kohde oli yht\xE4 p\xE4ivityst\xE4 aiemmin.",
-    frame: "Rajaa kartta t\xE4h\xE4n sy\xF6tteeseen",
-    frame_helper: "Ota pois k\xE4yt\xF6st\xE4, kun haluat, ett\xE4 t\xE4t\xE4 sy\xF6tett\xE4 ei k\xE4ytet\xE4 n\xE4ytett\xE4v\xE4n kartta-alueen alustavaan rajaamiseen.",
+    frame: "Kartan rajaus kortin avautuessa",
+    frame_helper: "Sy\xF6tteen alueeseen tai sen kohteisiin (tyhj\xE4ll\xE4 sy\xF6tteell\xE4 alueeseen). J\xE4t\xE4 sy\xF6te pois, jos sit\xE4 ei tule k\xE4ytt\xE4\xE4 kartan alkun\xE4kym\xE4n rajaamiseen.",
+    frame_area: "Alueeseen",
+    frame_items: "Kohteisiin",
+    frame_off: "J\xE4t\xE4 t\xE4m\xE4 sy\xF6te pois",
     row_step: "Py\xF6ristys osioihin jaetussa n\xE4kym\xE4ss\xE4",
     row_step_helper: "Automaattisella rivikorkeudella kortin korkeus py\xF6ristet\xE4\xE4n yl\xF6sp\xE4in kokonaisiin riveihin, tai tilan s\xE4\xE4st\xE4miseksi puolikkaisiin riveihin.",
     row_step_full: "Kokonaisiin riveihin",
@@ -1934,6 +1940,7 @@ function countText(n6, lists, text2) {
 // src/options.ts
 var MAP_STYLES = ["default", "colorful", "natural", "muted", "gray", "toner"];
 var COLOR_BY = ["kind", "delay"];
+var FRAMES = ["area", "items", "off"];
 var DEFAULT_DELAY_THRESHOLDS = [3, 10];
 var DEFAULT_MAP_HEIGHT = 300;
 var DEFAULT_LIST_HEIGHT = 450;
@@ -1970,13 +1977,19 @@ function parseFeed(options) {
     areaColor: parseAreaColor(options.area_color),
     labels: options.labels === true,
     glide: options.glide === true,
-    frame: options.frame !== false
+    frame: parseFrame(options.frame)
   };
 }
 function parseMapStyle(value) {
   if (value === void 0) return "default";
   if (MAP_STYLES.includes(value)) return value;
   throw new Error(`map_style must be one of ${MAP_STYLES.join(", ")}`);
+}
+function parseFrame(value) {
+  if (value === void 0 || value === true) return "area";
+  if (value === false) return "off";
+  if (FRAMES.includes(value)) return value;
+  throw new Error(`frame must be one of ${FRAMES.join(", ")}`);
 }
 function parseHeight(value, fallback, name) {
   if (value === void 0) return fallback;
@@ -2025,7 +2038,7 @@ var FEED_DEFAULTS = {
   show_area: false,
   labels: false,
   glide: false,
-  frame: true
+  frame: "area"
 };
 var MINUTES = { number: { min: 0, max: 1440, step: 1, mode: "box", unit_of_measurement: "min" } };
 function feedFields(type, hasArea, options) {
@@ -2060,7 +2073,7 @@ function feedSchema(fields, text2) {
     glide: { boolean: {} },
     show_area: { boolean: {} },
     area_color: { text: {} },
-    frame: { boolean: {} }
+    frame: { select: { mode: "dropdown", options: FRAMES.map((value) => ({ value, label: text2(`editor.frame_${value}`) })) } }
   };
   return fields.map((name) => ({ name, selector: selectors[name] }));
 }
@@ -2151,10 +2164,11 @@ var MapFeedCardEditor = class extends i4 {
   }
   render() {
     if (!this.hass) return A;
-    const entities = (Array.isArray(this.config.entities) ? this.config.entities : []).map((entry) => ({
-      ...FEED_DEFAULTS,
-      ...typeof entry === "string" ? { entity: entry } : entry
-    }));
+    const entities = (Array.isArray(this.config.entities) ? this.config.entities : []).map((entry) => {
+      const feed = { ...FEED_DEFAULTS, ...typeof entry === "string" ? { entity: entry } : entry };
+      if (typeof feed.frame === "boolean") feed.frame = parseFrame(feed.frame);
+      return feed;
+    });
     const sections = Object.fromEntries(entities.map((entry, index) => [`feed_${index}`, entry]));
     this.entities = entities;
     return b2`
@@ -34516,7 +34530,14 @@ function describe(error) {
 // src/map.ts
 var REVEAL_MARGIN_PX = 32;
 var FIT_MAX_ZOOM = 13;
+var ITEMS_FIT_MAX_ZOOM = 12;
 var HOME_ZOOM = 9;
+var FIT_PADDING_PX = 40;
+var FIT_CLEARANCE_PX = 24;
+function fitPadding({ top, bottom }) {
+  const clear = (covered) => Math.max(FIT_PADDING_PX, covered > 0 ? covered + FIT_CLEARANCE_PX : 0);
+  return { top: clear(top), bottom: clear(bottom), left: FIT_PADDING_PX, right: FIT_PADDING_PX };
+}
 var TRAIL_STEP_PX = 1;
 var RECOVERY_THROTTLE_MS = 3e4;
 var SHAPES = "feed-shapes";
@@ -34546,6 +34567,8 @@ var FeedMap = class {
     this.destroyed = false;
     /** What the map was last fitted to, fitted again when its size changes until someone moves it. */
     this.fittedTo = null;
+    this.fittedByItems = false;
+    this.fittedCovered = () => ({ top: 0, bottom: 0 });
     this.movedSinceFit = false;
     /** Set when someone moves the map, so it no longer moves by itself to show the selected item until the next tap. */
     this.movedByHand = false;
@@ -34650,11 +34673,17 @@ var FeedMap = class {
   get moved() {
     return this.movedSinceFit;
   }
-  /** Shows everything in `bounds`, as [[west, south], [east, north]]. */
-  fit(bounds) {
+  /**
+   * Shows everything in `bounds`, as [[west, south], [east, north]]; `byItems` when they are a feed's items, not an
+   * area. `covered` is asked again on every fit, as a new size can wrap the legend onto more lines.
+   */
+  fit(bounds, byItems = false, covered = () => ({ top: 0, bottom: 0 })) {
     this.fittedTo = bounds;
+    this.fittedByItems = byItems;
+    this.fittedCovered = covered;
     this.movedSinceFit = false;
-    this.map?.fitBounds(bounds, { padding: 40, maxZoom: FIT_MAX_ZOOM, animate: false });
+    const maxZoom = byItems ? ITEMS_FIT_MAX_ZOOM : FIT_MAX_ZOOM;
+    this.map?.fitBounds(bounds, { padding: fitPadding(covered()), maxZoom, animate: false });
   }
   /** An item was tapped: it is shown again, wherever the map had been moved to before. */
   tapped() {
@@ -34681,7 +34710,7 @@ var FeedMap = class {
     if (!this.map) return;
     delete this.container.dataset.mapReady;
     this.map.resize();
-    if (this.fittedTo && !this.movedSinceFit) this.fit(this.fittedTo);
+    if (this.fittedTo && !this.movedSinceFit) this.fit(this.fittedTo, this.fittedByItems, this.fittedCovered);
   }
   destroy() {
     this.destroyed = true;
@@ -34935,7 +34964,7 @@ var TITLE_PX = 48;
 var BORDER_PX = 2;
 console.info(
   `%c  MAP-FEED-CARD 
-%c  ${"1.5.1"}    `,
+%c  ${"1.6.0"}    `,
   "color: orange; font-weight: bold; background: black",
   "color: white; font-weight: bold; background: dimgray"
 );
@@ -35266,7 +35295,7 @@ var MapFeedCard = class extends i4 {
     if (!this.fitted) {
       const bounds = boundsOf(this.view.extent);
       if (bounds) {
-        this.map.fit(bounds);
+        this.map.fit(bounds, this.view.framedByItems, () => this.covered());
         this.fitted = true;
         this.revealSelected = true;
       }
@@ -35366,6 +35395,16 @@ var MapFeedCard = class extends i4 {
     const content = card.getBoundingClientRect().height / scale - Math.max(0, grown.getBoundingClientRect().height / scale - this.options.mapHeight);
     const filled = filledHeight(content, this.config, limit);
     if (filled !== this.filled) this.filled = filled;
+  }
+  /** How far the legend and the note over the map reach into it, so a fit keeps the items at its edges clear of them. */
+  covered() {
+    const wrap2 = this.renderRoot.querySelector(".map-wrap");
+    const legend = this.renderRoot.querySelector(".map-wrap > .legend");
+    const note = this.renderRoot.querySelector(".map-wrap > .map-note");
+    return {
+      top: legend ? legend.offsetTop + legend.offsetHeight : 0,
+      bottom: wrap2 && note ? wrap2.clientHeight - note.offsetTop : 0
+    };
   }
   /** Follows the details' sheet's size, which changes as its pictures load, so the item is kept clear of it. */
   followSheet() {
@@ -35487,7 +35526,8 @@ var MapFeedCard = class extends i4 {
       lists: [],
       legend: [],
       problems: [],
-      extent: []
+      extent: [],
+      framedByItems: false
     };
     const now = Date.now();
     const legends = /* @__PURE__ */ new Set();
@@ -35556,7 +35596,10 @@ var MapFeedCard = class extends i4 {
       }
       if (area && feed.showArea)
         view.content.areas.push({ area, color: feed.areaColor ?? areaColor(this.dark()) });
-      if (feed.frame) view.extent.push(...area ? areaOutline(area) : extent);
+      if (feed.frame === "items" && extent.length) {
+        view.extent.push(...extent);
+        view.framedByItems = true;
+      } else if (feed.frame !== "off") view.extent.push(...area ? areaOutline(area) : extent);
       if (attribution) {
         view.content.attributions.push(
           attributionUrl ? `<a href="${escapeHtml(attributionUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(attribution)}</a>` : escapeHtml(attribution)

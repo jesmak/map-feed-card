@@ -8,7 +8,7 @@ import { entityName, type HomeAssistant } from "./hass";
 import { rowStepData, rowStepSchema, tidyRowStep, type RowStepConfig } from "./rows";
 import { browserLanguage, translate } from "./localize/localize";
 import { sortOptions } from "./list";
-import { DEFAULT_DELAY_THRESHOLDS, DEFAULT_LIST_HEIGHT, DEFAULT_MAP_HEIGHT, MAP_STYLES } from "./options";
+import { DEFAULT_DELAY_THRESHOLDS, DEFAULT_LIST_HEIGHT, DEFAULT_MAP_HEIGHT, FRAMES, MAP_STYLES, parseFrame } from "./options";
 
 interface SchemaEntry {
     name: string;
@@ -31,7 +31,7 @@ const FEED_DEFAULTS: Record<string, unknown> = {
     show_area: false,
     labels: false,
     glide: false,
-    frame: true,
+    frame: "area",
 };
 
 const MINUTES = { number: { min: 0, max: 1440, step: 1, mode: "box", unit_of_measurement: "min" } };
@@ -77,7 +77,7 @@ function feedSchema(fields: string[], text: (key: string) => string) {
         glide: { boolean: {} },
         show_area: { boolean: {} },
         area_color: { text: {} },
-        frame: { boolean: {} },
+        frame: { select: { mode: "dropdown", options: FRAMES.map((value) => ({ value, label: text(`editor.frame_${value}`) })) } },
     };
     return fields.map((name) => ({ name, selector: selectors[name] }));
 }
@@ -183,10 +183,12 @@ export class MapFeedCardEditor extends LitElement {
     protected render(): TemplateResult | typeof nothing {
         if (!this.hass) return nothing;
         // The form edits every feed as an object, with its defaults filled in; plain entity ids are expanded for it.
-        const entities = (Array.isArray(this.config.entities) ? this.config.entities : []).map((entry: unknown) => ({
-            ...FEED_DEFAULTS,
-            ...(typeof entry === "string" ? { entity: entry } : (entry as FeedEntry)),
-        }));
+        const entities = (Array.isArray(this.config.entities) ? this.config.entities : []).map((entry: unknown) => {
+            const feed: FeedEntry = { ...FEED_DEFAULTS, ...(typeof entry === "string" ? { entity: entry } : (entry as FeedEntry)) };
+            // A frame of true or false is shown as the value it means, and written as that once the feed is edited.
+            if (typeof feed.frame === "boolean") feed.frame = parseFrame(feed.frame);
+            return feed;
+        });
         // Each feed's section edits a copy of its entry; valueChanged writes it back.
         const sections = Object.fromEntries(entities.map((entry, index) => [`feed_${index}`, entry]));
         this.entities = entities;

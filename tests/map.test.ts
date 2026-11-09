@@ -9,6 +9,8 @@ const sources = vi.hoisted(() => ({}) as Record<string, { data?: unknown; setDat
 const handlers = vi.hoisted(() => ({}) as Record<string, (event: unknown) => void>);
 // Where the map was moved to, and with what offset.
 const eased = vi.hoisted(() => [] as Array<{ center: unknown; offset?: [number, number] }>);
+// What each fit asked MapLibre for.
+const fits = vi.hoisted(() => [] as Array<{ maxZoom: number; padding: unknown }>);
 // The styles loaded from Home Assistant, and those the map was given to draw.
 const styles = vi.hoisted(() => ({
     load: vi.fn(async () => ({ version: 8, sources: {}, layers: [] }) as unknown),
@@ -42,7 +44,7 @@ vi.mock("maplibre-gl", () => {
         project = ([lon, lat]: LngLat) => ({ x: lon * 100_000, y: lat * 100_000 });
         getContainer = () => ({ clientWidth: 400, clientHeight: 300 });
         resize = () => undefined;
-        fitBounds = () => undefined;
+        fitBounds = (_bounds: unknown, options: { maxZoom: number; padding: unknown }) => fits.push(options);
         easeTo = (options: { center: unknown; offset?: [number, number] }) => eased.push(options);
         setStyle = (style: unknown) => styles.drawn.push(style);
     }
@@ -75,7 +77,7 @@ vi.mock("../src/map-tiles", () => ({
     transformRequest: (url: string) => ({ url }),
 }));
 
-const { FeedMap } = await import("../src/map");
+const { FeedMap, fitPadding } = await import("../src/map");
 
 function ship(overrides: Partial<FeedPoint> = {}): FeedPoint {
     return {
@@ -466,6 +468,31 @@ describe("laying the map out for a new size", () => {
         const fit = vi.spyOn(map, "fit");
         map.resize();
         expect(fit).toHaveBeenCalledTimes(again ? 1 : 0);
+    });
+
+    it("fits an area up to zoom 13 and items up to 12, padded clear of what covers the map, again on a new size", async () => {
+        vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({} as RenderingContext);
+        const map = new FeedMap(document.createElement("div"), "default", true, null, () => undefined, {});
+        await map.init();
+        fits.length = 0;
+        map.fit(BOUNDS);
+        expect(fits.at(-1)).toEqual({ maxZoom: 13, padding: { top: 40, bottom: 40, left: 40, right: 40 }, animate: false });
+
+        let covered = { top: 38, bottom: 40 };
+        map.fit(BOUNDS, true, () => covered);
+        expect(fits.at(-1)).toEqual({ maxZoom: 12, padding: { top: 62, bottom: 64, left: 40, right: 40 }, animate: false });
+        // A narrower card wraps the legend onto a second line.
+        covered = { top: 60, bottom: 40 };
+        map.resize();
+        expect(fits.at(-1)).toEqual({ maxZoom: 12, padding: { top: 84, bottom: 64, left: 40, right: 40 }, animate: false });
+    });
+
+    it("pads a fit past a legend over the map's top and a note over its bottom", () => {
+        expect(fitPadding({ top: 0, bottom: 0 })).toEqual({ top: 40, bottom: 40, left: 40, right: 40 });
+        // A legend reaching 38 px in, and a note 40 px tall: the edge items' badges clear both.
+        expect(fitPadding({ top: 38, bottom: 40 })).toEqual({ top: 62, bottom: 64, left: 40, right: 40 });
+        // Something barely over the edge needs no more than the padding already gives.
+        expect(fitPadding({ top: 10, bottom: 0 })).toEqual({ top: 40, bottom: 40, left: 40, right: 40 });
     });
 
     // After a tap, the map shows the item whenever the card asks, until someone moves the map; the next tap shows it again.

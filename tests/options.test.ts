@@ -16,7 +16,7 @@ describe("parseOptions", () => {
                     areaColor: null,
                     labels: false,
                     glide: false,
-                    frame: true,
+                    frame: "area",
                 },
             ],
             mapStyle: "default",
@@ -39,11 +39,18 @@ describe("parseOptions", () => {
         expect(feeds[1]).toMatchObject({ showArea: true, areaColor: "#ff6f00", glide: true });
     });
 
-    it("frames the map to a feed unless told not to", () => {
+    it("frames the map to a feed's area unless told otherwise, and reads true and false as area and off", () => {
         const { feeds } = parseOptions({
-            entities: ["sensor.aircraft", { entity: "sensor.airspace", frame: false }, { entity: "sensor.ships", frame: true }],
+            entities: [
+                "sensor.aircraft",
+                { entity: "sensor.airspace", frame: "off" },
+                { entity: "sensor.ships", frame: "items" },
+                { entity: "sensor.birds", frame: true },
+                { entity: "sensor.planes", frame: false },
+            ],
         });
-        expect(feeds.map((feed) => feed.frame)).toEqual([true, false, true]);
+        expect(feeds.map((feed) => feed.frame)).toEqual(["area", "off", "items", "area", "off"]);
+        expect(() => parseOptions({ entities: [{ entity: "sensor.ships", frame: "points" }] })).toThrow(/frame must be one of/);
     });
 
     it("reads the list's options", () => {

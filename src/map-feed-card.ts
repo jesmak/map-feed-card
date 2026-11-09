@@ -31,7 +31,7 @@ import { gridMinRows, heightCardSize, heightStyle, validHeight } from "./height"
 import { drawnScale, fillLimit, filledHeight, filledStyle, validRowStep, type RowStepConfig } from "./rows";
 import { countText, rowOf, sortOptions, sortRows, startingSort, type Row } from "./list";
 import { browserLanguage, translate } from "./localize/localize";
-import { FeedMap, type DrawnArea, type DrawnPoint, type DrawnShape, type MapContent } from "./map";
+import { FeedMap, type Covered, type DrawnArea, type DrawnPoint, type DrawnShape, type MapContent } from "./map";
 import { ensureToken, MapError } from "./map-tiles";
 import { readThemeColors } from "./map-theme";
 import { parseOptions, type CardOptions, type FeedOptions } from "./options";
@@ -107,6 +107,8 @@ interface View {
     problems: string[];
     /** What the map shows when it first opens. */
     extent: LngLat[];
+    /** A feed's items are in the extent by `frame: items`, which zooms in less far. */
+    framedByItems: boolean;
 }
 
 /** A list row that doesn't fit on one line: its value under its texts, or its chip on a line of its own as well. */
@@ -529,7 +531,7 @@ export class MapFeedCard extends LitElement {
         if (!this.fitted) {
             const bounds = boundsOf(this.view.extent);
             if (bounds) {
-                this.map.fit(bounds);
+                this.map.fit(bounds, this.view.framedByItems, () => this.covered());
                 this.fitted = true;
                 // The framing may have moved the selected item out of view, or under the sheet.
                 this.revealSelected = true;
@@ -643,6 +645,17 @@ export class MapFeedCard extends LitElement {
             Math.max(0, grown.getBoundingClientRect().height / scale - this.options.mapHeight);
         const filled = filledHeight(content, this.config, limit);
         if (filled !== this.filled) this.filled = filled;
+    }
+
+    /** How far the legend and the note over the map reach into it, so a fit keeps the items at its edges clear of them. */
+    private covered(): Covered {
+        const wrap = this.renderRoot.querySelector<HTMLElement>(".map-wrap");
+        const legend = this.renderRoot.querySelector<HTMLElement>(".map-wrap > .legend");
+        const note = this.renderRoot.querySelector<HTMLElement>(".map-wrap > .map-note");
+        return {
+            top: legend ? legend.offsetTop + legend.offsetHeight : 0,
+            bottom: wrap && note ? wrap.clientHeight - note.offsetTop : 0,
+        };
     }
 
     /** Follows the details' sheet's size, which changes as its pictures load, so the item is kept clear of it. */
@@ -774,6 +787,7 @@ export class MapFeedCard extends LitElement {
             legend: [],
             problems: [],
             extent: [],
+            framedByItems: false,
         };
         const now = Date.now();
         const legends = new Set<string>();
@@ -847,9 +861,13 @@ export class MapFeedCard extends LitElement {
             }
             if (area && feed.showArea)
                 view.content.areas.push({ area, color: feed.areaColor ?? areaColor(this.dark()) } satisfies DrawnArea);
-            // The feed's area frames the map best; without one, everything in the feed does. A feed left out of the
-            // framing, such as a national one beside a local one, frames nothing.
-            if (feed.frame) view.extent.push(...(area ? areaOutline(area) : extent));
+            // The feed's area frames the map, or without one everything in the feed does. Framed by its items, a feed
+            // with nothing in it falls back to its area. A feed left out of the framing, such as a national one beside
+            // a local one, frames nothing.
+            if (feed.frame === "items" && extent.length) {
+                view.extent.push(...extent);
+                view.framedByItems = true;
+            } else if (feed.frame !== "off") view.extent.push(...(area ? areaOutline(area) : extent));
             // MapLibre reads an attribution as HTML; a feed's is text, as everything in it is, and its link an https URL.
             if (attribution) {
                 view.content.attributions.push(

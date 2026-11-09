@@ -63,8 +63,8 @@ describe("a feed's options in the configuration", () => {
         expect(compactFeeds([{ entity: "sensor.aircraft", glide: false }])).toEqual(["sensor.aircraft"]);
         expect(compactFeeds([{ entity: "sensor.aircraft", glide: true }])).toEqual([{ entity: "sensor.aircraft", glide: true }]);
         // Framing is on unless turned off.
-        expect(compactFeeds([{ entity: "sensor.airspace", frame: true }])).toEqual(["sensor.airspace"]);
-        expect(compactFeeds([{ entity: "sensor.airspace", frame: false }])).toEqual([{ entity: "sensor.airspace", frame: false }]);
+        expect(compactFeeds([{ entity: "sensor.airspace", frame: "area" }])).toEqual(["sensor.airspace"]);
+        expect(compactFeeds([{ entity: "sensor.airspace", frame: "off" }])).toEqual([{ entity: "sensor.airspace", frame: "off" }]);
     });
 });
 

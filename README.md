@@ -74,18 +74,18 @@ The card needs Home Assistant 2026.9.3 or newer. Home Assistant serves the map t
 
 Each feed in `entities` can have options of its own:
 
-| Name                | Type    | Description                                                                                                                                       | Default  |
-| ------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| `entity`            | string  | The map feed sensor                                                                                                                               | required |
-| `color_by`          | string  | `kind` colours by what the item is, `delay` trains and public transport by how late they are                                                      | `kind`   |
-| `late_minutes`      | number  | With `color_by: delay`, minutes late from which an item is yellow                                                                                 | `3`      |
-| `very_late_minutes` | number  | With `color_by: delay`, minutes late from which an item is red                                                                                    | `10`     |
-| `max_age_minutes`   | number  | Hide items whose position is older than this                                                                                                      |          |
-| `show_area`         | boolean | Draw the area the feed covers, as a dashed outline                                                                                                | `false`  |
-| `area_color`        | string  | The area's colour, as a hex colour. By default a blue that suits the theme                                                                        |          |
-| `labels`            | boolean | Show each item's name beside its marker                                                                                                           | `false`  |
-| `glide`             | boolean | Move the markers smoothly between updates instead of jumping, an update behind                                                                    | `false`  |
-| `frame`             | boolean | Frame the map to this feed when the card opens. Off for a feed that covers much more than the others, such as a whole country beside a local feed | `true`   |
+| Name                | Type    | Description                                                                                                                          | Default  |
+| ------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------ | -------- |
+| `entity`            | string  | The map feed sensor                                                                                                                  | required |
+| `color_by`          | string  | `kind` colours by what the item is, `delay` trains and public transport by how late they are                                         | `kind`   |
+| `late_minutes`      | number  | With `color_by: delay`, minutes late from which an item is yellow                                                                    | `3`      |
+| `very_late_minutes` | number  | With `color_by: delay`, minutes late from which an item is red                                                                       | `10`     |
+| `max_age_minutes`   | number  | Hide items whose position is older than this                                                                                         |          |
+| `show_area`         | boolean | Draw the area the feed covers, as a dashed outline                                                                                   | `false`  |
+| `area_color`        | string  | The area's colour, as a hex colour. By default a blue that suits the theme                                                           |          |
+| `labels`            | boolean | Show each item's name beside its marker                                                                                              | `false`  |
+| `glide`             | boolean | Move the markers smoothly between updates instead of jumping, an update behind                                                       | `false`  |
+| `frame`             | string  | Frame the map to the feed's `area` or `items` (its area while empty) when the card opens. `off` for a feed far wider than the others | `area`   |
 
 Every option is in the card's visual editor, which offers each feed only the options that make sense for its [type](docs/map-feed-format.md#feed-type), such as no delays for bird sightings,
 except `height_mode`, `height` and `max_height`, which are set in YAML. In a sections view the layout tab sets the
@@ -104,7 +104,8 @@ previous position to the new one, taking as long as the source took between them
 update ago. A trail drawn behind it ends at the marker. It suits aircraft best, which fly straight between updates, and trains well enough, while a bus turning
 corners cuts across them. Stationary items and anything after a gap of over two minutes still jump, as does
 everything when the system asks for reduced motion. When the card opens, the map shows the feeds' areas, or everything in
-them when they have none, leaving out any feed with `frame` turned off. The map follows the theme, light or dark, and takes the map colours a theme sets with `--ha-color-map-*` variables, as Home Assistant's own map does. Its corner credits each feed's source, with a link when the feed gives one.
+them when they have none, leaving out any feed with `frame: off`. A feed with `frame: items` is shown by what is in it instead
+of its area, zoomed in a little less far than an area would be, so a single ship still shows the shore around it. The map follows the theme, light or dark, and takes the map colours a theme sets with `--ha-color-map-*` variables, as Home Assistant's own map does. Its corner credits each feed's source, with a link when the feed gives one.
 The mouse wheel zooms the map only with Ctrl held (⌘ on a Mac), and on a touch screen the map moves with two fingers,
 so the wheel and a one-finger swipe over the map scroll the page. A hint over the map says so when they are tried.
 
