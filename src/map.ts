@@ -12,7 +12,7 @@ import { areaOutline, type FeedArea, type FeedPoint, type FeedShape, type LngLat
 import { linePieces } from "./blend";
 import { cutTrail, nextGlide, positionAt, type Glide, type Report } from "./glide";
 import { loadStyle, MapError, onTokenChange, refreshToken, transformRequest } from "./map-tiles";
-import type { MapStyle } from "./options";
+import type { MapStyle, MapView } from "./options";
 import { escapeHtml, markerHtml, textOn } from "./style";
 
 /** A point as the card wants it drawn. `key` is unique across the card's feeds. */
@@ -74,8 +74,6 @@ const SMALL_SHAPE_PX = 40;
 const FIT_MAX_ZOOM = 13;
 /** Framed by its items, a lone item keeps enough around it to show where it is: a shoreline, a village. */
 const ITEMS_FIT_MAX_ZOOM = 12;
-/** Home's surroundings, a region rather than streets, while there is nothing to fit the map to. */
-const HOME_ZOOM = 9;
 
 /** Room around a fit, and around whatever covers the map's top or bottom: half a marker's badge, and some air. */
 const FIT_PADDING_PX = 40;
@@ -150,7 +148,8 @@ export class FeedMap {
         private readonly onSelect: (key: string | null) => void,
         /** MapLibre's UI strings by its own IDs, read once when the map is made. */
         private readonly locale: Record<string, string>,
-        private readonly home: LngLat | null = null,
+        /** Where the map is until something frames it. */
+        private readonly start: MapView | null = null,
     ) {
         this.style = style;
         this.dark = dark;
@@ -169,8 +168,8 @@ export class FeedMap {
         const map = new MapLibreMap({
             container: this.container,
             style,
-            center: this.home ?? [0, 0],
-            zoom: this.home ? HOME_ZOOM : 1,
+            center: this.start?.center ?? [0, 0],
+            zoom: this.start?.zoom ?? 1,
             attributionControl: false,
             // The wheel and a one-finger drag scroll the page, so the map doesn't trap it. Ctrl and two fingers move the map.
             cooperativeGestures: true,
@@ -268,6 +267,18 @@ export class FeedMap {
         this.updateMarkers();
         this.updateLayers();
         this.updateAttribution();
+    }
+
+    /** Where the map is now, rounded to what a configuration needs: about ten metres, and a tenth of a zoom level. */
+    get view(): MapView | null {
+        if (!this.map) return null;
+        const { lng, lat } = this.map.getCenter();
+        return { center: [Math.round(lng * 1e4) / 1e4, Math.round(lat * 1e4) / 1e4], zoom: Math.round(this.map.getZoom() * 10) / 10 };
+    }
+
+    /** Puts the map where it starts, when nothing frames it. */
+    show(view: MapView): void {
+        this.map?.jumpTo(view);
     }
 
     /** Whether the map has been moved since it was last fitted, by someone or to reveal a selected item. */

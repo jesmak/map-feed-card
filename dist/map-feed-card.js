@@ -1646,7 +1646,12 @@ var en_default = {
     row_step: "Rounding in a sections view",
     row_step_helper: "With automatic row height, the card's height is rounded up to whole rows, or to half rows to save space.",
     row_step_full: "Whole rows",
-    row_step_half: "Half rows"
+    row_step_half: "Half rows",
+    latitude: "Latitude",
+    longitude: "Longitude",
+    zoom: "Zoom",
+    start_helper: "The map opens in this view when no feed frames it. Move the preview's map to the view you want and press the button, or fill in all three fields by hand.",
+    use_preview_view: "Use the preview's view"
   },
   list: {
     count: "{n} items",
@@ -1792,7 +1797,12 @@ var fi_default = {
     row_step: "Py\xF6ristys osioihin jaetussa n\xE4kym\xE4ss\xE4",
     row_step_helper: "Automaattisella rivikorkeudella kortin korkeus py\xF6ristet\xE4\xE4n yl\xF6sp\xE4in kokonaisiin riveihin, tai tilan s\xE4\xE4st\xE4miseksi puolikkaisiin riveihin.",
     row_step_full: "Kokonaisiin riveihin",
-    row_step_half: "Puolikkaisiin riveihin"
+    row_step_half: "Puolikkaisiin riveihin",
+    latitude: "Leveysaste",
+    longitude: "Pituusaste",
+    zoom: "Zoomaus",
+    start_helper: "Kartta avautuu t\xE4h\xE4n n\xE4kym\xE4\xE4n, kun mik\xE4\xE4n sy\xF6te ei rajaa sit\xE4. Siirr\xE4 esikatselun kartta haluamaasi n\xE4kym\xE4\xE4n ja paina painiketta, tai t\xE4yt\xE4 kaikki kolme kentt\xE4\xE4 k\xE4sin.",
+    use_preview_view: "K\xE4yt\xE4 esikatselun n\xE4kym\xE4\xE4"
   },
   list: {
     count: "{n} kohdetta",
@@ -1960,6 +1970,7 @@ var FRAMES = ["area", "items", "off"];
 var DEFAULT_DELAY_THRESHOLDS = [3, 10];
 var DEFAULT_MAP_HEIGHT = 300;
 var DEFAULT_LIST_HEIGHT = 450;
+var MAX_START_ZOOM = 18;
 var ENTITY_ID = /^[a-z_]+\.[a-z0-9_]+$/;
 function parseOptions(raw) {
   const config = isRecord2(raw) ? raw : {};
@@ -1976,7 +1987,8 @@ function parseOptions(raw) {
     legend: config.legend !== false,
     list: config.list === true,
     listHeight: parseHeight(config.list_height, DEFAULT_LIST_HEIGHT, "list_height"),
-    sort: typeof config.sort === "string" && config.sort.trim() ? config.sort.trim() : null
+    sort: typeof config.sort === "string" && config.sort.trim() ? config.sort.trim() : null,
+    start: parseStart(config.latitude, config.longitude, config.zoom)
   };
 }
 function parseFeed(options) {
@@ -1996,6 +2008,15 @@ function parseFeed(options) {
     frame: parseFrame(options.frame),
     inList: options.in_list !== false
   };
+}
+function parseStart(latitudeValue, longitudeValue, zoomValue) {
+  const set = (value) => value !== void 0 && value !== null && value !== "";
+  if (![latitudeValue, longitudeValue, zoomValue].every(set)) return null;
+  const [latitude, longitude, zoom] = [number(latitudeValue), number(longitudeValue), number(zoomValue)];
+  if (latitude === null || Math.abs(latitude) > 90) throw new Error("latitude must be a number from -90 to 90");
+  if (longitude === null || Math.abs(longitude) > 180) throw new Error("longitude must be a number from -180 to 180");
+  if (zoom === null || zoom < 0 || zoom > MAX_START_ZOOM) throw new Error(`zoom must be a number from 0 to ${MAX_START_ZOOM}`);
+  return { center: [longitude, latitude], zoom };
 }
 function parseMapStyle(value) {
   if (value === void 0) return "default";
@@ -2148,7 +2169,17 @@ function schema(hass, text2, entities, sort, config) {
       entities.map((entry) => String(entry.entity ?? "")),
       sort
     ),
-    ...rowStepSchema(config, text2)
+    ...rowStepSchema(config, text2),
+    {
+      type: "grid",
+      name: "",
+      column_min_width: "100px",
+      schema: [
+        { name: "latitude", selector: { number: { min: -90, max: 90, step: 1e-4, mode: "box" } } },
+        { name: "longitude", selector: { number: { min: -180, max: 180, step: 1e-4, mode: "box" } } },
+        { name: "zoom", selector: { number: { min: 0, max: MAX_START_ZOOM, step: 0.1, mode: "box" } } }
+      ]
+    }
   ];
 }
 function sortField(hass, entities, sort) {
@@ -2172,6 +2203,14 @@ function withoutDefaults(config, defaults) {
   return Object.fromEntries(
     Object.entries(config).filter(([key, value]) => value !== void 0 && value !== null && value !== "" && defaults[key] !== value)
   );
+}
+function findDeep(root, tag) {
+  for (const element of root.querySelectorAll("*")) {
+    if (element.localName === tag) return element;
+    const inside = element.shadowRoot && findDeep(element.shadowRoot, tag);
+    if (inside) return inside;
+  }
+  return null;
 }
 var MapFeedCardEditor = class extends i4 {
   constructor() {
@@ -2201,7 +2240,27 @@ var MapFeedCardEditor = class extends i4 {
                 .computeHelper=${(entry) => this.helper(entry.name)}
                 @value-changed=${this.valueChanged}
             ></ha-form>
+            <p class="start">${this.text("editor.start_helper")}</p>
+            <ha-button appearance="plain" @click=${this.usePreviewView}>${this.text("editor.use_preview_view")}</ha-button>
         `;
+  }
+  /** Writes where the preview's map is now as the view the map starts in. */
+  usePreviewView() {
+    const view = this.previewCard()?.mapView;
+    if (!view) return;
+    const config = { ...this.config, longitude: view.center[0], latitude: view.center[1], zoom: view.zoom };
+    this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
+  }
+  /**
+   * The card the dialog draws as this editor's preview: the nearest map-feed-card around the editor, looked for in
+   * each shadow tree it is in, from the innermost out. In edit mode the dashboard has the card too, further out.
+   */
+  previewCard() {
+    for (let root = this.getRootNode(); root instanceof ShadowRoot; root = root.host.getRootNode()) {
+      const card = findDeep(root, "map-feed-card");
+      if (card) return card;
+    }
+    return null;
   }
   valueChanged(event) {
     const value = event.detail.value;
@@ -2228,6 +2287,13 @@ var MapFeedCardEditor = class extends i4 {
     return helper === key ? void 0 : helper;
   }
 };
+MapFeedCardEditor.styles = i`
+        .start {
+            margin: 16px 0 8px;
+            color: var(--secondary-text-color);
+            font-size: 14px;
+        }
+    `;
 __decorateClass([
   n4({ attribute: false })
 ], MapFeedCardEditor.prototype, "hass", 2);
@@ -34605,7 +34671,6 @@ var REVEAL_MARGIN_PX = 32;
 var SMALL_SHAPE_PX = 40;
 var FIT_MAX_ZOOM = 13;
 var ITEMS_FIT_MAX_ZOOM = 12;
-var HOME_ZOOM = 9;
 var FIT_PADDING_PX = 40;
 var FIT_CLEARANCE_PX = 24;
 function fitPadding({ top, bottom }) {
@@ -34624,11 +34689,11 @@ function ensureWorker() {
   NI(URL.createObjectURL(new Blob([maplibre_gl_worker_default], { type: "text/javascript" })));
 }
 var FeedMap = class {
-  constructor(container, style, dark, theme, onSelect, locale, home = null) {
+  constructor(container, style, dark, theme, onSelect, locale, start = null) {
     this.container = container;
     this.onSelect = onSelect;
     this.locale = locale;
-    this.home = home;
+    this.start = start;
     this.markers = /* @__PURE__ */ new Map();
     this.content = { points: [], shapes: [], areas: [], attributions: [], selected: null };
     this.attributionText = "";
@@ -34663,8 +34728,8 @@ var FeedMap = class {
     const map = new LF({
       container: this.container,
       style,
-      center: this.home ?? [0, 0],
-      zoom: this.home ? HOME_ZOOM : 1,
+      center: this.start?.center ?? [0, 0],
+      zoom: this.start?.zoom ?? 1,
       attributionControl: false,
       // The wheel and a one-finger drag scroll the page, so the map doesn't trap it. Ctrl and two fingers move the map.
       cooperativeGestures: true,
@@ -34747,6 +34812,16 @@ var FeedMap = class {
     this.updateMarkers();
     this.updateLayers();
     this.updateAttribution();
+  }
+  /** Where the map is now, rounded to what a configuration needs: about ten metres, and a tenth of a zoom level. */
+  get view() {
+    if (!this.map) return null;
+    const { lng, lat } = this.map.getCenter();
+    return { center: [Math.round(lng * 1e4) / 1e4, Math.round(lat * 1e4) / 1e4], zoom: Math.round(this.map.getZoom() * 10) / 10 };
+  }
+  /** Puts the map where it starts, when nothing frames it. */
+  show(view) {
+    this.map?.jumpTo(view);
   }
   /** Whether the map has been moved since it was last fitted, by someone or to reveal a selected item. */
   get moved() {
@@ -35156,6 +35231,7 @@ function splitRows(card) {
   items.forEach((item) => item?.style.removeProperty("height"));
   return splits;
 }
+var HOME_ZOOM = 9;
 var MapFeedCard = class extends i4 {
   constructor() {
     super();
@@ -35173,6 +35249,8 @@ var MapFeedCard = class extends i4 {
     this.selectedAt = 0;
     this.mapStarting = false;
     this.fitted = false;
+    /** The configuration's start view has changed, and the map, when nothing frames it, is to go there. */
+    this.startChanged = false;
     this.loader = new DetailLoader();
     /** Set by the tick when a feed has max_age_minutes, so the view is built again to drop what has aged out. */
     this.ageing = false;
@@ -35189,6 +35267,10 @@ var MapFeedCard = class extends i4 {
     /** The rows last measured too wide for one line, so a render never drops a split. */
     this.rowSplits = /* @__PURE__ */ new Map();
     new ScrollFade(this, () => this.heightStyle() ? this.renderRoot.querySelectorAll(".list .rows") : []);
+  }
+  /** Where the card's map is now, for the editor's button that saves its preview's view. */
+  get mapView() {
+    return this.map?.view ?? null;
   }
   static getConfigElement() {
     return document.createElement("map-feed-card-editor");
@@ -35212,6 +35294,7 @@ var MapFeedCard = class extends i4 {
     if (previous && previous.feeds.map((feed) => feed.entity).join() !== options.feeds.map((feed) => feed.entity).join()) {
       this.fitted = false;
     }
+    if (previous && JSON.stringify(previous.start) !== JSON.stringify(options.start)) this.startChanged = true;
     void this.map?.setStyle(options.mapStyle, this.dark(), this.themeColors());
   }
   getCardSize() {
@@ -35459,6 +35542,10 @@ var MapFeedCard = class extends i4 {
         this.revealSelected = true;
       }
     }
+    if (this.startChanged) {
+      this.startChanged = false;
+      if (this.options.start && this.view.extent.length === 0) this.map.show(this.options.start);
+    }
     const selected = this.selected ? this.view.items.get(this.selected) : void 0;
     const position = selected?.point;
     const at3 = position ? `${position.lon},${position.lat}` : "";
@@ -35583,7 +35670,7 @@ var MapFeedCard = class extends i4 {
   async startMap() {
     this.mapStarting = true;
     const { latitude, longitude } = this.hass.config ?? {};
-    const home = typeof latitude === "number" && typeof longitude === "number" ? [longitude, latitude] : null;
+    const home = typeof latitude === "number" && typeof longitude === "number" ? { center: [longitude, latitude], zoom: HOME_ZOOM } : null;
     const locale = {
       "CooperativeGesturesHandler.WindowsHelpText": this.text("gestures.windows"),
       "CooperativeGesturesHandler.MacHelpText": this.text("gestures.mac"),
@@ -35598,7 +35685,7 @@ var MapFeedCard = class extends i4 {
       this.themeColors(),
       (key) => this.select(key),
       locale,
-      home
+      this.options.start ?? home
     );
     try {
       await ensureToken(this.hass);

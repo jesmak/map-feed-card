@@ -17,6 +17,7 @@ export type Frame = (typeof FRAMES)[number];
 export const DEFAULT_DELAY_THRESHOLDS: [number, number] = [3, 10];
 export const DEFAULT_MAP_HEIGHT = 300;
 export const DEFAULT_LIST_HEIGHT = 450;
+export const MAX_START_ZOOM = 18;
 
 const ENTITY_ID = /^[a-z_]+\.[a-z0-9_]+$/;
 
@@ -41,6 +42,12 @@ export interface FeedOptions {
     inList: boolean;
 }
 
+/** Where a map is, as [longitude, latitude] and MapLibre's zoom. */
+export interface MapView {
+    center: [number, number];
+    zoom: number;
+}
+
 export interface CardOptions {
     title: string;
     feeds: FeedOptions[];
@@ -52,6 +59,8 @@ export interface CardOptions {
     listHeight: number;
     /** The sort key the list starts in; null = the first feed's default. */
     sort: string | null;
+    /** The view the map opens in when no feed frames it; null = Home Assistant's home. */
+    start: MapView | null;
 }
 
 export function parseOptions(raw: unknown): CardOptions {
@@ -71,6 +80,7 @@ export function parseOptions(raw: unknown): CardOptions {
         list: config.list === true,
         listHeight: parseHeight(config.list_height, DEFAULT_LIST_HEIGHT, "list_height"),
         sort: typeof config.sort === "string" && config.sort.trim() ? config.sort.trim() : null,
+        start: parseStart(config.latitude, config.longitude, config.zoom),
     };
 }
 
@@ -91,6 +101,17 @@ function parseFeed(options: Record<string, unknown>): FeedOptions {
         frame: parseFrame(options.frame),
         inList: options.in_list !== false,
     };
+}
+
+/** All three or no view: one or two of them are an editor's form half filled in, and are left unused. */
+function parseStart(latitudeValue: unknown, longitudeValue: unknown, zoomValue: unknown): MapView | null {
+    const set = (value: unknown) => value !== undefined && value !== null && value !== "";
+    if (![latitudeValue, longitudeValue, zoomValue].every(set)) return null;
+    const [latitude, longitude, zoom] = [number(latitudeValue), number(longitudeValue), number(zoomValue)];
+    if (latitude === null || Math.abs(latitude) > 90) throw new Error("latitude must be a number from -90 to 90");
+    if (longitude === null || Math.abs(longitude) > 180) throw new Error("longitude must be a number from -180 to 180");
+    if (zoom === null || zoom < 0 || zoom > MAX_START_ZOOM) throw new Error(`zoom must be a number from 0 to ${MAX_START_ZOOM}`);
+    return { center: [longitude, latitude], zoom };
 }
 
 function parseMapStyle(value: unknown): MapStyle {

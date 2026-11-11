@@ -35,7 +35,7 @@ import { browserLanguage, translate } from "./localize/localize";
 import { FeedMap, type Covered, type DrawnArea, type DrawnPoint, type DrawnShape, type MapContent } from "./map";
 import { ensureToken, MapError } from "./map-tiles";
 import { readThemeColors } from "./map-theme";
-import { parseOptions, type CardOptions, type FeedOptions } from "./options";
+import { parseOptions, type CardOptions, type FeedOptions, type MapView } from "./options";
 import { areaColor, canBeLate, DELAY_COLORS, delayClass, escapeHtml, pointColor, shapeColor, textOn } from "./style";
 
 /** Replaced at build time with the version in package.json. */
@@ -151,6 +151,9 @@ export function splitRows(card: HTMLElement): Map<string, RowSplit> {
     return splits;
 }
 
+/** Home's surroundings, a region rather than streets, while nothing frames the map and it has no start view. */
+const HOME_ZOOM = 9;
+
 @customElement("map-feed-card")
 export class MapFeedCard extends LitElement {
     @property({ attribute: false }) public hass?: HomeAssistant;
@@ -183,6 +186,13 @@ export class MapFeedCard extends LitElement {
     private map?: FeedMap;
     private mapStarting = false;
     private fitted = false;
+    /** The configuration's start view has changed, and the map, when nothing frames it, is to go there. */
+    private startChanged = false;
+
+    /** Where the card's map is now, for the editor's button that saves its preview's view. */
+    public get mapView(): MapView | null {
+        return this.map?.view ?? null;
+    }
     private view?: View;
     private readonly loader = new DetailLoader();
     private ticker?: ReturnType<typeof setInterval>;
@@ -235,6 +245,7 @@ export class MapFeedCard extends LitElement {
         if (previous && previous.feeds.map((feed) => feed.entity).join() !== options.feeds.map((feed) => feed.entity).join()) {
             this.fitted = false;
         }
+        if (previous && JSON.stringify(previous.start) !== JSON.stringify(options.start)) this.startChanged = true;
         void this.map?.setStyle(options.mapStyle, this.dark(), this.themeColors());
     }
 
@@ -549,6 +560,10 @@ export class MapFeedCard extends LitElement {
                 this.revealSelected = true;
             }
         }
+        if (this.startChanged) {
+            this.startChanged = false;
+            if (this.options!.start && this.view.extent.length === 0) this.map.show(this.options!.start);
+        }
         const selected = this.selected ? this.view.items.get(this.selected) : undefined;
         const position = selected?.point;
         const at = position ? `${position.lon},${position.lat}` : "";
@@ -690,7 +705,8 @@ export class MapFeedCard extends LitElement {
     private async startMap(): Promise<void> {
         this.mapStarting = true;
         const { latitude, longitude } = this.hass!.config ?? {};
-        const home: LngLat | null = typeof latitude === "number" && typeof longitude === "number" ? [longitude, latitude] : null;
+        const home: MapView | null =
+            typeof latitude === "number" && typeof longitude === "number" ? { center: [longitude, latitude], zoom: HOME_ZOOM } : null;
         const locale = {
             "CooperativeGesturesHandler.WindowsHelpText": this.text("gestures.windows"),
             "CooperativeGesturesHandler.MacHelpText": this.text("gestures.mac"),
@@ -705,7 +721,7 @@ export class MapFeedCard extends LitElement {
             this.themeColors(),
             (key) => this.select(key),
             locale,
-            home,
+            this.options!.start ?? home,
         );
         try {
             await ensureToken(this.hass!);

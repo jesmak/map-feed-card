@@ -77,7 +77,7 @@ describe("a feed's options in the configuration", () => {
 });
 
 describe("the editor's feeds", () => {
-    async function editor(entities: unknown[]) {
+    async function editor(entities: unknown[], parent: ParentNode = document.body) {
         const element = document.createElement("map-feed-card-editor") as MapFeedCardEditor;
         element.hass = {
             states: {
@@ -86,15 +86,41 @@ describe("the editor's feeds", () => {
             },
         } as unknown as HomeAssistant;
         element.setConfig({ type: "custom:map-feed-card", entities });
-        document.body.append(element);
+        parent.append(element);
         await element.updateComplete;
         const configs: Array<Record<string, unknown>> = [];
         element.addEventListener("config-changed", (event) => configs.push((event as CustomEvent).detail.config));
         const form = element.shadowRoot!.querySelector("ha-form") as HTMLElement & { data: Record<string, unknown> };
         const change = (value: Record<string, unknown>) =>
             form.dispatchEvent(new CustomEvent("value-changed", { detail: { value: { ...form.data, ...value } } }));
-        return { form, change, configs };
+        return { form, change, configs, element };
     }
+
+    it("writes its preview's view as the view the map starts in, when its button is pressed", async () => {
+        // As in the edit dialog: the editor in a shadow tree of its own, its preview in the dialog's, around it.
+        const host = document.createElement("div");
+        document.body.append(host);
+        const dialog = host.attachShadow({ mode: "open" });
+        const pane = document.createElement("div");
+        const previewPane = document.createElement("div");
+        dialog.append(pane, previewPane);
+        const { form, configs, element } = await editor(["sensor.trains"], pane.attachShadow({ mode: "open" }));
+        const button = form.parentNode!.querySelector("ha-button") as HTMLElement;
+        // No preview yet, or one whose map couldn't be drawn.
+        button.click();
+        const card = Object.assign(document.createElement("map-feed-card"), { mapView: null as unknown });
+        previewPane.attachShadow({ mode: "open" }).append(card);
+        button.click();
+        expect(configs).toEqual([]);
+        card.mapView = { center: [28.19, 61.05], zoom: 7.5 };
+        // The dashboard's own card, outside the dialog, isn't the preview.
+        document.body.append(Object.assign(document.createElement("map-feed-card"), { mapView: { center: [0, 0], zoom: 1 } }));
+        button.click();
+        expect(configs).toEqual([
+            { type: "custom:map-feed-card", entities: ["sensor.trains"], latitude: 61.05, longitude: 28.19, zoom: 7.5 },
+        ]);
+        expect(element.isConnected).toBe(true);
+    });
 
     it("writes a feed's section back to that feed", async () => {
         const { form, change, configs } = await editor(["sensor.trains", { entity: "sensor.ships", max_age_minutes: 10 }]);

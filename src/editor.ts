@@ -1,5 +1,5 @@
 /** The card's visual editor: the feeds with their own options, then the map's. */
-import { LitElement, html, nothing } from "lit";
+import { LitElement, css, html, nothing } from "lit";
 import type { TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
@@ -8,7 +8,16 @@ import { entityName, type HomeAssistant } from "./hass";
 import { rowStepData, rowStepSchema, tidyRowStep, type RowStepConfig } from "./rows";
 import { browserLanguage, translate } from "./localize/localize";
 import { sortOptions } from "./list";
-import { DEFAULT_DELAY_THRESHOLDS, DEFAULT_LIST_HEIGHT, DEFAULT_MAP_HEIGHT, FRAMES, MAP_STYLES, parseFrame } from "./options";
+import {
+    DEFAULT_DELAY_THRESHOLDS,
+    DEFAULT_LIST_HEIGHT,
+    DEFAULT_MAP_HEIGHT,
+    FRAMES,
+    MAP_STYLES,
+    MAX_START_ZOOM,
+    parseFrame,
+    type MapView,
+} from "./options";
 
 interface SchemaEntry {
     name: string;
@@ -140,6 +149,16 @@ function schema(hass: HomeAssistant, text: (key: string) => string, entities: Fe
             sort,
         ),
         ...rowStepSchema(config, text),
+        {
+            type: "grid",
+            name: "",
+            column_min_width: "100px",
+            schema: [
+                { name: "latitude", selector: { number: { min: -90, max: 90, step: 0.0001, mode: "box" } } },
+                { name: "longitude", selector: { number: { min: -180, max: 180, step: 0.0001, mode: "box" } } },
+                { name: "zoom", selector: { number: { min: 0, max: MAX_START_ZOOM, step: 0.1, mode: "box" } } },
+            ],
+        },
     ];
 }
 
@@ -174,6 +193,16 @@ function withoutDefaults(config: Record<string, unknown>, defaults: Record<strin
     );
 }
 
+/** The first element of a tag in a tree, looking into its shadow trees too. */
+function findDeep(root: ParentNode, tag: string): Element | null {
+    for (const element of root.querySelectorAll("*")) {
+        if (element.localName === tag) return element;
+        const inside = element.shadowRoot && findDeep(element.shadowRoot, tag);
+        if (inside) return inside;
+    }
+    return null;
+}
+
 @customElement("map-feed-card-editor")
 export class MapFeedCardEditor extends LitElement {
     @property({ attribute: false }) public hass?: HomeAssistant;
@@ -206,8 +235,38 @@ export class MapFeedCardEditor extends LitElement {
                 .computeHelper=${(entry: SchemaEntry) => this.helper(entry.name)}
                 @value-changed=${this.valueChanged}
             ></ha-form>
+            <p class="start">${this.text("editor.start_helper")}</p>
+            <ha-button appearance="plain" @click=${this.usePreviewView}>${this.text("editor.use_preview_view")}</ha-button>
         `;
     }
+
+    /** Writes where the preview's map is now as the view the map starts in. */
+    private usePreviewView(): void {
+        const view = this.previewCard()?.mapView;
+        if (!view) return;
+        const config = { ...this.config, longitude: view.center[0], latitude: view.center[1], zoom: view.zoom };
+        this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
+    }
+
+    /**
+     * The card the dialog draws as this editor's preview: the nearest map-feed-card around the editor, looked for in
+     * each shadow tree it is in, from the innermost out. In edit mode the dashboard has the card too, further out.
+     */
+    private previewCard(): { mapView?: MapView | null } | null {
+        for (let root = this.getRootNode(); root instanceof ShadowRoot; root = root.host.getRootNode()) {
+            const card = findDeep(root, "map-feed-card");
+            if (card) return card as { mapView?: MapView | null };
+        }
+        return null;
+    }
+
+    static styles = css`
+        .start {
+            margin: 16px 0 8px;
+            color: var(--secondary-text-color);
+            font-size: 14px;
+        }
+    `;
 
     private valueChanged(event: CustomEvent<{ value: Record<string, unknown> }>): void {
         const value = event.detail.value;

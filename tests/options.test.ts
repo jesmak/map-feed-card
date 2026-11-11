@@ -26,6 +26,7 @@ describe("parseOptions", () => {
             list: false,
             listHeight: 450,
             sort: null,
+            start: null,
         });
     });
 
@@ -74,5 +75,18 @@ describe("parseOptions", () => {
         expect(() => parseOptions({ entities: [{ entity: "sensor.x", late_minutes: 10, very_late_minutes: 5 }] })).toThrow(/late_minutes/);
         expect(() => parseOptions({ entities: [{ entity: "sensor.x", max_age_minutes: 0 }] })).toThrow(/max_age_minutes/);
         expect(() => parseOptions({ entities: [{ entity: "sensor.x", area_color: "var(--x)" }] })).toThrow(/area_color/);
+    });
+
+    it("reads the view the map starts in when all three of its fields are set, and no view from one or two", () => {
+        const start = (config: Record<string, unknown>) => parseOptions({ entities: ["sensor.x"], ...config }).start;
+        expect(start({ latitude: 61.05, longitude: "28.19", zoom: 7.5 })).toEqual({ center: [28.19, 61.05], zoom: 7.5 });
+        expect(start({ latitude: 0, longitude: 0, zoom: 0 })).toEqual({ center: [0, 0], zoom: 0 });
+        // A form half filled in.
+        expect(start({ latitude: 61.05, longitude: 28.19 })).toBeNull();
+        expect(start({ latitude: 61.05, longitude: "", zoom: null })).toBeNull();
+        expect(() => start({ latitude: 91, longitude: 28.19, zoom: 7 })).toThrow(/latitude/);
+        expect(() => start({ latitude: 61.05, longitude: -181, zoom: 7 })).toThrow(/longitude/);
+        expect(() => start({ latitude: 61.05, longitude: 28.19, zoom: 19 })).toThrow(/zoom/);
+        expect(() => start({ latitude: "north", longitude: 28.19, zoom: 7 })).toThrow(/latitude/);
     });
 });

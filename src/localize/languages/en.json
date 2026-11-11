@@ -66,7 +66,12 @@
         "row_step": "Rounding in a sections view",
         "row_step_helper": "With automatic row height, the card's height is rounded up to whole rows, or to half rows to save space.",
         "row_step_full": "Whole rows",
-        "row_step_half": "Half rows"
+        "row_step_half": "Half rows",
+        "latitude": "Latitude",
+        "longitude": "Longitude",
+        "zoom": "Zoom",
+        "start_helper": "The map opens in this view when no feed frames it. Move the preview's map to the view you want and press the button, or fill in all three fields by hand.",
+        "use_preview_view": "Use the preview's view"
     },
     "list": {
         "count": "{n} items",
