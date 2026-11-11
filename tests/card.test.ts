@@ -1435,6 +1435,86 @@ describe("the height", () => {
         });
     });
 
+    describe("measures how its list's rows split only when they may have changed", () => {
+        type Card = InstanceType<typeof MapFeedCard>;
+        let frames: FrameRequestCallback[] = [];
+
+        beforeEach(() => {
+            frames = [];
+            vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => frames.push(callback));
+            vi.stubGlobal("cancelAnimationFrame", (id: number) => delete frames[id - 1]);
+        });
+
+        afterEach(() => {
+            vi.unstubAllGlobals();
+        });
+
+        async function runFrames(card: Card): Promise<void> {
+            while (frames.some(Boolean)) {
+                const due = frames.filter(Boolean);
+                frames = [];
+                due.forEach((frame) => frame(0));
+                await card.updateComplete;
+            }
+        }
+
+        /** A card with a list, its first frames run, and its measuring counted from here on. */
+        async function listed() {
+            const card = await mount({ entities: ["sensor.trains"], list: true }, trains);
+            await runFrames(card);
+            return { card, measured: vi.spyOn(card as unknown as { splitRows(): void }, "splitRows") };
+        }
+
+        const firstKey = (card: Card) => [...card["view"]!.items.keys()][0]!;
+        const changedFeed = () => hass({ "sensor.trains": feedState("sensor.trains", [{ ...trainFeature(), id: "train:9" }]) });
+
+        it("not when an item is selected and closed", async () => {
+            const { card, measured } = await listed();
+            card["select"](firstKey(card));
+            await card.updateComplete;
+            await runFrames(card);
+            card["select"](null);
+            await card.updateComplete;
+            // The details are dropped once they have folded away, in an update of its own.
+            await new Promise((resolve) => setTimeout(resolve, 350));
+            await card.updateComplete;
+            await runFrames(card);
+            expect(card["closing"].size).toBe(0);
+            expect(measured).not.toHaveBeenCalled();
+        });
+
+        it("at once and again on the frame when a feed changes", async () => {
+            const { card, measured } = await listed();
+            card.hass = changedFeed();
+            await card.updateComplete;
+            expect(measured).toHaveBeenCalledTimes(1);
+            await runFrames(card);
+            expect(measured).toHaveBeenCalledTimes(2);
+        });
+
+        it("on the frame a feed's change asked for, though an item was selected before it ran", async () => {
+            const { card, measured } = await listed();
+            card.hass = changedFeed();
+            await card.updateComplete;
+            card["select"](firstKey(card));
+            await card.updateComplete;
+            expect(measured).toHaveBeenCalledTimes(1);
+            await runFrames(card);
+            expect(measured).toHaveBeenCalledTimes(2);
+        });
+
+        it("when an item is selected in a compact list, where its row makes room for the details button", async () => {
+            const { card, measured } = await listed();
+            card["setCompact"](true);
+            await card.updateComplete;
+            await runFrames(card);
+            measured.mockClear();
+            card["select"](firstKey(card));
+            await card.updateComplete;
+            expect(measured).toHaveBeenCalled();
+        });
+    });
+
     it("refuses a height that isn't a positive number of pixels", () => {
         const card = document.createElement("map-feed-card") as InstanceType<typeof MapFeedCard>;
         expect(() => card.setConfig({ entities: ["sensor.trains"], height: -5 })).toThrow(/height/);

@@ -214,6 +214,10 @@ export class MapFeedCard extends LitElement {
     private sheetResizer?: ResizeObserver;
     /** The rows last measured too wide for one line, so a render never drops a split. */
     private rowSplits = new Map<string, RowSplit>();
+    /** The rows' texts may have changed since their splits were measured: the feeds, the options or the ages they show. */
+    private rowsStale = true;
+    /** The next frame measures the rows' splits, as an update or a new size asked for it. */
+    private splitDue = false;
 
     constructor() {
         super();
@@ -279,6 +283,7 @@ export class MapFeedCard extends LitElement {
         // An item past its feed's max_age_minutes leaves the map then too, however quiet the feed.
         this.ticker = setInterval(() => {
             this.ageing = this.options?.feeds.some((feed) => feed.maxAgeMinutes !== null) ?? false;
+            if (this.options?.list) this.rowsStale = true;
             if (this.ageing || this.selected || this.options?.list) this.requestUpdate();
         }, TICK_MS);
         this.resizer = new ResizeObserver(([entry]) => {
@@ -326,7 +331,10 @@ export class MapFeedCard extends LitElement {
     }
 
     protected willUpdate(changed: PropertyValues): void {
-        if (this.ageing || changed.has("hass") || changed.has("options")) this.view = this.buildView();
+        if (this.ageing || changed.has("hass") || changed.has("options")) {
+            this.view = this.buildView();
+            this.rowsStale = true;
+        }
         this.ageing = false;
         // A selected item that has left the feed has nothing left to show.
         if (this.selected && !this.view?.items.has(this.selected)) {
@@ -534,11 +542,16 @@ export class MapFeedCard extends LitElement {
         </button>`;
     }
 
-    protected updated(): void {
+    protected updated(changed: PropertyValues): void {
         this.fitLegend();
+        // The rows are measured when their texts or their room may have changed, not on every update: a selection alone
+        // changes neither, and measuring a long list takes longer than the fold it would run in. In a compact list the
+        // selected row gives room to its details button.
+        const rowsChanged = this.rowsStale || changed.has("wide") || changed.has("compact") || (this.compact && changed.has("selected"));
+        this.rowsStale = false;
         // At once, so a new row is never drawn unmeasured, and again on the frame, as a change of size comes there.
-        this.splitRows();
-        this.fillRowsSoon();
+        if (rowsChanged) this.splitRows();
+        this.fillRowsSoon(rowsChanged);
         if (this.fitSelected) {
             this.fitSelected = false;
             this.fitRow();
@@ -581,10 +594,13 @@ export class MapFeedCard extends LitElement {
         }
     }
 
-    private fillRowsSoon(): void {
+    private fillRowsSoon(split = true): void {
+        // A frame put off by a newer one still owes its measuring.
+        this.splitDue ||= split;
         cancelAnimationFrame(this.frame ?? 0);
         this.frame = requestAnimationFrame(() => {
-            this.splitRows();
+            if (this.splitDue) this.splitRows();
+            this.splitDue = false;
             this.measureList();
             this.fillRows();
         });

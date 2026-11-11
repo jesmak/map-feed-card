@@ -35271,6 +35271,10 @@ var MapFeedCard = class extends i4 {
     this.shownAt = "";
     /** The rows last measured too wide for one line, so a render never drops a split. */
     this.rowSplits = /* @__PURE__ */ new Map();
+    /** The rows' texts may have changed since their splits were measured: the feeds, the options or the ages they show. */
+    this.rowsStale = true;
+    /** The next frame measures the rows' splits, as an update or a new size asked for it. */
+    this.splitDue = false;
     new ScrollFade(this, () => this.heightStyle() ? this.renderRoot.querySelectorAll(".list .rows") : []);
   }
   /** Where the card's map is now, for the editor's button that saves its preview's view. */
@@ -35326,6 +35330,7 @@ var MapFeedCard = class extends i4 {
     super.connectedCallback();
     this.ticker = setInterval(() => {
       this.ageing = this.options?.feeds.some((feed) => feed.maxAgeMinutes !== null) ?? false;
+      if (this.options?.list) this.rowsStale = true;
       if (this.ageing || this.selected || this.options?.list) this.requestUpdate();
     }, TICK_MS);
     this.resizer = new ResizeObserver(([entry]) => {
@@ -35360,7 +35365,10 @@ var MapFeedCard = class extends i4 {
     previous.themes?.theme !== this.hass?.themes?.theme || previous.selectedTheme !== this.hass?.selectedTheme || this.options.feeds.some(({ entity }) => previous.states[entity] !== this.hass?.states[entity]);
   }
   willUpdate(changed) {
-    if (this.ageing || changed.has("hass") || changed.has("options")) this.view = this.buildView();
+    if (this.ageing || changed.has("hass") || changed.has("options")) {
+      this.view = this.buildView();
+      this.rowsStale = true;
+    }
     this.ageing = false;
     if (this.selected && !this.view?.items.has(this.selected)) {
       this.selected = null;
@@ -35525,10 +35533,12 @@ var MapFeedCard = class extends i4 {
                       </span>` : A}
         </button>`;
   }
-  updated() {
+  updated(changed) {
     this.fitLegend();
-    this.splitRows();
-    this.fillRowsSoon();
+    const rowsChanged = this.rowsStale || changed.has("wide") || changed.has("compact") || this.compact && changed.has("selected");
+    this.rowsStale = false;
+    if (rowsChanged) this.splitRows();
+    this.fillRowsSoon(rowsChanged);
     if (this.fitSelected) {
       this.fitSelected = false;
       this.fitRow();
@@ -35564,10 +35574,12 @@ var MapFeedCard = class extends i4 {
       else if (bounds) this.map.revealShape(bounds, covered);
     }
   }
-  fillRowsSoon() {
+  fillRowsSoon(split = true) {
+    this.splitDue || (this.splitDue = split);
     cancelAnimationFrame(this.frame ?? 0);
     this.frame = requestAnimationFrame(() => {
-      this.splitRows();
+      if (this.splitDue) this.splitRows();
+      this.splitDue = false;
       this.measureList();
       this.fillRows();
     });
