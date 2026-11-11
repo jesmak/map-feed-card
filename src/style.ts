@@ -41,6 +41,8 @@ export const KIND_COLORS: Readonly<Record<string, string>> = {
     "road.camera": "#37474f",
     // Magenta, as on a nautical chart: blue or green would vanish into the water.
     "sea.warning": "#ad1457",
+    // Purple, close enough to the chart's magenta to read as a restriction and far enough from a warning's.
+    "sea.restriction": "#8e24aa",
     "air.light": "#2e7d32",
     "air.small": "#00838f",
     "air.large": "#1565c0",

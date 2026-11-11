@@ -112,6 +112,7 @@
         "road_weather_station": "Road weather station",
         "road_camera": "Road camera",
         "sea_warning": "Nautical warning",
+        "sea_restriction": "Water restriction area",
         "air_light": "Light aircraft",
         "air_small": "Small aircraft",
         "air_large": "Large aircraft",

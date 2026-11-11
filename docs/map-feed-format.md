@@ -175,14 +175,15 @@ Properties the card doesn't know are ignored, apart from a feed's own properties
 | Air     | `air.light`, `air.small`, `air.large`, `air.turboprop`, `air.heavy`, `air.high_performance`, `air.rotorcraft`, `air.glider`, `air.balloon`, `air.drone`, `air.other`, `air.area`                                                                                                                            |
 | Transit | `bus`, `tram`, `metro`, `ferry`                                                                                                                                                                                                                                                                             |
 | Road    | `road.roadwork`, `road.announcement`, `road.accident`, `road.weight_restriction`, `road.exempted_transport`, `road.maintenance`, `road.maintenance_track`, `road.condition.normal`, `road.condition.poor`, `road.condition.extremely_poor`, `road.condition.unknown`, `road.weather_station`, `road.camera` |
-| Sea     | `sea.warning`                                                                                                                                                                                                                                                                                               |
+| Sea     | `sea.warning`, `sea.restriction`                                                                                                                                                                                                                                                                            |
 | Nature  | `bird`                                                                                                                                                                                                                                                                                                      |
 | Other   | `other`                                                                                                                                                                                                                                                                                                     |
 
 An unknown kind is drawn as a grey arrow or dot. Within the ship, train or air family (`ship.hovercraft`), its details show
 speed and the position's age like the family's other kinds. Variations of the transit kinds, such as `bus.night`, have
-no family prefix and count as `other`. `sea.warning` is the only sea kind the card knows, and any other `sea.` kind
-counts as `other` too.
+no family prefix and count as `other`. `sea.warning` and `sea.restriction` are the only sea kinds the card knows, and
+any other `sea.` kind counts as `other` too. `sea.restriction` is a standing restriction area on the water, such as a
+speed limit, and is meant for a polygon without a point of its own.
 
 Road works, announcements, accidents, weight restrictions, exempted transports and `sea.warning`, a nautical
 warning, are drawn as a warning sign,
