@@ -62,9 +62,9 @@ export function feedFields(type: FeedType | null, hasArea: boolean, options: Rec
     const fields = [
         ...(colorBy ? ["color_by"] : []),
         ...(colorBy && options.color_by === "delay" ? ["late_minutes", "very_late_minutes"] : []),
-        ...(type !== "nature" || set("max_age_minutes") ? ["max_age_minutes"] : []),
+        ...((type !== "sea" && type !== "nature") || set("max_age_minutes") ? ["max_age_minutes"] : []),
         "labels",
-        ...((type !== "road" && type !== "nature") || set("glide") ? ["glide"] : []),
+        ...((type !== "road" && type !== "sea" && type !== "nature") || set("glide") ? ["glide"] : []),
         ...(area ? ["show_area"] : []),
         ...((area && options.show_area === true) || set("area_color") ? ["area_color"] : []),
         "frame",

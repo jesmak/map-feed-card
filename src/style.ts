@@ -39,6 +39,8 @@ export const KIND_COLORS: Readonly<Record<string, string>> = {
     "road.condition.unknown": "#9e9e9e",
     "road.weather_station": "#0277bd",
     "road.camera": "#37474f",
+    // Magenta, as on a nautical chart: blue or green would vanish into the water.
+    "sea.warning": "#ad1457",
     "air.light": "#2e7d32",
     "air.small": "#00838f",
     "air.large": "#1565c0",

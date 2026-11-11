@@ -57,7 +57,7 @@ anything that changes on its own, such as "2 min ago".
 | state              | integer  | **MUST** | Number of items. The source decides what an item is. Usually it is the number of Point features.                               |
 | `map_feed_version` | integer  | **MUST** | `1`. The card uses this to recognise a feed.                                                                                   |
 | `geojson`          | object   | **MUST** | A GeoJSON `FeatureCollection` object (not a JSON string).                                                                      |
-| `feed_type`        | string   | SHOULD   | What the feed is about, `ship`, `train`, `transit`, `air`, `road`, `nature` or `other`. See [feed type](#feed-type).           |
+| `feed_type`        | string   | SHOULD   | What the feed is about, `ship`, `train`, `transit`, `air`, `road`, `sea`, `nature` or `other`. See [feed type](#feed-type).    |
 | `attribution`      | string   | SHOULD   | Data credit, added to the map's attribution line. Required when the data licence asks for credit.                              |
 | `attribution_url`  | string   | MAY      | An `https` URL the attribution links to, when the data licence asks for a link. Any other URL is left out.                     |
 | `area`             | object   | MAY      | `{"center": [lat, lon], "radius_km": 15}` or `{"bbox": [south, west, north, east]}`. Drawn by the card when `show_area` is on. |
@@ -71,12 +71,12 @@ longitude first.
 ### Feed type
 
 `feed_type` says what the feed is about, in the same families as the [kinds](#kinds) of its items, `ship`, `train`,
-`transit`, `air`, `road`, `nature` or `other`. A feed has one type even when its items are of several kinds, such as road works,
+`transit`, `air`, `road`, `sea`, `nature` or `other`. A feed has one type even when its items are of several kinds, such as road works,
 accidents and announcements in a feed of traffic messages, which is `road`.
 
 The card's editor offers a feed only the options that make sense for it. Delay colours are for trains and public
 transport, and an age limit for anything with positions, which leaves out sightings that the source already limits by
-their age. A feed without a type, or with one the card doesn't know, is offered every option.
+their age and warnings at sea, which are in force for as long as the source gives them. A feed without a type, or with one the card doesn't know, is offered every option.
 
 ### Legend
 
@@ -175,14 +175,17 @@ Properties the card doesn't know are ignored, apart from a feed's own properties
 | Air     | `air.light`, `air.small`, `air.large`, `air.turboprop`, `air.heavy`, `air.high_performance`, `air.rotorcraft`, `air.glider`, `air.balloon`, `air.drone`, `air.other`, `air.area`                                                                                                                            |
 | Transit | `bus`, `tram`, `metro`, `ferry`                                                                                                                                                                                                                                                                             |
 | Road    | `road.roadwork`, `road.announcement`, `road.accident`, `road.weight_restriction`, `road.exempted_transport`, `road.maintenance`, `road.maintenance_track`, `road.condition.normal`, `road.condition.poor`, `road.condition.extremely_poor`, `road.condition.unknown`, `road.weather_station`, `road.camera` |
+| Sea     | `sea.warning`                                                                                                                                                                                                                                                                                               |
 | Nature  | `bird`                                                                                                                                                                                                                                                                                                      |
 | Other   | `other`                                                                                                                                                                                                                                                                                                     |
 
 An unknown kind is drawn as a grey arrow or dot. Within the ship, train or air family (`ship.hovercraft`), its details show
 speed and the position's age like the family's other kinds. Variations of the transit kinds, such as `bus.night`, have
-no family prefix and count as `other`.
+no family prefix and count as `other`. `sea.warning` is the only sea kind the card knows, and any other `sea.` kind
+counts as `other` too.
 
-Road works, announcements, accidents, weight restrictions and exempted transports are drawn as a warning sign,
+Road works, announcements, accidents, weight restrictions, exempted transports and `sea.warning`, a nautical
+warning, are drawn as a warning sign,
 `road.camera` as a camera, and `bird` as a bird. A bird's badge starts with a small bird. An aircraft is drawn as the
 silhouette of its kind, from above and turned to its heading (north when it has none), without a disc, and
 `air.other` as an arrow. An aircraft with a badge keeps the badge and its arrow. The details of something that moves

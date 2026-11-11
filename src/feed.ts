@@ -67,7 +67,7 @@ export interface LegendEntry {
 }
 
 /** What a feed is about, as the format's kind families; the editor offers only the options that make sense for it. */
-const FEED_TYPES = ["ship", "train", "transit", "air", "road", "nature", "other"] as const;
+const FEED_TYPES = ["ship", "train", "transit", "air", "road", "sea", "nature", "other"] as const;
 export type FeedType = (typeof FEED_TYPES)[number];
 
 /** An order the feed offers for the card's list. */
@@ -536,13 +536,14 @@ export type KindFamily = "ship" | "train" | "transit" | "air" | "road" | "other"
 
 const TRANSIT_KINDS: ReadonlySet<string> = new Set(["bus", "tram", "metro", "ferry"]);
 
-/** Road events drawn as a warning sign. */
+/** Events on the road and at sea, drawn as a warning sign. */
 const WARNING_KINDS: ReadonlySet<string> = new Set([
     "road.roadwork",
     "road.announcement",
     "road.accident",
     "road.weight_restriction",
     "road.exempted_transport",
+    "sea.warning",
 ]);
 
 /** "ship.cargo" → ship, "train.commuter" → train, "bus" → transit. An unknown "ship.x" still belongs to ships. */

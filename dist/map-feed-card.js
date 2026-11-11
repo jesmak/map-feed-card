@@ -780,7 +780,7 @@ var maplibre_gl_default = `.maplibregl-map{font:12px/20px Helvetica Neue,Arial,H
 var SUPPORTED_FEED_VERSION = 1;
 var MIN_OPACITY = 0.3;
 var MAX_IMAGES = 6;
-var FEED_TYPES = ["ship", "train", "transit", "air", "road", "nature", "other"];
+var FEED_TYPES = ["ship", "train", "transit", "air", "road", "sea", "nature", "other"];
 var UNAVAILABLE_STATES = /* @__PURE__ */ new Set(["unavailable", "unknown"]);
 var HEX_COLOR = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
 var ACTION_NAME = /^([a-z0-9_]+)\.([a-z0-9_]+)$/;
@@ -1069,7 +1069,8 @@ var WARNING_KINDS = /* @__PURE__ */ new Set([
   "road.announcement",
   "road.accident",
   "road.weight_restriction",
-  "road.exempted_transport"
+  "road.exempted_transport",
+  "sea.warning"
 ]);
 function kindFamily(kind) {
   const prefix = kind.split(".", 1)[0];
@@ -1196,6 +1197,8 @@ var KIND_COLORS = {
   "road.condition.unknown": "#9e9e9e",
   "road.weather_station": "#0277bd",
   "road.camera": "#37474f",
+  // Magenta, as on a nautical chart: blue or green would vanish into the water.
+  "sea.warning": "#ad1457",
   "air.light": "#2e7d32",
   "air.small": "#00838f",
   "air.large": "#1565c0",
@@ -1691,6 +1694,7 @@ var en_default = {
     road_condition_unknown: "Driving conditions unknown",
     road_weather_station: "Road weather station",
     road_camera: "Road camera",
+    sea_warning: "Nautical warning",
     air_light: "Light aircraft",
     air_small: "Small aircraft",
     air_large: "Large aircraft",
@@ -1842,6 +1846,7 @@ var fi_default = {
     road_condition_unknown: "Ajokeli ei tiedossa",
     road_weather_station: "Ties\xE4\xE4asema",
     road_camera: "Kelikamera",
+    sea_warning: "Merivaroitus",
     air_light: "Kevyt lentokone",
     air_small: "Pieni lentokone",
     air_large: "Suuri lentokone",
@@ -2088,9 +2093,9 @@ function feedFields(type, hasArea, options, list = false) {
   const fields = [
     ...colorBy ? ["color_by"] : [],
     ...colorBy && options.color_by === "delay" ? ["late_minutes", "very_late_minutes"] : [],
-    ...type !== "nature" || set("max_age_minutes") ? ["max_age_minutes"] : [],
+    ...type !== "sea" && type !== "nature" || set("max_age_minutes") ? ["max_age_minutes"] : [],
     "labels",
-    ...type !== "road" && type !== "nature" || set("glide") ? ["glide"] : [],
+    ...type !== "road" && type !== "sea" && type !== "nature" || set("glide") ? ["glide"] : [],
     ...area ? ["show_area"] : [],
     ...area && options.show_area === true || set("area_color") ? ["area_color"] : [],
     "frame",

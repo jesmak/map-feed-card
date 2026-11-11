@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { areaOutline, boundsOf, isMoving, kindFamily, readDetailRows, readFeed } from "../src/feed";
+import { areaOutline, boundsOf, isMoving, kindFamily, markerSymbol, readDetailRows, readFeed } from "../src/feed";
 import { aircraftFeature, cameraFeature, feedState, roadworkLine, shipFeature, trainFeature } from "./support/fakes";
 
 function okFeed(state: ReturnType<typeof feedState>) {
@@ -507,5 +507,10 @@ describe("readFeed: aircraft", () => {
         expect(kindFamily("air.hovercraft")).toBe("air");
         expect(kindFamily("aircraft")).toBe("other");
         expect(isMoving("air.balloon")).toBe(true);
+    });
+
+    it("draws a nautical warning as a warning sign that doesn't move", () => {
+        expect(markerSymbol("sea.warning")).toBe("warning");
+        expect(isMoving("sea.warning")).toBe(false);
     });
 });
