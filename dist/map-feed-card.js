@@ -35214,27 +35214,54 @@ registry.customCards.push({
 function rowOverflows(row) {
   return [...row.querySelectorAll(".row-title, .row-sub, .row-value")].some((text2) => text2.scrollWidth > text2.clientWidth);
 }
-function splitRows(card) {
-  const rows = [...card.querySelectorAll(".list .row")];
+function fitsOnOneLine(row) {
+  if (row.classList.contains("under") || row.classList.contains("apart") || rowOverflows(row)) return false;
+  const range = document.createRange();
+  return [...row.querySelectorAll(".row-title, .row-sub")].every((text2) => {
+    range.selectNodeContents(text2);
+    return range.getClientRects().length === 1;
+  });
+}
+function splitRows(card, last) {
+  const measures = {
+    width: card.querySelector(".list")?.clientWidth ?? 0,
+    texts: /* @__PURE__ */ new Map(),
+    splits: /* @__PURE__ */ new Map()
+  };
+  const rows = [];
+  for (const row of card.querySelectorAll(".list .row")) {
+    const item = row.closest(".item");
+    const key = item?.dataset.key;
+    const text2 = `${row.textContent}|${item?.classList.contains("picked")}`;
+    if (key !== void 0) measures.texts.set(key, text2);
+    if (key !== void 0 && last?.width === measures.width && last.texts.get(key) === text2) {
+      if (last.splits.has(key)) measures.splits.set(key, last.splits.get(key));
+    } else if (!fitsOnOneLine(row)) {
+      rows.push(row);
+    }
+  }
+  if (!rows.length) return measures;
   const items = rows.map((row) => row.closest(".item"));
   const heights = items.map((item) => item ? getComputedStyle(item).height : "");
   items.forEach((item, index) => item?.style.setProperty("height", heights[index]));
   card.toggleAttribute("data-measuring", true);
-  rows.forEach((row) => row.classList.remove("under", "apart"));
+  rows.forEach((row) => {
+    row.classList.add("measuring");
+    row.classList.remove("under", "apart");
+  });
   const beside = rows.map((row) => ({ over: rowOverflows(row), height: row.offsetHeight }));
   rows.forEach((row) => row.classList.add("under"));
   const under = rows.map((row) => ({ over: rowOverflows(row), height: row.offsetHeight }));
-  const splits = /* @__PURE__ */ new Map();
   rows.forEach((row, index) => {
-    row.classList.remove("under");
+    row.classList.remove("under", "measuring");
     const split = !beside[index].over && beside[index].height <= under[index].height ? null : under[index].over ? "apart" : "under";
     const key = items[index]?.dataset.key;
     if (split) row.classList.add(split);
-    if (split && key) splits.set(key, split);
+    if (split && key) measures.splits.set(key, split);
   });
   card.toggleAttribute("data-measuring", false);
   items.forEach((item) => item?.style.removeProperty("height"));
-  return splits;
+  return measures;
 }
 var HOME_ZOOM = 9;
 var MapFeedCard = class extends i4 {
@@ -35269,8 +35296,6 @@ var MapFeedCard = class extends i4 {
     this.revealSelected = false;
     /** Where the selected item was when the map was last asked to show it, so its moving asks again. */
     this.shownAt = "";
-    /** The rows last measured too wide for one line, so a render never drops a split. */
-    this.rowSplits = /* @__PURE__ */ new Map();
     /** The rows' texts may have changed since their splits were measured: the feeds, the options or the ages they show. */
     this.rowsStale = true;
     /** The next frame measures the rows' splits, as an update or a new size asked for it. */
@@ -35517,7 +35542,7 @@ var MapFeedCard = class extends i4 {
   row(entry, row, open) {
     const valueStyle = row.valueIsDelay ? `color:color-mix(in srgb, ${entry.color} 70%, var(--primary-text-color))` : "";
     return b2`<button
-            class="row ${this.rowSplits.get(entry.key) ?? ""}"
+            class="row ${this.rowMeasures?.splits.get(entry.key) ?? ""}"
             aria-expanded=${this.compact ? A : open ? "true" : "false"}
             aria-pressed=${this.compact ? entry.key === this.selected ? "true" : "false" : A}
             @click=${() => this.select(entry.key === this.selected ? null : entry.key)}
@@ -35587,7 +35612,7 @@ var MapFeedCard = class extends i4 {
   /** A hidden card measures nothing and keeps its splits until it is shown, as its size changes then. */
   splitRows() {
     const card = this.renderRoot.querySelector("ha-card");
-    if (card?.clientWidth) this.rowSplits = splitRows(card);
+    if (card?.clientWidth) this.rowMeasures = splitRows(card, this.rowMeasures);
   }
   /**
    * Whether the list under the map has room for details to unfold in it. Held to a height, the list's room is its own
@@ -36329,7 +36354,7 @@ MapFeedCard.styles = [
                 grid-column: 1;
             }
             /* Measured for splitRows: no word broken, so a text without room for its longest word overflows. */
-            ha-card[data-measuring] .row :is(.row-title, .row-sub, .row-value) {
+            .row.measuring :is(.row-title, .row-sub, .row-value) {
                 overflow-wrap: normal;
             }
             /* Or the browser's scroll anchoring would follow a row laid out to be measured and scroll the list. */

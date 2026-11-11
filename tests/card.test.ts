@@ -1614,12 +1614,16 @@ describe("the height", () => {
 });
 
 describe("a list row's layout", () => {
+    /** The keys of the rows whose height was read, in order, twice for each row measured. */
+    let measured: string[] = [];
+
     /**
      * A card whose rows each need `whole` px for their texts with no word broken, and have 200 px beside a value on
      * one line, 260 px with the value under them, and 300 px with the chip on a line of its own as well. Each row is
      * `heights` tall with its value beside its texts and under them.
      */
     function rowsOf(needs: Array<[string, number, [number, number]?]>): HTMLElement {
+        measured = [];
         const card = document.createElement("ha-card");
         const list = document.createElement("div");
         list.className = "list";
@@ -1629,15 +1633,22 @@ describe("a list row's layout", () => {
             item.dataset.key = key;
             const row = document.createElement("button");
             row.className = "row";
-            Object.defineProperty(row, "offsetHeight", { get: () => (row.classList.length > 1 ? heights[1] : heights[0]) });
+            const split = () => row.classList.contains("under") || row.classList.contains("apart");
+            Object.defineProperty(row, "offsetHeight", {
+                get: () => {
+                    measured.push(key);
+                    return split() ? heights[1] : heights[0];
+                },
+            });
             for (const name of ["row-title", "row-value"]) {
                 const text = document.createElement("span");
                 text.className = name;
+                text.textContent = `${key} ${name}`;
                 const room = () => (row.classList.contains("apart") ? 300 : row.classList.contains("under") ? 260 : 200);
                 Object.defineProperty(text, "clientWidth", { get: room });
                 // Not measuring, a long word breaks to fit, as overflow-wrap lets it.
                 Object.defineProperty(text, "scrollWidth", {
-                    get: () => (card.hasAttribute("data-measuring") ? whole : Math.min(whole, room())),
+                    get: () => (row.classList.contains("measuring") ? whole : Math.min(whole, room())),
                 });
                 row.append(text);
             }
@@ -1657,7 +1668,7 @@ describe("a list row's layout", () => {
             ["never", 400],
         ]);
         card.querySelector(".row")!.classList.add("apart");
-        const splits = splitRows(card);
+        const { splits } = splitRows(card);
         expect([...splits]).toEqual([
             ["under", "under"],
             ["apart", "apart"],
@@ -1674,14 +1685,63 @@ describe("a list row's layout", () => {
             ["squeezed", 150, [96, 80]],
             ["even", 150, [60, 60]],
         ]);
-        expect([...splitRows(card)]).toEqual([["squeezed", "under"]]);
+        expect([...splitRows(card).splits]).toEqual([["squeezed", "under"]]);
+    });
+
+    it("measures again only the rows whose texts or room have changed, and all of them in a list of another width", () => {
+        const card = rowsOf([
+            ["fits", 200],
+            ["under", 201],
+            ["apart", 261],
+        ]);
+        const first = splitRows(card);
+        expect(new Set(measured)).toEqual(new Set(["fits", "under", "apart"]));
+
+        measured = [];
+        const same = splitRows(card, first);
+        expect(measured).toEqual([]);
+        expect(Object.fromEntries(same.splits)).toEqual(Object.fromEntries(first.splits));
+
+        card.querySelector('[data-key="under"] .row-title')!.textContent = "another text";
+        const changed = splitRows(card, same);
+        expect(measured).toEqual(["under", "under"]);
+        expect(Object.fromEntries(changed.splits)).toEqual({ under: "under", apart: "apart" });
+
+        measured = [];
+        card.querySelector('[data-key="fits"]')!.classList.add("picked");
+        splitRows(card, changed);
+        expect(measured).toEqual(["fits", "fits"]);
+
+        measured = [];
+        Object.defineProperty(card.querySelector(".list")!, "clientWidth", { value: 480 });
+        splitRows(card, changed);
+        expect(new Set(measured)).toEqual(new Set(["fits", "under", "apart"]));
+        expect([...card.querySelectorAll<HTMLElement>(".row")].some((row) => row.classList.contains("measuring"))).toBe(false);
+    });
+
+    it("leaves a row unmeasured when its texts are each on one line as drawn, and measures one whose text wraps", () => {
+        const card = rowsOf([
+            ["short", 150],
+            ["wrapped", 150],
+            ["split", 150],
+        ]);
+        card.querySelector('[data-key="split"] .row')!.classList.add("under");
+        let read: Node | undefined;
+        vi.spyOn(document, "createRange").mockReturnValue({
+            selectNodeContents: (node: Node) => (read = node),
+            getClientRects: () => ({ length: read?.textContent === "wrapped row-title" ? 2 : 1 }),
+        } as unknown as Range);
+        splitRows(card);
+        vi.restoreAllMocks();
+        expect(new Set(measured)).toEqual(new Set(["wrapped", "split"]));
+        expect(card.querySelector('[data-key="split"] .row')!.className).toBe("row");
     });
 
     it("measures with no word broken and keeps the rows' widths from depending on whether the list scrolls", () => {
         const styles = (customElements.get("map-feed-card") as unknown as { styles: Array<{ cssText: string }> }).styles
             .map((sheet) => sheet.cssText)
             .join("\n");
-        expect(styles).toMatch(/ha-card\[data-measuring\] \.row :is\(\.row-title, \.row-sub, \.row-value\)\s*\{\s*overflow-wrap: normal/);
+        expect(styles).toMatch(/\.row\.measuring :is\(\.row-title, \.row-sub, \.row-value\)\s*\{\s*overflow-wrap: normal/);
         expect(styles).toMatch(/\.rows \{[^}]*scrollbar-gutter: stable/);
         expect(styles).toMatch(/ha-card\[data-measuring\] \.rows \{\s*overflow-anchor: none/);
     });
