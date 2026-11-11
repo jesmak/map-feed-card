@@ -3,12 +3,13 @@
  * lines, polygons and areas as layers of their own on top.
  */
 import { AttributionControl, Map as MapLibreMap, Marker, NavigationControl, Popup, setWorkerUrl } from "maplibre-gl";
-import type { FeatureCollection } from "geojson";
+import type { Feature, FeatureCollection } from "geojson";
 import type { FilterSpecification, GeoJSONSource, MapLayerMouseEvent, StyleSpecification } from "maplibre-gl";
 // The worker is carried as text and started from a blob, so the card stays one file, as HACS installs it.
 import workerSource from "maplibre-gl/dist/maplibre-gl-worker.mjs?raw";
 
 import { areaOutline, type FeedArea, type FeedPoint, type FeedShape, type LngLat } from "./feed";
+import { linePieces } from "./blend";
 import { cutTrail, nextGlide, positionAt, type Glide, type Report } from "./glide";
 import { loadStyle, MapError, onTokenChange, refreshToken, transformRequest } from "./map-tiles";
 import type { MapStyle } from "./options";
@@ -65,6 +66,9 @@ interface MarkerEntry {
 
 /** A marker closer to the map's edge than this is moved into view when selected: half of a badge, and some air. */
 const REVEAL_MARGIN_PX = 32;
+
+/** A selected line or area drawn smaller than this is too small to make out, and is brought to the middle of the map. */
+const SMALL_SHAPE_PX = 40;
 
 /** Not much point in zooming a single item in to its doorstep. */
 const FIT_MAX_ZOOM = 13;
@@ -306,6 +310,24 @@ export class FeedMap {
         }
     }
 
+    /**
+     * Moves the map to the selected line or area, as its bounds, unless someone has moved the map since it was tapped:
+     * when it is out of view, and when it is drawn too small to make out, so that the middle of the map says where it is.
+     * The zoom stays as it is.
+     */
+    revealShape(bounds: [LngLat, LngLat], covered = 0): void {
+        const map = this.map;
+        if (!map || this.movedByHand) return;
+        const [a, b] = [map.project(bounds[0]), map.project(bounds[1])];
+        const { clientWidth: width, clientHeight: height } = map.getContainer();
+        const [x, y] = [(a.x + b.x) / 2, (a.y + b.y) / 2];
+        const small = Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y)) < SMALL_SHAPE_PX;
+        if (small || x < 0 || y < 0 || x > width || y > height - covered) {
+            this.movedSinceFit = true;
+            map.easeTo({ center: [(bounds[0][0] + bounds[1][0]) / 2, (bounds[0][1] + bounds[1][1]) / 2], offset: [0, -covered / 2] });
+        }
+    }
+
     /** Lays the map out for its new size, and frames it again when it was framed and hasn't been moved since. */
     resize(): void {
         if (!this.map) return;
@@ -502,16 +524,21 @@ export class FeedMap {
             type: "line",
             source: SHAPES,
             filter: selected,
-            layout: { "line-cap": "round", "line-join": "round" },
-            paint: { "line-color": "rgba(0, 0, 0, 0.55)", "line-width": ["+", ["get", "width"], 10], "line-blur": 1 },
+            layout: { "line-cap": ["get", "cap"], "line-join": "round" },
+            paint: {
+                "line-color": "rgba(0, 0, 0, 0.55)",
+                "line-width": ["+", ["get", "width"], 10],
+                "line-blur": 1,
+                "line-opacity": ["get", "fade"],
+            },
         });
         map.addLayer({
             id: "feed-selected-casing",
             type: "line",
             source: SHAPES,
             filter: selected,
-            layout: { "line-cap": "round", "line-join": "round" },
-            paint: { "line-color": "#ffffff", "line-width": ["+", ["get", "width"], 6] },
+            layout: { "line-cap": ["get", "cap"], "line-join": "round" },
+            paint: { "line-color": "#ffffff", "line-width": ["+", ["get", "width"], 6], "line-opacity": ["get", "fade"] },
         });
         map.addLayer({
             id: "feed-line",
@@ -519,11 +546,11 @@ export class FeedMap {
             source: SHAPES,
             // A selected dashed shape is drawn whole, over its casing, like any other selected shape.
             filter: ["any", ["!=", ["get", "dashed"], true], ["==", ["get", "selected"], true]],
-            layout: { "line-cap": "round", "line-join": "round", "line-sort-key": ["case", ["get", "selected"], 1, 0] },
+            layout: { "line-cap": ["get", "cap"], "line-join": "round", "line-sort-key": ["case", ["get", "selected"], 1, 0] },
             paint: {
                 "line-color": ["get", "color"],
                 "line-width": ["get", "width"],
-                "line-opacity": ["case", ["get", "selected"], 1, ["get", "opacity"]],
+                "line-opacity": ["*", ["get", "fade"], ["case", ["get", "selected"], 1, ["get", "opacity"]]],
             },
         });
         this.updateLayers();
@@ -537,23 +564,49 @@ export class FeedMap {
         const selected = this.content.selected;
         shapes.setData({
             type: "FeatureCollection",
-            features: this.content.shapes.map(({ key, selects, shape, color, name: shapeName }) => ({
-                type: "Feature",
-                geometry:
-                    shape.geometry.type === "line"
-                        ? { type: "MultiLineString", coordinates: this.trail(selects, shape.geometry.paths) }
-                        : { type: "MultiPolygon", coordinates: shape.geometry.polygons },
-                properties: {
+            features: this.content.shapes.flatMap(({ key, selects, shape, color, name: shapeName }): Feature[] => {
+                const isSelected = selects === selected || key === selected;
+                const opacity = shape.kind === "road.maintenance_track" ? shape.opacity * 0.5 : shape.opacity;
+                const properties = {
                     key,
                     selects,
                     color,
                     name: shapeName,
                     width: lineWidth(shape.kind),
-                    opacity: shape.kind === "road.maintenance_track" ? shape.opacity * 0.5 : shape.opacity,
+                    opacity,
                     dashed: shape.dashed,
-                    selected: selects === selected || key === selected,
-                },
-            })),
+                    selected: isSelected,
+                    fade: 1,
+                    cap: "round",
+                };
+                const geometry = shape.geometry;
+                if (geometry.type === "polygon") {
+                    return [{ type: "Feature", geometry: { type: "MultiPolygon", coordinates: geometry.polygons }, properties }];
+                }
+                const cuts = geometry.paths.map((path) => this.trail(selects, path));
+                if (shape.dashed || (!geometry.colors && !geometry.opacities)) {
+                    const coordinates = cuts.map((cut) => cut.path);
+                    return [{ type: "Feature", geometry: { type: "MultiLineString", coordinates }, properties }];
+                }
+                return cuts.flatMap((cut, index) => {
+                    // A position the cut added is on the way to the first one it left out, and is drawn like it.
+                    const ofCut = <T>(values: T[]): (T | undefined)[] =>
+                        cut.path.map((_, at) => values[Math.min(at, cut.kept, values.length - 1)]);
+                    const colors = ofCut(geometry.colors?.[index] ?? []).map((own) => own ?? color);
+                    const opacities = ofCut(geometry.opacities?.[index] ?? []).map((own) => own ?? 1);
+                    return linePieces(cut.path, colors, opacities).map((piece) => ({
+                        type: "Feature",
+                        geometry: { type: "LineString", coordinates: piece.path },
+                        properties: {
+                            ...properties,
+                            color: piece.color,
+                            fade: piece.opacity,
+                            // Round ends of see-through pieces would show as dots where they overlap.
+                            cap: piece.opacity * (isSelected ? 1 : opacity) < 1 ? "butt" : "round",
+                        },
+                    }));
+                });
+            }),
         });
         areas.setData({
             type: "FeatureCollection",
@@ -565,13 +618,11 @@ export class FeedMap {
         });
     }
 
-    /** A line of a gliding point's, cut to end at its marker. */
-    private trail(owner: string, paths: LngLat[][]): LngLat[][] {
+    /** A line of a gliding point's, cut to end at its marker (see cutTrail). */
+    private trail(owner: string, path: LngLat[]): { path: LngLat[]; kept: number } {
         const entry = this.markers.get(owner);
-        if (!entry) return paths;
-        entry.trailDrawnAt = entry.position;
-        const glide = entry.glide;
-        return glide ? paths.map((path) => cutTrail(path, glide, entry.position)) : paths;
+        if (entry) entry.trailDrawnAt = entry.position;
+        return entry?.glide ? cutTrail(path, entry.glide, entry.position) : { path, kept: path.length };
     }
 
     private click(event: MapLayerMouseEvent): void {

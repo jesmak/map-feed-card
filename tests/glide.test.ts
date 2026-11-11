@@ -142,6 +142,24 @@ describe("a gliding item's trail", () => {
         ["is left alone when it ends somewhere else than the item", glide(P, Q), [25.05, 60.0], [S, P], [S, P]],
         ["is left alone when it is a single position", glide(P, Q), [25.05, 60.0], [Q], [Q]],
     ])("%s", (_, glide, drawn, path, expected) => {
-        expect(rounded(cutTrail(path, glide, drawn))).toEqual(rounded(expected));
+        expect(rounded(cutTrail(path, glide, drawn).path)).toEqual(rounded(expected));
+    });
+
+    // What the cut kept of the line: its positions up to the stretch the marker is on.
+    it.each<[string, Glide, LngLat, LngLat[], number]>([
+        ["all of a line it leaves alone", glide(P, Q), [25.05, 60.0], [S, P], 2],
+        ["the positions before the last stretch, when the marker is on it", glide(P, Q), [25.05, 60.0], [S, P, Q], 2],
+        [
+            "the positions before an earlier stretch, when the marker is back on that",
+            glide(P, Q),
+            [25.005, 60.0],
+            [S, P, [25.0, 60.04], [25.1, 60.04], Q],
+            2,
+        ],
+        ["only the first, when the marker is on the first stretch", glide(S, P), [24.95, 60.0], [S, P], 1],
+    ])("keeps %s", (_, glide, drawn, path, kept) => {
+        const cut = cutTrail(path, glide, drawn);
+        expect(cut.kept).toBe(kept);
+        expect(cut.path.slice(0, cut.kept)).toEqual(path.slice(0, cut.kept));
     });
 });

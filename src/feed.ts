@@ -140,7 +140,13 @@ export interface FeedPoint extends FeedItem {
     detailAction: DetailAction | null;
 }
 
-type ShapeGeometry = { type: "line"; paths: LngLat[][] } | { type: "polygon"; polygons: LngLat[][][] };
+/**
+ * A line's `colors` and `opacities` are per path and per position, as the paths are, or null when the feed has none.
+ * A position without a colour of its own has null, and one without an opacity has 1.
+ */
+type ShapeGeometry =
+    | { type: "line"; paths: LngLat[][]; colors: (string | null)[][] | null; opacities: number[][] | null }
+    | { type: "polygon"; polygons: LngLat[][][] };
 
 /** A line or polygon: a road work, a maintenance route, a road section, an area. */
 export interface FeedShape extends FeedItem {
@@ -316,9 +322,9 @@ function readShape(
     index: number,
     sortProperties: string[],
 ): FeedShape | null {
-    const shapeGeometry = readShapeGeometry(geometry);
-    if (!shapeGeometry) return null;
     const props = propertiesOf(feature);
+    const shapeGeometry = readShapeGeometry(geometry, props);
+    if (!shapeGeometry) return null;
     return {
         ...readItem(identifier(feature.id) || `shape:${index}`, props, "", sortProperties),
         geometry: shapeGeometry,
@@ -327,13 +333,13 @@ function readShape(
     };
 }
 
-function readShapeGeometry(geometry: Record<string, unknown>): ShapeGeometry | null {
+function readShapeGeometry(geometry: Record<string, unknown>, props: Record<string, unknown>): ShapeGeometry | null {
     const coordinates = geometry.coordinates;
     switch (geometry.type) {
         case "LineString":
-            return lineGeometry([readPath(coordinates)]);
+            return lineGeometry([coordinates], [props.colors], [props.opacities]);
         case "MultiLineString":
-            return lineGeometry(Array.isArray(coordinates) ? coordinates.map(readPath) : []);
+            return lineGeometry(Array.isArray(coordinates) ? coordinates : [], props.colors, props.opacities);
         case "Polygon":
             return polygonGeometry([readRings(coordinates)]);
         case "MultiPolygon":
@@ -343,9 +349,26 @@ function readShapeGeometry(geometry: Record<string, unknown>): ShapeGeometry | n
     }
 }
 
-function lineGeometry(paths: LngLat[][]): ShapeGeometry | null {
+function lineGeometry(coordinates: unknown[], colors: unknown, opacities: unknown): ShapeGeometry | null {
+    const paths = coordinates.map(readPath);
     const valid = paths.filter((path) => path.length >= 2);
-    return valid.length > 0 ? { type: "line", paths: valid } : null;
+    if (valid.length === 0) return null;
+    // The lists go by position, so they are read only when every path and position of the line was.
+    const whole = valid.length === paths.length && paths.every((path, index) => path.length === (coordinates[index] as unknown[]).length);
+    const lists = <T>(value: unknown, read: (entry: unknown) => T): T[][] | null =>
+        whole &&
+        Array.isArray(value) &&
+        value.length === paths.length &&
+        value.every((list, index) => Array.isArray(list) && list.length === paths[index]!.length)
+            ? (value as unknown[][]).map((list) => list.map(read))
+            : null;
+    return {
+        type: "line",
+        paths: valid,
+        colors: lists(colors, color),
+        // Not held to MIN_OPACITY, as a line may fade out along its length.
+        opacities: lists(opacities, (entry) => Math.min(1, Math.max(0, number(entry) ?? 1))),
+    };
 }
 
 function polygonGeometry(polygons: LngLat[][][]): ShapeGeometry | null {

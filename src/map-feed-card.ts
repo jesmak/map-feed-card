@@ -23,6 +23,7 @@ import {
     type FeedItem,
     type FeedList,
     type FeedPoint,
+    type FeedShape,
     type LngLat,
     type LegendEntry,
 } from "./feed";
@@ -508,10 +509,17 @@ export class MapFeedCard extends LitElement {
                     : html`<span class="dot" style="background:${entry.color};opacity:${entry.item.opacity}"></span>`
             }
             <span class="row-text">
-                <span class="row-title">${row.title}${row.tag ? html` ${tagOf(row.tag, entry.color)}` : nothing}</span>
+                <span class="row-title">${row.title}</span>
                 ${row.text ? html`<span class="row-sub">${row.text}</span>` : nothing}
             </span>
-            ${row.value ? html`<span class="row-value" style=${valueStyle}>${row.value}</span>` : nothing}
+            ${
+                row.tag || row.value
+                    ? html`<span class="row-side">
+                          ${row.tag ? tagOf(row.tag, entry.color) : nothing}
+                          ${row.value ? html`<span class="row-value" style=${valueStyle}>${row.value}</span>` : nothing}
+                      </span>`
+                    : nothing
+            }
         </button>`;
     }
 
@@ -541,17 +549,20 @@ export class MapFeedCard extends LitElement {
                 this.revealSelected = true;
             }
         }
-        const position = this.selected ? this.view.items.get(this.selected)?.point : null;
+        const selected = this.selected ? this.view.items.get(this.selected) : undefined;
+        const position = selected?.point;
         const at = position ? `${position.lon},${position.lat}` : "";
         // A selected item that moves, such as a train, is followed.
         if (at !== this.shownAt) this.revealSelected = true;
         // After the framing above, which a move would otherwise stop: a tap while the map was starting waited for the map.
         if (this.revealSelected) {
             this.revealSelected = false;
-            if (position) {
-                this.shownAt = at;
-                this.map.reveal([position.lon, position.lat], this.sheetElement?.offsetHeight ?? 0);
-            }
+            this.shownAt = at;
+            const covered = this.sheetElement?.offsetHeight ?? 0;
+            // A line or area of its own has no point, and is shown by its bounds.
+            const bounds = selected && !position ? boundsOf(shapePositions(selected.item as FeedShape)) : null;
+            if (position) this.map.reveal([position.lon, position.lat], covered);
+            else if (bounds) this.map.revealShape(bounds, covered);
         }
     }
 
@@ -1318,6 +1329,13 @@ export class MapFeedCard extends LitElement {
                 color: var(--secondary-text-color);
                 overflow-wrap: anywhere;
             }
+            /* The tag over the value, at the row's end, so a tag takes no room from the title. */
+            .row-side {
+                display: flex;
+                flex-direction: column;
+                align-items: flex-end;
+                gap: 4px;
+            }
             .row-value {
                 font-size: 13px;
                 color: var(--secondary-text-color);
@@ -1327,8 +1345,13 @@ export class MapFeedCard extends LitElement {
             .row.under {
                 grid-template-columns: auto minmax(0, 1fr);
             }
-            .row:is(.under, .apart) .row-value {
+            .row:is(.under, .apart) .row-side {
                 grid-column: 2;
+                flex-direction: row;
+                align-items: center;
+                gap: 8px;
+            }
+            .row:is(.under, .apart) .row-value {
                 white-space: normal;
             }
             /* One that doesn't fit even so puts its chip on a line of its own too. */
@@ -1338,7 +1361,7 @@ export class MapFeedCard extends LitElement {
             .row.apart > :is(.chip, .dot) {
                 justify-self: start;
             }
-            .row.apart .row-value {
+            .row.apart .row-side {
                 grid-column: 1;
             }
             /* Measured for splitRows: no word broken, so a text without room for its longest word overflows. */
@@ -1748,7 +1771,9 @@ export class MapFeedCard extends LitElement {
                 font-size: 11px;
                 font-weight: 700;
                 border-radius: 6px;
-                padding: 3px 7px;
+                /* A tag is written in capitals, which have nothing under the baseline, so the room under it is less. */
+                line-height: 13px;
+                padding: 4px 7px 3px;
                 flex: none;
                 white-space: nowrap;
             }

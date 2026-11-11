@@ -11,6 +11,7 @@ const drawn = vi.hoisted(() => ({
     byItems: false,
     moved: false,
     reveals: [] as Array<[unknown, number]>,
+    shapeReveals: [] as Array<[unknown, number]>,
     /** Fits and reveals in the order the card asked for them. */
     order: [] as string[],
 }));
@@ -33,6 +34,9 @@ vi.mock("../src/map", () => ({
         reveal(position: unknown, covered: number) {
             drawn.order.push("reveal");
             drawn.reveals.push([position, covered]);
+        }
+        revealShape(bounds: unknown, covered: number) {
+            drawn.shapeReveals.push([bounds, covered]);
         }
         resize() {}
         tapped() {
@@ -580,7 +584,7 @@ describe("map-feed-card", () => {
             properties: { name: "Korpivaara", kind: "air.area", details: [{ label: "Heights", value: "SFC – FL 95" }], list },
         });
 
-        it("shows a list row's tag after its title", async () => {
+        it("shows a list row's tag at the row's end", async () => {
             const card = await mount(
                 { entities: ["sensor.airspace"], list: true },
                 {
@@ -597,9 +601,10 @@ describe("map-feed-card", () => {
                     ]),
                 },
             );
-            const title = card.shadowRoot!.querySelector(".row .row-title")!;
-            expect(title.textContent!.replace(/\s+/g, " ").trim()).toBe("Restricted area EFR1880 NEW");
-            expect(title.querySelector(".tag.warning")!.textContent).toBe("NEW");
+            const row = card.shadowRoot!.querySelector(".row")!;
+            expect(row.querySelector(".row-title")!.textContent).toBe("Restricted area EFR1880");
+            // At the row's end with its value, so it takes no room from the title.
+            expect(row.querySelector(".row-side > .tag.warning")!.textContent).toBe("NEW");
             // The item tone takes the item's own colour.
             const own = card.shadowRoot!.querySelector<HTMLElement>(".row .tag.item")!;
             expect(own.textContent).toBe("TODAY");
@@ -971,15 +976,30 @@ describe("the details", () => {
 
         it("never follows an item with no point to follow, such as a road work's line", async () => {
             const roads = (overrides: Record<string, unknown>) => ({
-                "sensor.roads": feedState("sensor.roads", [roadworkLine(overrides)]),
+                "sensor.roads": feedState("sensor.roads", [
+                    roadworkLine({ details: [{ label: "Lanes", value: "One closed" }], ...overrides }),
+                ]),
             });
             const card = await mount({ entities: ["sensor.roads"] }, roads({}));
+            drawn.shapeReveals = [];
             card["select"](first(card));
             await card.updateComplete;
+            // Selected, it is shown by the bounds of all its lines, clear of the sheet.
+            const shown = [
+                [
+                    [
+                        [27.2, 60.6],
+                        [27.26, 60.66],
+                    ],
+                    120,
+                ],
+            ];
+            expect(drawn.shapeReveals).toEqual(shown);
             drawn.reveals = [];
             card.hass = hass(roads({ name: "Moved" }));
             await card.updateComplete;
             expect(drawn.reveals).toEqual([]);
+            expect(drawn.shapeReveals).toEqual(shown);
         });
 
         // Coming back, the card's first report of its size shows the item; with nothing to frame and no sheet, nothing else does.

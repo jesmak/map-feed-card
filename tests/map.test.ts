@@ -271,7 +271,13 @@ describe("gliding markers", () => {
 
     /** The point's trail as the feed writes it, ending at the newest report. */
     const trailTo = (...path: LngLat[]): DrawnShape[] => [
-        { key: "trail", selects: "a", shape: shape({ type: "line", paths: [[[24.9, 60.0], ...path]] }), color: "#1565c0", name: "" },
+        {
+            key: "trail",
+            selects: "a",
+            shape: shape({ type: "line", paths: [[[24.9, 60.0], ...path]], colors: null, opacities: null }),
+            color: "#1565c0",
+            name: "",
+        },
     ];
     /** The trail as drawn, rounded, as a glide's positions are worked out in floating point. */
     const trailDrawn = () =>
@@ -291,6 +297,39 @@ describe("gliding markers", () => {
         expect(trailDrawn()).toEqual([[[24.9, 60.0], A, [25.05, 60.0]]]);
         frameAt(30_000);
         expect(drawnAt(map)).toBe(where([25.125, 60.0]));
+    });
+
+    it("draws a trail with colours and opacities in pieces, the marker's end in the colour of the report it glides to", async () => {
+        const map = await feedMap();
+        const trail = (path: LngLat[], colors: string[], opacities: number[]): DrawnShape[] => [
+            {
+                key: "trail",
+                selects: "a",
+                shape: shape({ type: "line", paths: [path], colors: [colors], opacities: [opacities] }),
+                color: "#1565c0",
+                name: "",
+            },
+        ];
+        const pieces = () =>
+            (
+                sources["feed-shapes"].data as {
+                    features: Array<{ geometry: { coordinates: LngLat[] }; properties: Record<string, unknown> }>;
+                }
+            ).features.map(({ geometry, properties }) => [
+                geometry.coordinates.map(([lon]) => +lon.toFixed(3)),
+                properties.color,
+                properties.fade,
+                properties.cap,
+            ]);
+        map.update(content(A, 0, true, trail([[24.9, 60.0], A], ["#ff0000", "#ff0000"], [0.5, 0.5])));
+        expect(pieces()).toEqual([[[24.9, 25], "#ff0000", 0.5, "butt"]]);
+        now = 15_000;
+        map.update(content(B, 15_000, true, trail([[24.9, 60.0], A, B], ["#ff0000", "#ff0000", "#0000ff"], [1, 1, 1])));
+        frameAt(22_500);
+        // Half way from A to B: the trail ends there, already blending towards B's colour.
+        expect(pieces()).toHaveLength(7);
+        expect(pieces()[0]).toEqual([[24.9, 25], "#ff0000", 1, "round"]);
+        expect(pieces().at(-1)).toEqual([[25.042, 25.05], "#1500ea", 1, "round"]);
     });
 
     it("brings a marker whose frames stopped, as in a hidden tab, to where its glide has got to when a report comes", async () => {
@@ -343,7 +382,7 @@ describe("gliding markers", () => {
     it("cuts the point's trail at the marker while it glides, leaves its areas alone, and draws the trail whole after", async () => {
         const map = await feedMap();
         const before: LngLat = [24.9, 60.0];
-        const trail = shape({ type: "line", paths: [[before, A, B]] });
+        const trail = shape({ type: "line", paths: [[before, A, B]], colors: null, opacities: null });
         const area = shape({ type: "polygon", polygons: [[[A, B, [25.1, 60.1], A]]] });
         const shapes: DrawnShape[] = [
             { key: "trail", selects: "a", shape: trail, color: "#1565c0", name: "" },
@@ -429,6 +468,109 @@ describe("revealing the selected item", () => {
         expect(eased.map((options) => (options.offset?.[1] ?? NaN) + 0)).toEqual(offset === null ? [] : [offset]);
         expect(eased.map((options) => options.center)).toEqual(offset === null ? [] : [[x / 100_000, y / 100_000]]);
         expect(map.moved).toBe(offset !== null);
+    });
+});
+
+describe("showing a selected line or area", () => {
+    // The map is 400 by 300, and a shape under 40 px is too small to make out.
+    type Box = [[number, number], [number, number]];
+    const boundsOf = ([[west, south], [east, north]]: Box): [LngLat, LngLat] => [
+        [west / 100_000, south / 100_000],
+        [east / 100_000, north / 100_000],
+    ];
+    const shown = async () => {
+        vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({} as RenderingContext);
+        const map = new FeedMap(document.createElement("div"), "default", true, null, () => undefined, {});
+        await map.init();
+        eased.length = 0;
+        return map;
+    };
+
+    it.each<[string, Box, number, [number, number] | null]>([
+        [
+            "is in view, at a size that shows",
+            [
+                [100, 50],
+                [300, 250],
+            ],
+            0,
+            null,
+        ],
+        [
+            "is in view, 40 px across",
+            [
+                [180, 140],
+                [220, 160],
+            ],
+            0,
+            null,
+        ],
+        [
+            "is in view, but under 40 px across",
+            [
+                [181, 140],
+                [220, 160],
+            ],
+            0,
+            [200.5, 150],
+        ],
+        [
+            "has its middle past the right edge",
+            [
+                [380, 100],
+                [600, 200],
+            ],
+            0,
+            [490, 150],
+        ],
+        [
+            "has its middle above the top edge",
+            [
+                [100, -200],
+                [300, 100],
+            ],
+            0,
+            [200, -50],
+        ],
+        [
+            "has its middle under the sheet",
+            [
+                [100, 180],
+                [300, 280],
+            ],
+            140,
+            [200, 230],
+        ],
+        [
+            "has its middle just clear of the sheet",
+            [
+                [100, 100],
+                [300, 220],
+            ],
+            140,
+            null,
+        ],
+    ])("moves the map to one that %s, or leaves it", async (_name, box, covered, center) => {
+        const map = await shown();
+        map.revealShape(boundsOf(box), covered);
+        const rounded = eased.map(({ center }) => (center as LngLat).map((degrees) => +(degrees * 100_000).toFixed(3)));
+        expect(rounded).toEqual(center ? [center] : []);
+        expect(eased.map((options) => (options.offset?.[1] ?? NaN) + 0)).toEqual(center ? [-covered / 2 + 0] : []);
+        expect(map.moved).toBe(center !== null);
+    });
+
+    it("leaves the map where a hand moved it, until the item is tapped again", async () => {
+        const map = await shown();
+        const small = boundsOf([
+            [190, 140],
+            [210, 160],
+        ]);
+        handlers.movestart!({ originalEvent: new Event("pointerdown") });
+        map.revealShape(small);
+        expect(eased).toEqual([]);
+        map.tapped();
+        map.revealShape(small);
+        expect(eased).toHaveLength(1);
     });
 });
 

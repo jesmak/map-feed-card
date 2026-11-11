@@ -43,10 +43,11 @@ export function positionAt(glide: Glide, now: number): LngLat {
  * at the line's point nearest the marker, and then the marker. The reports needn't be on the line, as a simplified trail
  * leaves out those on a straight leg. It searches only the segments that begin within twice the glide's length of the
  * line's end, so that a holding pattern's older pass by the marker isn't taken for where it is now. A line that ends
- * anywhere else is left as it is.
+ * anywhere else is left as it is. `kept` is how many of the line's positions the cut line starts with. The ones after
+ * them are new, on the way to the line's position `kept`.
  */
-export function cutTrail(path: LngLat[], glide: Glide, drawn: LngLat): LngLat[] {
-    if (path.length < 2 || !samePosition(path[path.length - 1], glide.to)) return path;
+export function cutTrail(path: LngLat[], glide: Glide, drawn: LngLat): { path: LngLat[]; kept: number } {
+    if (path.length < 2 || !samePosition(path[path.length - 1], glide.to)) return { path, kept: path.length };
     // Flat around the marker, a degree of longitude as long as it is there, which is close enough for a glide's length.
     const scale = Math.cos((drawn[1] * Math.PI) / 180);
     const flat = ([lon, lat]: LngLat) => [wrap(lon - drawn[0]) * scale, lat - drawn[1]];
@@ -69,7 +70,7 @@ export function cutTrail(path: LngLat[], glide: Glide, drawn: LngLat): LngLat[] 
     const cut: LngLat = [wrap(a[0] + wrap(b[0] - a[0]) * best.t), a[1] + (b[1] - a[1]) * best.t];
     const trail = path.slice(0, best.index);
     for (const position of [cut, drawn]) if (!samePosition(trail[trail.length - 1], position)) trail.push(position);
-    return trail;
+    return { path: trail, kept: best.index };
 }
 
 /** Closer than about ten centimetres is the same place, as feeds round to about a metre. */

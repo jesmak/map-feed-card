@@ -313,12 +313,12 @@ badge already says its name has its route, the `subtitle`, as the title instead.
 { "title": "Restricted area EFR1880", "text": "in force until 17:00", "value": "82 km", "tag": { "text": "NEW", "tone": "warning" } }
 ```
 
-| Field   | Type   | Required | Meaning                                                                |
-| ------- | ------ | -------- | ---------------------------------------------------------------------- |
-| `title` | string | MAY      | The row's title.                                                       |
-| `text`  | string | MAY      | The line under the title. An empty string leaves it out.               |
-| `value` | string | MAY      | Shown on the right, such as a distance. An empty string leaves it out. |
-| `tag`   | object | MAY      | A short tag after the title, as a [row's tag](#rows) is.               |
+| Field   | Type   | Required | Meaning                                                                   |
+| ------- | ------ | -------- | ------------------------------------------------------------------------- |
+| `title` | string | MAY      | The row's title.                                                          |
+| `text`  | string | MAY      | The line under the title. An empty string leaves it out.                  |
+| `value` | string | MAY      | Shown on the right, such as a distance. An empty string leaves it out.    |
+| `tag`   | object | MAY      | A short tag at the row's end, over the value, as a [row's tag](#rows) is. |
 
 Each field replaces only its own part, so a feed can give a bird sighting's distance as the `value` and keep the rest.
 The value of something late takes its delay's colour, everything else the secondary text colour.
@@ -378,6 +378,42 @@ colour, and tapping it selects the point, so the details are written once, on th
   }
 ]
 ```
+
+A line MAY have a colour or an opacity for each of its positions, in `colors` and `opacities`, such as a trail
+coloured by the altitude it was flown at that fades out where it ends. Each is a list with one entry per position, in
+the positions' order, and for a `MultiLineString` a list of such lists, one per line. Between two positions the card
+blends from one's colour and opacity to the next's.
+
+```json
+{
+  "type": "Feature",
+  "id": "aircraft:461f00/trail",
+  "geometry": {
+    "type": "LineString",
+    "coordinates": [
+      [23.61, 61.42],
+      [23.7, 61.45],
+      [23.82, 61.47]
+    ]
+  },
+  "properties": {
+    "kind": "air.large",
+    "point": "aircraft:461f00",
+    "colors": ["#e0a715", "#b9c40d", "#0cc35a"],
+    "opacities": [0, 1, 1]
+  }
+}
+```
+
+| Field       | Type | Required | Meaning                                                                                                                         |
+| ----------- | ---- | -------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `colors`    | list | MAY      | A CSS hex colour per position. A `null` is the colour the line would have without the list, its point's when it belongs to one. |
+| `opacities` | list | MAY      | A number 0–1 per position, multiplied with the line's `opacity`. These go all the way to 0, so a line can fade out.             |
+
+A list that doesn't have exactly one entry for every position is ignored, and the line is drawn as it would be
+without it. A line with a position the card can't read, or with a part of fewer than two positions, ignores both lists,
+as every entry after it would be out of step. An entry of `opacities` that isn't a number counts as 1, and one outside
+0–1 as the nearer of the two. Dashed lines and polygons ignore both. The line is still one item, tapped, selected and named as a whole.
 
 Lines with thousands of points make a feed large. Sources SHOULD simplify them to what a map shows, for
 example with the Douglas–Peucker algorithm and a tolerance of 10–20 metres.

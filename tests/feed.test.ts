@@ -86,6 +86,63 @@ describe("readFeed", () => {
         expect(okFeed(state).points[0]?.color).toBe("#ff8800");
     });
 
+    it("reads a line's colours and opacities by position, and neither when they don't match its positions", () => {
+        const line = (
+            properties: Record<string, unknown>,
+            coordinates: unknown[] = [
+                [27, 60],
+                [28, 61],
+                [29, 62],
+            ],
+        ) => {
+            const feed = okFeed(feedState("sensor.x", [{ type: "Feature", geometry: { type: "LineString", coordinates }, properties }]));
+            return feed.shapes[0]?.geometry;
+        };
+        expect(line({ colors: ["#ff8800", "red", null], opacities: [-1, "0.5", 2] })).toMatchObject({
+            colors: [["#ff8800", null, null]],
+            opacities: [[0, 0.5, 1]],
+        });
+        expect(line({})).toMatchObject({ colors: null, opacities: null });
+        expect(line({ colors: ["#ff8800", "#ff8800"], opacities: [[1, 1, 1]] })).toMatchObject({ colors: null, opacities: null });
+        // A position the card can't read would put every one after it out of step.
+        expect(line({ colors: ["#000", "#000", "#000", "#000"] }, [[27, 60], [28, 61], "here", [29, 62]])).toMatchObject({ colors: null });
+
+        const feed = okFeed(
+            feedState("sensor.x", [
+                {
+                    type: "Feature",
+                    geometry: {
+                        type: "MultiLineString",
+                        coordinates: [
+                            [
+                                [27, 60],
+                                [28, 61],
+                            ],
+                            [
+                                [29, 62],
+                                [30, 63],
+                            ],
+                        ],
+                    },
+                    properties: {
+                        colors: [
+                            ["#000", "#111"],
+                            ["#222", "#333"],
+                        ],
+                        opacities: [1, 1],
+                    },
+                },
+            ]),
+        );
+        expect(feed.shapes[0]?.geometry).toMatchObject({
+            colors: [
+                ["#000", "#111"],
+                ["#222", "#333"],
+            ],
+            opacities: null,
+        });
+    });
+
     it("reads areas, lines and polygons", () => {
         const feed = okFeed(
             feedState(
