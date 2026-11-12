@@ -67,7 +67,7 @@ export interface LegendEntry {
 }
 
 /** What a feed is about, as the format's kind families; the editor offers only the options that make sense for it. */
-const FEED_TYPES = ["ship", "train", "transit", "air", "road", "sea", "nature", "other"] as const;
+const FEED_TYPES = ["ship", "train", "transit", "air", "road", "sea", "weather", "nature", "other"] as const;
 export type FeedType = (typeof FEED_TYPES)[number];
 
 /** An order the feed offers for the card's list. */

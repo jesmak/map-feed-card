@@ -43,6 +43,8 @@ export const KIND_COLORS: Readonly<Record<string, string>> = {
     "sea.warning": "#ad1457",
     // Purple, close enough to the chart's magenta to read as a restriction and far enough from a warning's.
     "sea.restriction": "#8e24aa",
+    // The yellow of a weather warning's lowest level. A feed colours each area by its own level.
+    "weather.warning": "#f9a825",
     "air.light": "#2e7d32",
     "air.small": "#00838f",
     "air.large": "#1565c0",

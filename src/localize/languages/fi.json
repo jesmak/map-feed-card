@@ -113,6 +113,7 @@
         "road_camera": "Kelikamera",
         "sea_warning": "Merivaroitus",
         "sea_restriction": "Vesiliikenteen rajoitusalue",
+        "weather_warning": "Säävaroitus",
         "air_light": "Kevyt lentokone",
         "air_small": "Pieni lentokone",
         "air_large": "Suuri lentokone",

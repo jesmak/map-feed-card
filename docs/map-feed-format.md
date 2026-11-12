@@ -52,18 +52,18 @@ anything that changes on its own, such as "2 min ago".
 
 ## Entity
 
-| Field              | Type     | Required | Meaning                                                                                                                        |
-| ------------------ | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| state              | integer  | **MUST** | Number of items. The source decides what an item is. Usually it is the number of Point features.                               |
-| `map_feed_version` | integer  | **MUST** | `1`. The card uses this to recognise a feed.                                                                                   |
-| `geojson`          | object   | **MUST** | A GeoJSON `FeatureCollection` object (not a JSON string).                                                                      |
-| `feed_type`        | string   | SHOULD   | What the feed is about, `ship`, `train`, `transit`, `air`, `road`, `sea`, `nature` or `other`. See [feed type](#feed-type).    |
-| `attribution`      | string   | SHOULD   | Data credit, added to the map's attribution line. Required when the data licence asks for credit.                              |
-| `attribution_url`  | string   | MAY      | An `https` URL the attribution links to, when the data licence asks for a link. Any other URL is left out.                     |
-| `area`             | object   | MAY      | `{"center": [lat, lon], "radius_km": 15}` or `{"bbox": [south, west, north, east]}`. Drawn by the card when `show_area` is on. |
-| `updated`          | ISO 8601 | SHOULD   | When the source last fetched successfully.                                                                                     |
-| `legend`           | object[] | MAY      | What the feed's own colours mean, in its own language. See [legend](#legend).                                                  |
-| `list`             | object   | MAY      | How the card's list of items can be sorted, and what an item is called. See [list](#list).                                     |
+| Field              | Type     | Required | Meaning                                                                                                                                |
+| ------------------ | -------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| state              | integer  | **MUST** | Number of items. The source decides what an item is. Usually it is the number of Point features.                                       |
+| `map_feed_version` | integer  | **MUST** | `1`. The card uses this to recognise a feed.                                                                                           |
+| `geojson`          | object   | **MUST** | A GeoJSON `FeatureCollection` object (not a JSON string).                                                                              |
+| `feed_type`        | string   | SHOULD   | What the feed is about, `ship`, `train`, `transit`, `air`, `road`, `sea`, `weather`, `nature` or `other`. See [feed type](#feed-type). |
+| `attribution`      | string   | SHOULD   | Data credit, added to the map's attribution line. Required when the data licence asks for credit.                                      |
+| `attribution_url`  | string   | MAY      | An `https` URL the attribution links to, when the data licence asks for a link. Any other URL is left out.                             |
+| `area`             | object   | MAY      | `{"center": [lat, lon], "radius_km": 15}` or `{"bbox": [south, west, north, east]}`. Drawn by the card when `show_area` is on.         |
+| `updated`          | ISO 8601 | SHOULD   | When the source last fetched successfully.                                                                                             |
+| `legend`           | object[] | MAY      | What the feed's own colours mean, in its own language. See [legend](#legend).                                                          |
+| `list`             | object   | MAY      | How the card's list of items can be sorted, and what an item is called. See [list](#list).                                             |
 
 Note that `area` uses latitude first, like the rest of Home Assistant, while GeoJSON coordinates use
 longitude first.
@@ -71,12 +71,12 @@ longitude first.
 ### Feed type
 
 `feed_type` says what the feed is about, in the same families as the [kinds](#kinds) of its items, `ship`, `train`,
-`transit`, `air`, `road`, `sea`, `nature` or `other`. A feed has one type even when its items are of several kinds, such as road works,
+`transit`, `air`, `road`, `sea`, `weather`, `nature` or `other`. A feed has one type even when its items are of several kinds, such as road works,
 accidents and announcements in a feed of traffic messages, which is `road`.
 
 The card's editor offers a feed only the options that make sense for it. Delay colours are for trains and public
 transport, and an age limit for anything with positions, which leaves out sightings that the source already limits by
-their age and warnings at sea, which are in force for as long as the source gives them. A feed without a type, or with one the card doesn't know, is offered every option.
+their age and warnings at sea and of the weather, which are in force for as long as the source gives them. A feed without a type, or with one the card doesn't know, is offered every option.
 
 ### Legend
 
@@ -176,6 +176,7 @@ Properties the card doesn't know are ignored, apart from a feed's own properties
 | Transit | `bus`, `tram`, `metro`, `ferry`                                                                                                                                                                                                                                                                             |
 | Road    | `road.roadwork`, `road.announcement`, `road.accident`, `road.weight_restriction`, `road.exempted_transport`, `road.maintenance`, `road.maintenance_track`, `road.condition.normal`, `road.condition.poor`, `road.condition.extremely_poor`, `road.condition.unknown`, `road.weather_station`, `road.camera` |
 | Sea     | `sea.warning`, `sea.restriction`                                                                                                                                                                                                                                                                            |
+| Weather | `weather.warning`                                                                                                                                                                                                                                                                                           |
 | Nature  | `bird`                                                                                                                                                                                                                                                                                                      |
 | Other   | `other`                                                                                                                                                                                                                                                                                                     |
 
@@ -183,7 +184,9 @@ An unknown kind is drawn as a grey arrow or dot. Within the ship, train or air f
 speed and the position's age like the family's other kinds. Variations of the transit kinds, such as `bus.night`, have
 no family prefix and count as `other`. `sea.warning` and `sea.restriction` are the only sea kinds the card knows, and
 any other `sea.` kind counts as `other` too. `sea.restriction` is a standing restriction area on the water, such as a
-speed limit, and is meant for a polygon without a point of its own.
+speed limit, and is meant for a polygon without a point of its own. `weather.warning` is an area with a weather warning,
+a polygon without a point of its own too, which the feed colours by the warning's level. It is the only weather kind the
+card knows.
 
 Road works, announcements, accidents, weight restrictions, exempted transports and `sea.warning`, a nautical
 warning, are drawn as a warning sign,

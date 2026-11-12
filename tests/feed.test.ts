@@ -375,6 +375,7 @@ describe("readFeed: area", () => {
 describe("readFeed: type", () => {
     it("reads the feed's type, and nothing it doesn't know", () => {
         expect(okFeed(feedState("sensor.birds", [], { feed_type: "nature" })).type).toBe("nature");
+        expect(okFeed(feedState("sensor.warnings", [], { feed_type: "weather" })).type).toBe("weather");
         expect(okFeed(feedState("sensor.x", [], { feed_type: "birds" })).type).toBeNull();
         expect(okFeed(feedState("sensor.x", [])).type).toBeNull();
     });

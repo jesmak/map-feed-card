@@ -113,6 +113,7 @@
         "road_camera": "Road camera",
         "sea_warning": "Nautical warning",
         "sea_restriction": "Water restriction area",
+        "weather_warning": "Weather warning",
         "air_light": "Light aircraft",
         "air_small": "Small aircraft",
         "air_large": "Large aircraft",

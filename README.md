@@ -31,6 +31,7 @@ writes it:
 - [Digitransit Live](https://github.com/jesmak/digitransit_live): buses, trams and metros in Finland.
 - [Birds Nearby](https://github.com/jesmak/birds_nearby): recent bird sightings near home, from eBird.
 - [ADS-B Live](https://github.com/jesmak/adsb_live): aircraft from your own ADS-B receiver, and from adsb.fi.
+- [FMI Open Data](https://github.com/jesmak/fmi) for the areas in Finland with a weather warning, coloured by level.
 
 Integrations that write the format carry the GitHub topic
 [`map-feed-card-source`](https://github.com/topics/map-feed-card-source), so that's where to look for more. If you

@@ -21,6 +21,7 @@ describe("a feed's options in the editor", () => {
         expect(feedFields("road", false, {})).toEqual(["max_age_minutes", "labels", "frame"]);
         expect(feedFields("nature", false, {})).toEqual(["labels", "frame"]);
         expect(feedFields("sea", false, {})).toEqual(["labels", "frame"]);
+        expect(feedFields("weather", false, {})).toEqual(["labels", "frame"]);
     });
 
     it("offers a place in the list only when the card has a list, or one is set anyway", () => {

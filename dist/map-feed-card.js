@@ -780,7 +780,7 @@ var maplibre_gl_default = `.maplibregl-map{font:12px/20px Helvetica Neue,Arial,H
 var SUPPORTED_FEED_VERSION = 1;
 var MIN_OPACITY = 0.3;
 var MAX_IMAGES = 6;
-var FEED_TYPES = ["ship", "train", "transit", "air", "road", "sea", "nature", "other"];
+var FEED_TYPES = ["ship", "train", "transit", "air", "road", "sea", "weather", "nature", "other"];
 var UNAVAILABLE_STATES = /* @__PURE__ */ new Set(["unavailable", "unknown"]);
 var HEX_COLOR = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
 var ACTION_NAME = /^([a-z0-9_]+)\.([a-z0-9_]+)$/;
@@ -1201,6 +1201,8 @@ var KIND_COLORS = {
   "sea.warning": "#ad1457",
   // Purple, close enough to the chart's magenta to read as a restriction and far enough from a warning's.
   "sea.restriction": "#8e24aa",
+  // The yellow of a weather warning's lowest level. A feed colours each area by its own level.
+  "weather.warning": "#f9a825",
   "air.light": "#2e7d32",
   "air.small": "#00838f",
   "air.large": "#1565c0",
@@ -1698,6 +1700,7 @@ var en_default = {
     road_camera: "Road camera",
     sea_warning: "Nautical warning",
     sea_restriction: "Water restriction area",
+    weather_warning: "Weather warning",
     air_light: "Light aircraft",
     air_small: "Small aircraft",
     air_large: "Large aircraft",
@@ -1851,6 +1854,7 @@ var fi_default = {
     road_camera: "Kelikamera",
     sea_warning: "Merivaroitus",
     sea_restriction: "Vesiliikenteen rajoitusalue",
+    weather_warning: "S\xE4\xE4varoitus",
     air_light: "Kevyt lentokone",
     air_small: "Pieni lentokone",
     air_large: "Suuri lentokone",
@@ -2097,9 +2101,9 @@ function feedFields(type, hasArea, options, list = false) {
   const fields = [
     ...colorBy ? ["color_by"] : [],
     ...colorBy && options.color_by === "delay" ? ["late_minutes", "very_late_minutes"] : [],
-    ...type !== "sea" && type !== "nature" || set("max_age_minutes") ? ["max_age_minutes"] : [],
+    ...type !== "sea" && type !== "weather" && type !== "nature" || set("max_age_minutes") ? ["max_age_minutes"] : [],
     "labels",
-    ...type !== "road" && type !== "sea" && type !== "nature" || set("glide") ? ["glide"] : [],
+    ...type !== "road" && type !== "sea" && type !== "weather" && type !== "nature" || set("glide") ? ["glide"] : [],
     ...area ? ["show_area"] : [],
     ...area && options.show_area === true || set("area_color") ? ["area_color"] : [],
     "frame",
