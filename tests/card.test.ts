@@ -93,6 +93,26 @@ describe("map-feed-card", () => {
         expect(MapFeedCard.getStubConfig(hass(states))).toEqual({ entities: ["sensor.trains"] });
     });
 
+    it("shows its picker stub with no map feed as a hint", async () => {
+        const stub = MapFeedCard.getStubConfig(hass({}));
+        expect(stub).toEqual({ entities: [] });
+        const card = await mount(stub, {});
+        expect(card.shadowRoot!.querySelector(".map-note .hint")?.textContent?.trim()).toBe(
+            "No map feeds yet. Add one in the card's settings.",
+        );
+    });
+
+    it.each<[string, Record<string, unknown>, boolean, string]>([
+        ["wide without the list", {}, true, ".panel .hint"],
+        ["narrow with the list", { list: true }, false, ".list .hint"],
+        ["wide with the list", { list: true }, true, ".list .hint"],
+    ])("shows the hint with no map feed %s too", async (_name, extra, wide, selector) => {
+        const card = await mount({ entities: [], ...extra }, {});
+        card["wide"] = wide;
+        await card.updateComplete;
+        expect(card.shadowRoot!.querySelector(selector)?.textContent?.trim()).toBe("No map feeds yet. Add one in the card's settings.");
+    });
+
     it("draws the feed's points, fits the map to them once, and asks for a tap", async () => {
         const card = await mount(
             { entities: [{ entity: "sensor.trains", color_by: "delay" }] },

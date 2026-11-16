@@ -68,6 +68,7 @@ describe("parseOptions", () => {
 
     it("refuses what it can't draw, saying what is wrong", () => {
         expect(() => parseOptions({})).toThrow(/entities is required/);
+        expect(parseOptions({ entities: [] }).feeds).toEqual([]);
         expect(() => parseOptions({ entities: ["Trains"] })).toThrow(/isn't an entity id/);
         expect(() => parseOptions({ entities: ["sensor.x"], map_style: "satellite" })).toThrow(/map_style/);
         expect(() => parseOptions({ entities: ["sensor.x"], map_height: 20 })).toThrow(/map_height/);

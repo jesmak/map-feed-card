@@ -1591,6 +1591,7 @@ var en_default = {
     description: "Trains, ships, buses, road works, birds and anything else from a map feed, on Home Assistant's own map",
     select_hint: "Select an item on the map to see more about it.",
     nothing_to_show: "Nothing to show right now.",
+    no_feeds: "No map feeds yet. Add one in the card's settings.",
     no_entity: "Entity not found:",
     not_a_feed: "is not a map feed",
     unavailable: "is not available right now",
@@ -1745,6 +1746,7 @@ var fi_default = {
     description: "Junat, laivat, bussit, tiety\xF6t, linnut ja muut karttasy\xF6tteen kohteet Home Assistantin omalla kartalla",
     select_hint: "Valitse kohde kartalta n\xE4hd\xE4ksesi sen tarkemmat tiedot.",
     nothing_to_show: "Ei n\xE4ytett\xE4v\xE4\xE4 juuri nyt.",
+    no_feeds: "Ei viel\xE4 karttasy\xF6tteit\xE4. Lis\xE4\xE4 sy\xF6te kortin asetuksista.",
     no_entity: "Entiteetti\xE4 ei l\xF6ydy:",
     not_a_feed: "ei ole karttasy\xF6te",
     unavailable: "ei ole juuri nyt saatavilla",
@@ -1987,8 +1989,8 @@ var MAX_START_ZOOM = 18;
 var ENTITY_ID = /^[a-z_]+\.[a-z0-9_]+$/;
 function parseOptions(raw) {
   const config = isRecord2(raw) ? raw : {};
-  const entries = Array.isArray(config.entities) ? config.entities : [];
-  if (entries.length === 0) {
+  const entries = Array.isArray(config.entities) ? config.entities : void 0;
+  if (!entries) {
     throw new Error("entities is required: the map feed sensors to draw, e.g. entities: [sensor.ships_near_the_cabin]");
   }
   const feeds = entries.map((entry) => parseFeed(typeof entry === "string" ? { entity: entry } : isRecord2(entry) ? entry : {}));
@@ -35439,13 +35441,16 @@ var MapFeedCard = class extends i4 {
                     ${list ? this.renderList(view, titleInList ? title : "") : !this.wide ? A : b2`<div class="panel">
                                     ${view?.problems.map((problem) => b2`<div class="problem">${problem}</div>`)}
                                     ${selected ? this.details(selected) : b2`<div class="hint">
-                                                  ${this.text(view?.items.size ? "common.select_hint" : "common.nothing_to_show")}
+                                                  ${view?.items.size ? this.text("common.select_hint") : this.nothingText()}
                                               </div>`}
                                 </div>`}
                 </div>
                 ${this.compact && this.overlayOpen && selected ? this.overlay(selected) : A}
             </ha-card>
         `;
+  }
+  nothingText() {
+    return this.text(this.options?.feeds.length ? "common.nothing_to_show" : "common.no_feeds");
   }
   /**
    * Narrow and without the list, the details go in a sheet over the bottom of the map, so the card keeps its size;
@@ -35457,7 +35462,7 @@ var MapFeedCard = class extends i4 {
     if (!selected) {
       return b2`<div class="map-note">
                 ${problems}${view?.items.size ? b2`<div class="hint">${this.text("common.select_hint")}</div>` : A}
-                ${!view?.items.size && !view?.problems.length ? b2`<div class="hint">${this.text("common.nothing_to_show")}</div>` : A}
+                ${!view?.items.size && !view?.problems.length ? b2`<div class="hint">${this.nothingText()}</div>` : A}
             </div>`;
     }
     return b2`<div class="sheet">
@@ -35512,6 +35517,7 @@ var MapFeedCard = class extends i4 {
             </div>
             <div class="rows">
                 ${view?.problems.map((problem) => b2`<div class="problem">${problem}</div>`)}
+                ${feeds.length === 0 ? b2`<div class="hint">${this.nothingText()}</div>` : A}
                 ${entries.map((entry) => this.listItem(entry))}
             </div>
         </div>`;

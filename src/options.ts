@@ -65,8 +65,9 @@ export interface CardOptions {
 
 export function parseOptions(raw: unknown): CardOptions {
     const config = isRecord(raw) ? raw : {};
-    const entries = Array.isArray(config.entities) ? config.entities : [];
-    if (entries.length === 0) {
+    // An empty list is the picker's stub when there is no map feed yet, and the card says so.
+    const entries = Array.isArray(config.entities) ? config.entities : undefined;
+    if (!entries) {
         throw new Error("entities is required: the map feed sensors to draw, e.g. entities: [sensor.ships_near_the_cabin]");
     }
     // A feed with nothing but its entity can be written as the plain entity id.

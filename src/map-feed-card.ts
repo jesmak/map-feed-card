@@ -431,7 +431,7 @@ export class MapFeedCard extends LitElement {
                                         selected
                                             ? this.details(selected)
                                             : html`<div class="hint">
-                                                  ${this.text(view?.items.size ? "common.select_hint" : "common.nothing_to_show")}
+                                                  ${view?.items.size ? this.text("common.select_hint") : this.nothingText()}
                                               </div>`
                                     }
                                 </div>`
@@ -440,6 +440,10 @@ export class MapFeedCard extends LitElement {
                 ${this.compact && this.overlayOpen && selected ? this.overlay(selected) : nothing}
             </ha-card>
         `;
+    }
+
+    private nothingText(): string {
+        return this.text(this.options?.feeds.length ? "common.nothing_to_show" : "common.no_feeds");
     }
 
     /**
@@ -452,7 +456,7 @@ export class MapFeedCard extends LitElement {
         if (!selected) {
             return html`<div class="map-note">
                 ${problems}${view?.items.size ? html`<div class="hint">${this.text("common.select_hint")}</div>` : nothing}
-                ${!view?.items.size && !view?.problems.length ? html`<div class="hint">${this.text("common.nothing_to_show")}</div>` : nothing}
+                ${!view?.items.size && !view?.problems.length ? html`<div class="hint">${this.nothingText()}</div>` : nothing}
             </div>`;
         }
         return html`<div class="sheet">
@@ -515,6 +519,7 @@ export class MapFeedCard extends LitElement {
             </div>
             <div class="rows">
                 ${view?.problems.map((problem) => html`<div class="problem">${problem}</div>`)}
+                ${feeds.length === 0 ? html`<div class="hint">${this.nothingText()}</div>` : nothing}
                 ${entries.map((entry) => this.listItem(entry))}
             </div>
         </div>`;
