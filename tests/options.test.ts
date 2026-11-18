@@ -67,7 +67,7 @@ describe("parseOptions", () => {
     });
 
     it("refuses what it can't draw, saying what is wrong", () => {
-        expect(() => parseOptions({})).toThrow(/entities is required/);
+        expect(() => parseOptions({})).toThrow(/entities must be a list/);
         expect(parseOptions({ entities: [] }).feeds).toEqual([]);
         expect(() => parseOptions({ entities: ["Trains"] })).toThrow(/isn't an entity id/);
         expect(() => parseOptions({ entities: ["sensor.x"], map_style: "satellite" })).toThrow(/map_style/);
@@ -76,6 +76,18 @@ describe("parseOptions", () => {
         expect(() => parseOptions({ entities: [{ entity: "sensor.x", late_minutes: 10, very_late_minutes: 5 }] })).toThrow(/late_minutes/);
         expect(() => parseOptions({ entities: [{ entity: "sensor.x", max_age_minutes: 0 }] })).toThrow(/max_age_minutes/);
         expect(() => parseOptions({ entities: [{ entity: "sensor.x", area_color: "var(--x)" }] })).toThrow(/area_color/);
+    });
+
+    it("says what is wrong in the browser's language, with the values filled in", () => {
+        document.documentElement.lang = "fi";
+        try {
+            expect(() => parseOptions({ entities: ["sensor.x"], latitude: 60, longitude: 25, zoom: 40 })).toThrow(
+                "Virheellinen zoomaus. Zoomauksen (zoom) on oltava luku, vähintään 0 ja enintään 18.",
+            );
+            expect(() => parseOptions({ entities: ["Trains"] })).toThrow(/"Trains" ei ole entiteetin tunnus/);
+        } finally {
+            document.documentElement.lang = "";
+        }
     });
 
     it("reads the view the map starts in when all three of its fields are set, and no view from one or two", () => {

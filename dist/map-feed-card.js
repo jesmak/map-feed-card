@@ -1596,6 +1596,20 @@ var en_default = {
     not_a_feed: "is not a map feed",
     unavailable: "is not available right now",
     unsupported_version: "uses a newer version of the map feed format. Update the card.",
+    invalid_entities: "Invalid configuration. entities must be a list of the map feed sensors to draw.",
+    invalid_entity: `Invalid entity. "{value}" isn't an entity id such as sensor.ships_near_the_cabin.`,
+    invalid_latitude: "Invalid latitude. latitude must be a number from -90 to 90.",
+    invalid_longitude: "Invalid longitude. longitude must be a number from -180 to 180.",
+    invalid_zoom: "Invalid zoom. zoom must be a number from 0 to {max}.",
+    invalid_map_style: "Invalid map style. map_style must be one of {values}.",
+    invalid_frame: "Invalid framing. frame must be one of {values}.",
+    invalid_pixels: "Invalid height. {name} must be a number of pixels, at least 100.",
+    invalid_color_by: "Invalid colouring. color_by must be one of {values}.",
+    invalid_delay: "Invalid delay limits. late_minutes and very_late_minutes must be minutes, late_minutes the smaller, such as 3 and 10.",
+    invalid_max_age: "Invalid age limit. max_age_minutes must be a number of minutes greater than 0.",
+    invalid_area_color: "Invalid area colour. area_color must be a hex colour such as #ff6f00.",
+    invalid_height: "Invalid height. height and max_height must be positive numbers of pixels, and height_mode auto, fixed or max.",
+    invalid_row_step: "Invalid rounding. row_step must be full or half.",
     loading: "Loading\u2026",
     cancelled: "Cancelled",
     on_time: "on time",
@@ -1751,6 +1765,20 @@ var fi_default = {
     not_a_feed: "ei ole karttasy\xF6te",
     unavailable: "ei ole juuri nyt saatavilla",
     unsupported_version: "k\xE4ytt\xE4\xE4 karttasy\xF6tteen uudempaa versiota. P\xE4ivit\xE4 kortti.",
+    invalid_entities: "Virheelliset asetukset. Kohdan entities on oltava lista piirrett\xE4vist\xE4 karttasy\xF6tteen sensoreista.",
+    invalid_entity: 'Virheellinen entiteetti. "{value}" ei ole entiteetin tunnus, kuten sensor.ships_near_the_cabin.',
+    invalid_latitude: "Virheellinen leveysaste. Leveysasteen (latitude) on oltava luku, v\xE4hint\xE4\xE4n -90 ja enint\xE4\xE4n 90.",
+    invalid_longitude: "Virheellinen pituusaste. Pituusasteen (longitude) on oltava luku, v\xE4hint\xE4\xE4n -180 ja enint\xE4\xE4n 180.",
+    invalid_zoom: "Virheellinen zoomaus. Zoomauksen (zoom) on oltava luku, v\xE4hint\xE4\xE4n 0 ja enint\xE4\xE4n {max}.",
+    invalid_map_style: "Virheellinen kartan tyyli. Kartan tyylin (map_style) on oltava jokin n\xE4ist\xE4, {values}.",
+    invalid_frame: "Virheellinen rajaus. Rajauksen (frame) on oltava jokin n\xE4ist\xE4, {values}.",
+    invalid_pixels: "Virheellinen korkeus. Korkeuden ({name}) on oltava luku pikselein\xE4, v\xE4hint\xE4\xE4n 100.",
+    invalid_color_by: "Virheellinen v\xE4ritys. V\xE4rityksen (color_by) on oltava jokin n\xE4ist\xE4, {values}.",
+    invalid_delay: "Virheelliset my\xF6h\xE4stymisrajat. Rajojen (late_minutes ja very_late_minutes) on oltava minuutteja ja late_minutes niist\xE4 pienempi, esimerkiksi 3 ja 10.",
+    invalid_max_age: "Virheellinen ik\xE4raja. Ik\xE4rajan (max_age_minutes) on oltava minuuttim\xE4\xE4r\xE4, joka on suurempi kuin 0.",
+    invalid_area_color: "Virheellinen alueen v\xE4ri. Alueen v\xE4rin (area_color) on oltava heksav\xE4ri, kuten #ff6f00.",
+    invalid_height: "Virheellinen korkeus. Korkeuksien (height ja max_height) on oltava positiivisia lukuja pikselein\xE4, ja korkeustilan (height_mode) auto, fixed tai max.",
+    invalid_row_step: "Virheellinen py\xF6ristys. Py\xF6ristyksen (row_step) on oltava full tai half.",
     loading: "Ladataan\u2026",
     cancelled: "Peruttu",
     on_time: "ajallaan",
@@ -1987,11 +2015,15 @@ var DEFAULT_MAP_HEIGHT = 300;
 var DEFAULT_LIST_HEIGHT = 450;
 var MAX_START_ZOOM = 18;
 var ENTITY_ID = /^[a-z_]+\.[a-z0-9_]+$/;
+function invalid(key, values = {}) {
+  const text2 = translate(browserLanguage(), `common.invalid_${key}`);
+  return new Error(text2.replace(/\{(\w+)\}/g, (_3, name) => String(values[name] ?? "")));
+}
 function parseOptions(raw) {
   const config = isRecord2(raw) ? raw : {};
   const entries = Array.isArray(config.entities) ? config.entities : void 0;
   if (!entries) {
-    throw new Error("entities is required: the map feed sensors to draw, e.g. entities: [sensor.ships_near_the_cabin]");
+    throw invalid("entities");
   }
   const feeds = entries.map((entry) => parseFeed(typeof entry === "string" ? { entity: entry } : isRecord2(entry) ? entry : {}));
   return {
@@ -2009,7 +2041,7 @@ function parseOptions(raw) {
 function parseFeed(options) {
   const entity = typeof options.entity === "string" ? options.entity.trim() : "";
   if (!ENTITY_ID.test(entity)) {
-    throw new Error(`entities: "${String(options.entity ?? "")}" isn't an entity id such as sensor.ships_near_the_cabin`);
+    throw invalid("entity", { value: String(options.entity ?? "") });
   }
   return {
     entity,
@@ -2028,49 +2060,49 @@ function parseStart(latitudeValue, longitudeValue, zoomValue) {
   const set = (value) => value !== void 0 && value !== null && value !== "";
   if (![latitudeValue, longitudeValue, zoomValue].every(set)) return null;
   const [latitude, longitude, zoom] = [number(latitudeValue), number(longitudeValue), number(zoomValue)];
-  if (latitude === null || Math.abs(latitude) > 90) throw new Error("latitude must be a number from -90 to 90");
-  if (longitude === null || Math.abs(longitude) > 180) throw new Error("longitude must be a number from -180 to 180");
-  if (zoom === null || zoom < 0 || zoom > MAX_START_ZOOM) throw new Error(`zoom must be a number from 0 to ${MAX_START_ZOOM}`);
+  if (latitude === null || Math.abs(latitude) > 90) throw invalid("latitude");
+  if (longitude === null || Math.abs(longitude) > 180) throw invalid("longitude");
+  if (zoom === null || zoom < 0 || zoom > MAX_START_ZOOM) throw invalid("zoom", { max: MAX_START_ZOOM });
   return { center: [longitude, latitude], zoom };
 }
 function parseMapStyle(value) {
   if (value === void 0) return "default";
   if (MAP_STYLES.includes(value)) return value;
-  throw new Error(`map_style must be one of ${MAP_STYLES.join(", ")}`);
+  throw invalid("map_style", { values: MAP_STYLES.join(", ") });
 }
 function parseFrame(value) {
   if (value === void 0 || value === true) return "area";
   if (value === false) return "off";
   if (FRAMES.includes(value)) return value;
-  throw new Error(`frame must be one of ${FRAMES.join(", ")}`);
+  throw invalid("frame", { values: FRAMES.join(", ") });
 }
 function parseHeight(value, fallback, name) {
   if (value === void 0) return fallback;
   const height = number(value);
   if (height !== null && height >= 100) return height;
-  throw new Error(`${name} must be a number of pixels, at least 100`);
+  throw invalid("pixels", { name });
 }
 function parseColorBy(value) {
   if (value === void 0) return "kind";
   if (COLOR_BY.includes(value)) return value;
-  throw new Error(`color_by must be ${COLOR_BY.join(" or ")}`);
+  throw invalid("color_by", { values: COLOR_BY.join(", ") });
 }
 function parseDelayThresholds(lateValue, veryLateValue) {
   const late = lateValue === void 0 ? DEFAULT_DELAY_THRESHOLDS[0] : number(lateValue);
   const veryLate = veryLateValue === void 0 ? DEFAULT_DELAY_THRESHOLDS[1] : number(veryLateValue);
   if (late !== null && veryLate !== null && late >= 0 && late < veryLate) return [late, veryLate];
-  throw new Error("late_minutes and very_late_minutes must be minutes, late_minutes the smaller, e.g. 3 and 10");
+  throw invalid("delay");
 }
 function parseMaxAge(value) {
   if (value === void 0 || value === null) return null;
   const minutes = number(value);
   if (minutes !== null && minutes > 0) return minutes;
-  throw new Error("max_age_minutes must be a number of minutes greater than 0");
+  throw invalid("max_age");
 }
 function parseAreaColor(value) {
   if (value === void 0) return null;
   if (typeof value === "string" && /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value.trim())) return value.trim();
-  throw new Error("area_color must be a hex colour such as #ff6f00");
+  throw invalid("area_color");
 }
 function isRecord2(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -35327,10 +35359,10 @@ var MapFeedCard = class extends i4 {
   setConfig(config) {
     const options = parseOptions(config);
     if (!validHeight(config)) {
-      throw new Error("height and max_height must be positive numbers of pixels, and height_mode auto, fixed or max");
+      throw invalid("height");
     }
     if (!validRowStep(config)) {
-      throw new Error("row_step must be full or half");
+      throw invalid("row_step");
     }
     this.config = config;
     const previous = this.options;

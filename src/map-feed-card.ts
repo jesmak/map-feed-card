@@ -35,7 +35,7 @@ import { browserLanguage, translate } from "./localize/localize";
 import { FeedMap, type Covered, type DrawnArea, type DrawnPoint, type DrawnShape, type MapContent } from "./map";
 import { ensureToken, MapError } from "./map-tiles";
 import { readThemeColors } from "./map-theme";
-import { parseOptions, type CardOptions, type FeedOptions, type MapView } from "./options";
+import { invalid, parseOptions, type CardOptions, type FeedOptions, type MapView } from "./options";
 import { areaColor, canBeLate, DELAY_COLORS, delayClass, escapeHtml, pointColor, shapeColor, textOn } from "./style";
 
 /** Replaced at build time with the version in package.json. */
@@ -284,10 +284,10 @@ export class MapFeedCard extends LitElement {
     public setConfig(config: Record<string, unknown>): void {
         const options = parseOptions(config);
         if (!validHeight(config as RowStepConfig)) {
-            throw new Error("height and max_height must be positive numbers of pixels, and height_mode auto, fixed or max");
+            throw invalid("height");
         }
         if (!validRowStep(config as RowStepConfig)) {
-            throw new Error("row_step must be full or half");
+            throw invalid("row_step");
         }
         this.config = config as RowStepConfig;
         const previous = this.options;

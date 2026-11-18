@@ -3,6 +3,7 @@
  * Home Assistant shows what is wrong in place of the card instead of a map quietly drawn some other way.
  */
 import { number } from "./feed";
+import { browserLanguage, translate } from "./localize/localize";
 
 export const MAP_STYLES = ["default", "colorful", "natural", "muted", "gray", "toner"] as const;
 export type MapStyle = (typeof MAP_STYLES)[number];
@@ -20,6 +21,12 @@ export const DEFAULT_LIST_HEIGHT = 450;
 export const MAX_START_ZOOM = 18;
 
 const ENTITY_ID = /^[a-z_]+\.[a-z0-9_]+$/;
+
+/** An error for a value that can't be used, in the browser's language: the card has no `hass` yet when it is configured. */
+export function invalid(key: string, values: Record<string, string | number> = {}): Error {
+    const text = translate(browserLanguage(), `common.invalid_${key}`);
+    return new Error(text.replace(/\{(\w+)\}/g, (_, name: string) => String(values[name] ?? "")));
+}
 
 /** How one feed is drawn, set per feed. */
 export interface FeedOptions {
@@ -68,7 +75,7 @@ export function parseOptions(raw: unknown): CardOptions {
     // An empty list is the picker's stub when there is no map feed yet, and the card says so.
     const entries = Array.isArray(config.entities) ? config.entities : undefined;
     if (!entries) {
-        throw new Error("entities is required: the map feed sensors to draw, e.g. entities: [sensor.ships_near_the_cabin]");
+        throw invalid("entities");
     }
     // A feed with nothing but its entity can be written as the plain entity id.
     const feeds = entries.map((entry) => parseFeed(typeof entry === "string" ? { entity: entry } : isRecord(entry) ? entry : {}));
@@ -88,7 +95,7 @@ export function parseOptions(raw: unknown): CardOptions {
 function parseFeed(options: Record<string, unknown>): FeedOptions {
     const entity = typeof options.entity === "string" ? options.entity.trim() : "";
     if (!ENTITY_ID.test(entity)) {
-        throw new Error(`entities: "${String(options.entity ?? "")}" isn't an entity id such as sensor.ships_near_the_cabin`);
+        throw invalid("entity", { value: String(options.entity ?? "") });
     }
     return {
         entity,
@@ -109,16 +116,16 @@ function parseStart(latitudeValue: unknown, longitudeValue: unknown, zoomValue: 
     const set = (value: unknown) => value !== undefined && value !== null && value !== "";
     if (![latitudeValue, longitudeValue, zoomValue].every(set)) return null;
     const [latitude, longitude, zoom] = [number(latitudeValue), number(longitudeValue), number(zoomValue)];
-    if (latitude === null || Math.abs(latitude) > 90) throw new Error("latitude must be a number from -90 to 90");
-    if (longitude === null || Math.abs(longitude) > 180) throw new Error("longitude must be a number from -180 to 180");
-    if (zoom === null || zoom < 0 || zoom > MAX_START_ZOOM) throw new Error(`zoom must be a number from 0 to ${MAX_START_ZOOM}`);
+    if (latitude === null || Math.abs(latitude) > 90) throw invalid("latitude");
+    if (longitude === null || Math.abs(longitude) > 180) throw invalid("longitude");
+    if (zoom === null || zoom < 0 || zoom > MAX_START_ZOOM) throw invalid("zoom", { max: MAX_START_ZOOM });
     return { center: [longitude, latitude], zoom };
 }
 
 function parseMapStyle(value: unknown): MapStyle {
     if (value === undefined) return "default";
     if ((MAP_STYLES as readonly unknown[]).includes(value)) return value as MapStyle;
-    throw new Error(`map_style must be one of ${MAP_STYLES.join(", ")}`);
+    throw invalid("map_style", { values: MAP_STYLES.join(", ") });
 }
 
 /** `true` and `false` are what the option took before it had a third value. */
@@ -126,41 +133,41 @@ export function parseFrame(value: unknown): Frame {
     if (value === undefined || value === true) return "area";
     if (value === false) return "off";
     if ((FRAMES as readonly unknown[]).includes(value)) return value as Frame;
-    throw new Error(`frame must be one of ${FRAMES.join(", ")}`);
+    throw invalid("frame", { values: FRAMES.join(", ") });
 }
 
 function parseHeight(value: unknown, fallback: number, name: string): number {
     if (value === undefined) return fallback;
     const height = number(value);
     if (height !== null && height >= 100) return height;
-    throw new Error(`${name} must be a number of pixels, at least 100`);
+    throw invalid("pixels", { name });
 }
 
 function parseColorBy(value: unknown): ColorBy {
     if (value === undefined) return "kind";
     if ((COLOR_BY as readonly unknown[]).includes(value)) return value as ColorBy;
-    throw new Error(`color_by must be ${COLOR_BY.join(" or ")}`);
+    throw invalid("color_by", { values: COLOR_BY.join(", ") });
 }
 
 function parseDelayThresholds(lateValue: unknown, veryLateValue: unknown): [number, number] {
     const late = lateValue === undefined ? DEFAULT_DELAY_THRESHOLDS[0] : number(lateValue);
     const veryLate = veryLateValue === undefined ? DEFAULT_DELAY_THRESHOLDS[1] : number(veryLateValue);
     if (late !== null && veryLate !== null && late >= 0 && late < veryLate) return [late, veryLate];
-    throw new Error("late_minutes and very_late_minutes must be minutes, late_minutes the smaller, e.g. 3 and 10");
+    throw invalid("delay");
 }
 
 function parseMaxAge(value: unknown): number | null {
     if (value === undefined || value === null) return null;
     const minutes = number(value);
     if (minutes !== null && minutes > 0) return minutes;
-    throw new Error("max_age_minutes must be a number of minutes greater than 0");
+    throw invalid("max_age");
 }
 
 /** Hex only: the colour is drawn by MapLibre, which can't read CSS variables. */
 function parseAreaColor(value: unknown): string | null {
     if (value === undefined) return null;
     if (typeof value === "string" && /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value.trim())) return value.trim();
-    throw new Error("area_color must be a hex colour such as #ff6f00");
+    throw invalid("area_color");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
