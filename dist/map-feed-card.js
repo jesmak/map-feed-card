@@ -34743,7 +34743,6 @@ var FeedMap = class {
     this.start = start;
     this.markers = /* @__PURE__ */ new Map();
     this.content = { points: [], shapes: [], areas: [], attributions: [], selected: null };
-    this.attributionText = "";
     /** Counts the style requests, so only the newest one is drawn. */
     this.styleRequest = 0;
     /** Set when the newest style couldn't be loaded, so the same one is asked for again. */

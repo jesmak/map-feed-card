@@ -42,7 +42,8 @@ vi.mock("maplibre-gl", () => {
             });
         // A pixel to every 0.00001 degrees, about a metre.
         project = ([lon, lat]: LngLat) => ({ x: lon * 100_000, y: lat * 100_000 });
-        getContainer = () => ({ clientWidth: 400, clientHeight: 300 });
+        // The attribution is looked for in the container, and the mock has none.
+        getContainer = () => ({ clientWidth: 400, clientHeight: 300, querySelector: () => null });
         resize = () => undefined;
         fitBounds = (_bounds: unknown, options: { maxZoom: number; padding: unknown }) => fits.push(options);
         easeTo = (options: { center: unknown; offset?: [number, number] }) => eased.push(options);

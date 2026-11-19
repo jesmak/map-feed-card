@@ -115,7 +115,11 @@ export class FeedMap {
     private readonly markers = new Map<string, MarkerEntry>();
     private content: MapContent = { points: [], shapes: [], areas: [], attributions: [], selected: null };
     private attribution?: AttributionControl;
-    private attributionText = "";
+    /**
+     * Undefined until the control is first added, so a map whose feeds give no credits still gets the base map's, which
+     * Home Assistant's tile proxy gives as OpenStreetMap's.
+     */
+    private attributionText?: string;
     private style: MapStyle;
     private dark: boolean;
     /** The theme's map colours (map-theme.ts), or null for none. */
