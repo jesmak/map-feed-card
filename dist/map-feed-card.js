@@ -1482,6 +1482,146 @@ function linkedPicture(image, loading) {
     </a>`;
 }
 
+// src/fade.ts
+var SCROLL_INDICATORS = ["both", "fade", "scrollbar"];
+function validScrollIndicator(config) {
+  return config.scroll_indicator === void 0 || config.scroll_indicator === null || SCROLL_INDICATORS.includes(config.scroll_indicator);
+}
+function scrollIndicator(config, fallback) {
+  return config.scroll_indicator ?? fallback;
+}
+function scrollIndicatorSchema(text2) {
+  return [
+    {
+      name: "scroll_indicator",
+      selector: {
+        select: {
+          mode: "dropdown",
+          options: SCROLL_INDICATORS.map((value) => ({ value, label: text2(`editor.scroll_indicator_${value}`) }))
+        }
+      }
+    }
+  ];
+}
+function scrollIndicatorData(config, fallback) {
+  return { ...config, scroll_indicator: scrollIndicator(config, fallback) };
+}
+function tidyScrollIndicator(config, fallback) {
+  const tidied = { ...config };
+  if (scrollIndicator(tidied, fallback) === fallback) {
+    delete tidied.scroll_indicator;
+  }
+  return tidied;
+}
+var fadeStyles = i`
+    .fades {
+        --fade-length: min(24px, 25%);
+        scroll-padding-block: calc(var(--fade-top-offset, 0px) + var(--fade-length, 24px)) var(--fade-length, 24px);
+    }
+
+    .fade-top {
+        mask-image: linear-gradient(
+            to bottom,
+            #000 var(--fade-top-offset, 0px),
+            transparent var(--fade-top-offset, 0px),
+            #000 calc(var(--fade-top-offset, 0px) + var(--fade-length, 24px))
+        );
+    }
+
+    .fade-bottom {
+        mask-image: linear-gradient(to top, transparent, #000 var(--fade-length, 24px));
+    }
+
+    .fade-top.fade-bottom {
+        mask-image: linear-gradient(
+            to bottom,
+            #000 var(--fade-top-offset, 0px),
+            transparent var(--fade-top-offset, 0px),
+            #000 calc(var(--fade-top-offset, 0px) + var(--fade-length, 24px)),
+            #000 calc(100% - var(--fade-length, 24px)),
+            transparent
+        );
+    }
+
+    /* Over the card's own scrollbar style, whatever its selector. */
+    .scroll-hidden {
+        scrollbar-width: none !important;
+    }
+
+    .scroll-hidden::-webkit-scrollbar {
+        display: none;
+    }
+`;
+function markFade(part) {
+  const hidden = part.scrollHeight - part.clientHeight;
+  part.classList.toggle("fade-top", hidden > 1 && part.scrollTop > 1);
+  part.classList.toggle("fade-bottom", hidden > 1 && hidden - part.scrollTop > 1);
+}
+var onScroll = (event) => markFade(event.currentTarget);
+var ScrollFade = class {
+  constructor(host, parts, indicator) {
+    this.host = host;
+    this.parts = parts;
+    this.indicator = indicator;
+    /** Each followed part with the children whose size it watches. */
+    this.followed = /* @__PURE__ */ new Map();
+    this.resized = typeof ResizeObserver === "undefined" ? void 0 : new ResizeObserver((entries) => {
+      for (const { target } of entries) {
+        const part = this.followed.has(target) ? target : target.parentElement;
+        if (part && this.followed.has(part)) {
+          markFade(part);
+        }
+      }
+    });
+    host.addController(this);
+  }
+  hostConnected() {
+    if (this.host.hasUpdated) {
+      this.follow();
+    }
+  }
+  hostUpdated() {
+    if (this.host.isConnected) {
+      this.follow();
+    }
+  }
+  hostDisconnected() {
+    for (const part of [...this.followed.keys()]) {
+      this.forget(part);
+    }
+  }
+  follow() {
+    const indicator = this.indicator();
+    const now = new Set(indicator === "scrollbar" ? [] : this.parts());
+    for (const part of [...this.followed.keys()]) {
+      if (!now.has(part)) {
+        this.forget(part);
+      }
+    }
+    for (const part of now) {
+      if (!this.followed.has(part)) {
+        part.addEventListener("scroll", onScroll, { passive: true });
+        this.resized?.observe(part);
+      }
+      part.classList.add("fades");
+      part.classList.toggle("scroll-hidden", indicator === "fade");
+      const before = this.followed.get(part) ?? [];
+      const children = [...part.children];
+      before.filter((child) => !children.includes(child)).forEach((child) => this.resized?.unobserve(child));
+      children.filter((child) => !before.includes(child)).forEach((child) => this.resized?.observe(child));
+      this.followed.set(part, children);
+      markFade(part);
+    }
+  }
+  forget(part) {
+    this.followed.get(part)?.forEach((child) => this.resized?.unobserve(child));
+    this.followed.delete(part);
+    part.removeEventListener("scroll", onScroll);
+    this.resized?.unobserve(part);
+    part.classList.remove("fades", "fade-top", "fade-bottom", "scroll-hidden");
+  }
+};
+
 // src/hass.ts
 function entityName(hass, state) {
   const name = state && hass?.formatEntityName?.(state, [{ type: "device" }, { type: "entity" }]) || state?.attributes.friendly_name;
@@ -1610,6 +1750,7 @@ var en_default = {
     invalid_area_color: "Invalid area colour. area_color must be a hex colour such as #ff6f00.",
     invalid_height: "Invalid height. height and max_height must be positive numbers of pixels, and height_mode auto, fixed or max.",
     invalid_row_step: "Invalid rounding. row_step must be full or half.",
+    invalid_scroll_indicator: "Invalid scroll_indicator. It must be both, fade or scrollbar.",
     loading: "Loading\u2026",
     cancelled: "Cancelled",
     on_time: "on time",
@@ -1669,6 +1810,11 @@ var en_default = {
     row_step_helper: "With automatic row height, the card's height is rounded up to whole rows, or to half rows to save space.",
     row_step_full: "Whole rows",
     row_step_half: "Half rows",
+    scroll_indicator: "Scrolling",
+    scroll_indicator_helper: "Shown when the card's height is limited and its content doesn't all fit",
+    scroll_indicator_both: "Faded edge and scrollbar",
+    scroll_indicator_fade: "Faded edge",
+    scroll_indicator_scrollbar: "Scrollbar",
     latitude: "Latitude",
     longitude: "Longitude",
     zoom: "Zoom",
@@ -1779,6 +1925,7 @@ var fi_default = {
     invalid_area_color: "Virheellinen alueen v\xE4ri. Alueen v\xE4rin (area_color) on oltava heksav\xE4ri, kuten #ff6f00.",
     invalid_height: "Virheellinen korkeus. Korkeuksien (height ja max_height) on oltava positiivisia lukuja pikselein\xE4, ja korkeustilan (height_mode) auto, fixed tai max.",
     invalid_row_step: "Virheellinen py\xF6ristys. Py\xF6ristyksen (row_step) on oltava full tai half.",
+    invalid_scroll_indicator: "Virheellinen scroll_indicator. Sen on oltava both, fade tai scrollbar.",
     loading: "Ladataan\u2026",
     cancelled: "Peruttu",
     on_time: "ajallaan",
@@ -1838,6 +1985,11 @@ var fi_default = {
     row_step_helper: "Automaattisella rivikorkeudella kortin korkeus py\xF6ristet\xE4\xE4n yl\xF6sp\xE4in kokonaisiin riveihin, tai tilan s\xE4\xE4st\xE4miseksi puolikkaisiin riveihin.",
     row_step_full: "Kokonaisiin riveihin",
     row_step_half: "Puolikkaisiin riveihin",
+    scroll_indicator: "Vieritys",
+    scroll_indicator_helper: "N\xE4kyy, kun kortin korkeus on rajattu eik\xE4 koko sis\xE4lt\xF6 mahdu siihen",
+    scroll_indicator_both: "H\xE4ivytetty reuna ja vierityspalkki",
+    scroll_indicator_fade: "H\xE4ivytetty reuna",
+    scroll_indicator_scrollbar: "Vierityspalkki",
     latitude: "Leveysaste",
     longitude: "Pituusaste",
     zoom: "Zoomaus",
@@ -2013,6 +2165,7 @@ var FRAMES = ["area", "items", "off"];
 var DEFAULT_DELAY_THRESHOLDS = [3, 10];
 var DEFAULT_MAP_HEIGHT = 300;
 var DEFAULT_LIST_HEIGHT = 450;
+var DEFAULT_SCROLL_INDICATOR = "both";
 var MAX_START_ZOOM = 18;
 var ENTITY_ID = /^[a-z_]+\.[a-z0-9_]+$/;
 function invalid(key, values = {}) {
@@ -2217,6 +2370,7 @@ function schema(hass, text2, entities, sort, config) {
       sort
     ),
     ...rowStepSchema(config, text2),
+    ...scrollIndicatorSchema(text2),
     {
       type: "grid",
       name: "",
@@ -2281,7 +2435,7 @@ var MapFeedCardEditor = class extends i4 {
     return b2`
             <ha-form
                 .hass=${this.hass}
-                .data=${{ ...CARD_DEFAULTS, ...rowStepData(this.config), entities, ...sections }}
+                .data=${{ ...CARD_DEFAULTS, ...scrollIndicatorData(rowStepData(this.config), DEFAULT_SCROLL_INDICATOR), entities, ...sections }}
                 .schema=${schema(this.hass, (key) => this.text(key), entities, this.config.sort, this.config)}
                 .computeLabel=${(entry) => this.text(`editor.${entry.name}`)}
                 .computeHelper=${(entry) => this.helper(entry.name)}
@@ -2320,7 +2474,7 @@ var MapFeedCardEditor = class extends i4 {
       }));
     }
     const rest = Object.fromEntries(Object.entries(value).filter(([key]) => key !== "entities" && !key.startsWith("feed_")));
-    const config = tidyRowStep(withoutDefaults(rest, CARD_DEFAULTS));
+    const config = tidyScrollIndicator(tidyRowStep(withoutDefaults(rest, CARD_DEFAULTS)), DEFAULT_SCROLL_INDICATOR);
     config.type = value.type ?? "custom:map-feed-card";
     config.entities = compactFeeds(entities);
     this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
@@ -2350,104 +2504,6 @@ __decorateClass([
 MapFeedCardEditor = __decorateClass([
   t3("map-feed-card-editor")
 ], MapFeedCardEditor);
-
-// src/fade.ts
-var fadeStyles = i`
-    .fades {
-        --fade-length: min(24px, 25%);
-        scroll-padding-block: calc(var(--fade-top-offset, 0px) + var(--fade-length, 24px)) var(--fade-length, 24px);
-    }
-
-    .fade-top {
-        mask-image: linear-gradient(
-            to bottom,
-            #000 var(--fade-top-offset, 0px),
-            transparent var(--fade-top-offset, 0px),
-            #000 calc(var(--fade-top-offset, 0px) + var(--fade-length, 24px))
-        );
-    }
-
-    .fade-bottom {
-        mask-image: linear-gradient(to top, transparent, #000 var(--fade-length, 24px));
-    }
-
-    .fade-top.fade-bottom {
-        mask-image: linear-gradient(
-            to bottom,
-            #000 var(--fade-top-offset, 0px),
-            transparent var(--fade-top-offset, 0px),
-            #000 calc(var(--fade-top-offset, 0px) + var(--fade-length, 24px)),
-            #000 calc(100% - var(--fade-length, 24px)),
-            transparent
-        );
-    }
-`;
-function markFade(part) {
-  const hidden = part.scrollHeight - part.clientHeight;
-  part.classList.toggle("fade-top", hidden > 1 && part.scrollTop > 1);
-  part.classList.toggle("fade-bottom", hidden > 1 && hidden - part.scrollTop > 1);
-}
-var onScroll = (event) => markFade(event.currentTarget);
-var ScrollFade = class {
-  constructor(host, parts) {
-    this.host = host;
-    this.parts = parts;
-    /** Each followed part with the children whose size it watches. */
-    this.followed = /* @__PURE__ */ new Map();
-    this.resized = typeof ResizeObserver === "undefined" ? void 0 : new ResizeObserver((entries) => {
-      for (const { target } of entries) {
-        const part = this.followed.has(target) ? target : target.parentElement;
-        if (part && this.followed.has(part)) {
-          markFade(part);
-        }
-      }
-    });
-    host.addController(this);
-  }
-  hostConnected() {
-    if (this.host.hasUpdated) {
-      this.follow();
-    }
-  }
-  hostUpdated() {
-    if (this.host.isConnected) {
-      this.follow();
-    }
-  }
-  hostDisconnected() {
-    for (const part of [...this.followed.keys()]) {
-      this.forget(part);
-    }
-  }
-  follow() {
-    const now = new Set(this.parts());
-    for (const part of [...this.followed.keys()]) {
-      if (!now.has(part)) {
-        this.forget(part);
-      }
-    }
-    for (const part of now) {
-      if (!this.followed.has(part)) {
-        part.addEventListener("scroll", onScroll, { passive: true });
-        this.resized?.observe(part);
-      }
-      part.classList.add("fades");
-      const before = this.followed.get(part) ?? [];
-      const children = [...part.children];
-      before.filter((child) => !children.includes(child)).forEach((child) => this.resized?.unobserve(child));
-      children.filter((child) => !before.includes(child)).forEach((child) => this.resized?.observe(child));
-      this.followed.set(part, children);
-      markFade(part);
-    }
-  }
-  forget(part) {
-    this.followed.get(part)?.forEach((child) => this.resized?.unobserve(child));
-    this.followed.delete(part);
-    part.removeEventListener("scroll", onScroll);
-    this.resized?.unobserve(part);
-    part.classList.remove("fades", "fade-top", "fade-bottom");
-  }
-};
 
 // node_modules/maplibre-gl/dist/maplibre-gl.mjs
 /**
@@ -35308,7 +35364,7 @@ var HOME_ZOOM = 9;
 var MapFeedCard = class extends i4 {
   constructor() {
     super();
-    /** The configuration as written, for the height's options. */
+    /** The configuration as written, for the height's and the scroll indicator's options. */
     this.config = {};
     this.selected = null;
     this.featured = null;
@@ -35341,7 +35397,11 @@ var MapFeedCard = class extends i4 {
     this.rowsStale = true;
     /** The next frame measures the rows' splits, as an update or a new size asked for it. */
     this.splitDue = false;
-    new ScrollFade(this, () => this.heightStyle() ? this.renderRoot.querySelectorAll(".list .rows") : []);
+    new ScrollFade(
+      this,
+      () => this.heightStyle() ? this.renderRoot.querySelectorAll(".list .rows") : [],
+      () => scrollIndicator(this.config, DEFAULT_SCROLL_INDICATOR)
+    );
   }
   /** Where the card's map is now, for the editor's button that saves its preview's view. */
   get mapView() {
@@ -35362,6 +35422,9 @@ var MapFeedCard = class extends i4 {
     }
     if (!validRowStep(config)) {
       throw invalid("row_step");
+    }
+    if (!validScrollIndicator(config)) {
+      throw invalid("scroll_indicator");
     }
     this.config = config;
     const previous = this.options;

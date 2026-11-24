@@ -139,4 +139,13 @@ describe("the editor's feeds", () => {
         change({ entities: [ships, trains] });
         expect(configs.at(-1)!.entities).toEqual([{ entity: "sensor.ships", max_age_minutes: 10 }, "sensor.trains"]);
     });
+
+    it("leaves the default scroll indicator out of the configuration, and keeps another", async () => {
+        const { form, change, configs } = await editor(["sensor.trains"]);
+        expect(form.data.scroll_indicator).toBe("both");
+        change({});
+        expect(configs.at(-1)).toEqual({ type: "custom:map-feed-card", entities: ["sensor.trains"] });
+        change({ scroll_indicator: "fade" });
+        expect(configs.at(-1)).toEqual({ type: "custom:map-feed-card", entities: ["sensor.trains"], scroll_indicator: "fade" });
+    });
 });

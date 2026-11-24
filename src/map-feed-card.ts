@@ -10,7 +10,7 @@ import maplibreCss from "maplibre-gl/dist/maplibre-gl.css?raw";
 
 import { DetailLoader, renderDetails, tagOf } from "./details";
 import "./editor";
-import { ScrollFade, fadeStyles } from "./fade";
+import { ScrollFade, fadeStyles, scrollIndicator, validScrollIndicator, type ScrollIndicatorConfig } from "./fade";
 import {
     boundsOf,
     readFeed,
@@ -35,11 +35,13 @@ import { browserLanguage, translate } from "./localize/localize";
 import { FeedMap, type Covered, type DrawnArea, type DrawnPoint, type DrawnShape, type MapContent } from "./map";
 import { ensureToken, MapError } from "./map-tiles";
 import { readThemeColors } from "./map-theme";
-import { invalid, parseOptions, type CardOptions, type FeedOptions, type MapView } from "./options";
+import { DEFAULT_SCROLL_INDICATOR, invalid, parseOptions, type CardOptions, type FeedOptions, type MapView } from "./options";
 import { areaColor, canBeLate, DELAY_COLORS, delayClass, escapeHtml, pointColor, shapeColor, textOn } from "./style";
 
 /** Replaced at build time with the version in package.json. */
 declare const __CARD_VERSION__: string;
+
+type CardConfig = RowStepConfig & ScrollIndicatorConfig;
 
 /** How often the ages in the details are redrawn, between the feeds' own updates. */
 const TICK_MS = 30_000;
@@ -206,8 +208,8 @@ export class MapFeedCard extends LitElement {
     /** "grid" in a sections view, where the rows set in its layout tab hold the card to a height. */
     @property({ attribute: false }) public layout?: string;
     @state() private options?: CardOptions;
-    /** The configuration as written, for the height's options. */
-    private config: RowStepConfig = {};
+    /** The configuration as written, for the height's and the scroll indicator's options. */
+    private config: CardConfig = {};
     @state() private selected: string | null = null;
     @state() private featured: FeedImage | null = null;
     @state() private mapError = "";
@@ -268,7 +270,11 @@ export class MapFeedCard extends LitElement {
     constructor() {
         super();
         // The list fades while the card is held to a height.
-        new ScrollFade(this, () => (this.heightStyle() ? this.renderRoot.querySelectorAll<HTMLElement>(".list .rows") : []));
+        new ScrollFade(
+            this,
+            () => (this.heightStyle() ? this.renderRoot.querySelectorAll<HTMLElement>(".list .rows") : []),
+            () => scrollIndicator(this.config, DEFAULT_SCROLL_INDICATOR),
+        );
     }
 
     public static getConfigElement(): HTMLElement {
@@ -289,7 +295,10 @@ export class MapFeedCard extends LitElement {
         if (!validRowStep(config as RowStepConfig)) {
             throw invalid("row_step");
         }
-        this.config = config as RowStepConfig;
+        if (!validScrollIndicator(config as ScrollIndicatorConfig)) {
+            throw invalid("scroll_indicator");
+        }
+        this.config = config as CardConfig;
         const previous = this.options;
         this.options = options;
         if (previous && previous.feeds.map((feed) => feed.entity).join() !== options.feeds.map((feed) => feed.entity).join()) {

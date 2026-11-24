@@ -4,6 +4,7 @@ import type { TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
 import { isMapFeed, readFeed, type FeedType } from "./feed";
+import { scrollIndicatorData, scrollIndicatorSchema, tidyScrollIndicator } from "./fade";
 import { entityName, type HomeAssistant } from "./hass";
 import { rowStepData, rowStepSchema, tidyRowStep, type RowStepConfig } from "./rows";
 import { browserLanguage, translate } from "./localize/localize";
@@ -12,6 +13,7 @@ import {
     DEFAULT_DELAY_THRESHOLDS,
     DEFAULT_LIST_HEIGHT,
     DEFAULT_MAP_HEIGHT,
+    DEFAULT_SCROLL_INDICATOR,
     FRAMES,
     MAP_STYLES,
     MAX_START_ZOOM,
@@ -149,6 +151,7 @@ function schema(hass: HomeAssistant, text: (key: string) => string, entities: Fe
             sort,
         ),
         ...rowStepSchema(config, text),
+        ...scrollIndicatorSchema(text),
         {
             type: "grid",
             name: "",
@@ -229,7 +232,7 @@ export class MapFeedCardEditor extends LitElement {
         return html`
             <ha-form
                 .hass=${this.hass}
-                .data=${{ ...CARD_DEFAULTS, ...rowStepData(this.config), entities, ...sections }}
+                .data=${{ ...CARD_DEFAULTS, ...scrollIndicatorData(rowStepData(this.config), DEFAULT_SCROLL_INDICATOR), entities, ...sections }}
                 .schema=${schema(this.hass, (key) => this.text(key), entities, this.config.sort, this.config)}
                 .computeLabel=${(entry: SchemaEntry) => this.text(`editor.${entry.name}`)}
                 .computeHelper=${(entry: SchemaEntry) => this.helper(entry.name)}
@@ -281,7 +284,7 @@ export class MapFeedCardEditor extends LitElement {
             }));
         }
         const rest = Object.fromEntries(Object.entries(value).filter(([key]) => key !== "entities" && !key.startsWith("feed_")));
-        const config = tidyRowStep(withoutDefaults(rest, CARD_DEFAULTS));
+        const config = tidyScrollIndicator(tidyRowStep(withoutDefaults(rest, CARD_DEFAULTS)), DEFAULT_SCROLL_INDICATOR);
         config.type = value.type ?? "custom:map-feed-card";
         config.entities = compactFeeds(entities);
         this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));

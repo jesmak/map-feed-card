@@ -2,6 +2,7 @@
  * The card's configuration (README.md#options), checked when it is set. A value that can't be used throws, so
  * Home Assistant shows what is wrong in place of the card instead of a map quietly drawn some other way.
  */
+import type { ScrollIndicator } from "./fade";
 import { number } from "./feed";
 import { browserLanguage, translate } from "./localize/localize";
 
@@ -18,6 +19,8 @@ export type Frame = (typeof FRAMES)[number];
 export const DEFAULT_DELAY_THRESHOLDS: [number, number] = [3, 10];
 export const DEFAULT_MAP_HEIGHT = 300;
 export const DEFAULT_LIST_HEIGHT = 450;
+/** A held card's list shows both its fading edges and the browser's scrollbar. */
+export const DEFAULT_SCROLL_INDICATOR: ScrollIndicator = "both";
 export const MAX_START_ZOOM = 18;
 
 const ENTITY_ID = /^[a-z_]+\.[a-z0-9_]+$/;
