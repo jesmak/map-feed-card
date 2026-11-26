@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import en from "../src/localize/languages/en.json";
-import { LANGUAGE_CODES } from "../src/localize/localize";
+import { LANGUAGE_CODES, translate } from "../src/localize/localize";
 
 const FILES = import.meta.glob<Record<string, unknown>>("../src/localize/languages/*.json", { eager: true, import: "default" });
 
@@ -18,5 +18,11 @@ describe("the languages", () => {
 
     it.each(Object.entries(FILES))("%s has the same texts as English", (_path, table) => {
         expect(keys(table).sort()).toEqual(keys(en).sort());
+    });
+
+    it("read a region's tag as the language alone when the region has no file, and as English when neither has", () => {
+        expect(translate("fi-FI", "common.name")).toBe(translate("fi", "common.name"));
+        expect(translate("fi_FI", "common.name")).toBe(translate("fi", "common.name"));
+        expect(translate("xx-YY", "common.name")).toBe(translate("en", "common.name"));
     });
 });
