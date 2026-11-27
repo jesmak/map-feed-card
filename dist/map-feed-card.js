@@ -35297,6 +35297,14 @@ var TICK_MS = 3e4;
 var UNFOLD_MS = 220;
 var FIT_GROWTH_MS = 3e3;
 var WIDE_PX = 640;
+var SORT_CHROME_PX = 44;
+var measurer;
+function textWidth(text2, font) {
+  measurer ?? (measurer = document.createElement("canvas").getContext("2d"));
+  if (!measurer) return 0;
+  measurer.font = font;
+  return measurer.measureText(text2).width;
+}
 var SHEET_CLEAR_PX = 96;
 var MAP_MIN_PX = 200;
 var LIST_MIN_PX = 163;
@@ -35383,6 +35391,7 @@ var MapFeedCard = class extends i4 {
     this.filled = 0;
     this.closing = /* @__PURE__ */ new Set();
     this.compact = false;
+    this.sortTight = false;
     this.overlayOpen = false;
     /** When the selection changed, so content that grows soon after is fitted, but not once the list has been scrolled away. */
     this.selectedAt = 0;
@@ -35479,6 +35488,7 @@ var MapFeedCard = class extends i4 {
         this.requestUpdate();
       }
       this.fitLegend();
+      this.fitSort();
       this.fillRowsSoon();
     });
     this.resizer.observe(this);
@@ -35604,9 +35614,12 @@ var MapFeedCard = class extends i4 {
     const name = feeds.length === 1 ? entityName(this.hass, this.hass?.states[feeds[0].entity]) : "";
     const count = name ? `${name} \xB7 ${number3}` : number3;
     return b2`<div class="list">
-            <div class="list-head">
+            <div class=${e7({ "list-head": true, tight: this.sortTight })}>
                 ${title ? b2`<h1 class="list-title">${title}</h1>` : b2`<span class="count">${count}</span>`}
-                ${options.length > 1 ? b2`<label class="sort">
+                ${options.length > 1 ? b2`<label
+                              class="sort"
+                              title=${`${this.text("list.sort")}: ${options.find((option) => option.key === key)?.label ?? ""}`}
+                          >
                               <select
                                   aria-label=${this.text("list.sort")}
                                   @change=${(event) => this.sortKey = event.target.value}
@@ -35616,7 +35629,8 @@ var MapFeedCard = class extends i4 {
                               <span class="sort-label" aria-hidden="true"
                                   >${options.find((option) => option.key === key)?.label ?? ""}</span
                               >
-                              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+                              <svg class="sort-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+                              <svg class="sort-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M7 12h10M10 17h4"></path></svg>
                           </label>` : A}
             </div>
             <div class="rows">
@@ -35625,6 +35639,21 @@ var MapFeedCard = class extends i4 {
                 ${entries.map((entry) => this.listItem(entry))}
             </div>
         </div>`;
+  }
+  /**
+   * Whether the header's title and the order's pill fit side by side, by their texts' widths, so the answer doesn't
+   * depend on which of the two the header shows now.
+   */
+  fitSort() {
+    const head = this.renderRoot.querySelector(".list-head");
+    const title = head?.querySelector(".list-title, .count");
+    const sort = head?.querySelector(".sort");
+    if (!head || !title || !sort) return;
+    const style = getComputedStyle(head);
+    const room = head.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    const name = sort.querySelector(".sort-label")?.textContent ?? "";
+    const needed = textWidth(title.textContent?.trim() ?? "", getComputedStyle(title).font) + parseFloat(style.columnGap) + SORT_CHROME_PX + textWidth(name.trim(), getComputedStyle(sort).font);
+    this.sortTight = needed > room;
   }
   /**
    * A row, and under it its details, which unfold when the row is selected and fold away when it no longer is. The
@@ -35678,6 +35707,7 @@ var MapFeedCard = class extends i4 {
   }
   updated(changed) {
     this.fitLegend();
+    this.fitSort();
     const rowsChanged = this.rowsStale || changed.has("wide") || changed.has("compact") || this.compact && changed.has("selected");
     this.rowsStale = false;
     if (rowsChanged) this.splitRows();
@@ -36388,6 +36418,31 @@ MapFeedCard.styles = [
                 stroke-linecap: round;
                 stroke-linejoin: round;
             }
+            .sort .sort-icon {
+                display: none;
+            }
+            /* With too little room for the title and the order's name side by side, the order is a round button with only
+               an icon, and the title has the rest of the line. Its name is in the menu and the tooltip. */
+            .tight .sort {
+                flex: none;
+                justify-content: center;
+                width: 32px;
+                padding: 0;
+            }
+            .tight .sort-label,
+            .tight .sort-chevron {
+                display: none;
+            }
+            .tight .sort-icon {
+                display: block;
+                width: 16px;
+                height: 16px;
+            }
+            .tight .list-title,
+            .tight .count {
+                flex: 1 1 0;
+                min-width: 0;
+            }
             /* The rows are as wide whether the list scrolls or not, so a row splits by its data, never by whether it scrolls. */
             .rows {
                 overflow-y: auto;
@@ -37010,6 +37065,9 @@ __decorateClass([
 __decorateClass([
   r5()
 ], MapFeedCard.prototype, "compact", 2);
+__decorateClass([
+  r5()
+], MapFeedCard.prototype, "sortTight", 2);
 __decorateClass([
   r5()
 ], MapFeedCard.prototype, "overlayOpen", 2);

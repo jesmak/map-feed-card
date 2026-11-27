@@ -139,7 +139,7 @@ below them. Tapping a picture shows it large, or opens its page when the feed li
 ask.
 
 **The list**, with `list: true`, shows every item as a row: a title, a line under it and a value, such as a delay or
-a distance. A feed can say what the list can be sorted by, such as delay and number for trains, and the order is chosen on the card when there is more than one. Tapping a row unfolds its details beneath it and brings its marker into view, and tapping it again folds them away. Tapping a marker opens its row. Above the list is the number of items, with the sensor's name when the card shows one feed. A feed with `in_list: false` stays out of the list, and its items show their details over the map when tapped.
+a distance. A feed can say what the list can be sorted by, such as delay and number for trains, and the order is chosen on the card when there is more than one. When the list's header has no room for its title and the order's name side by side, the order is a round button with only an icon. Tapping a row unfolds its details beneath it and brings its marker into view, and tapping it again folds them away. Tapping a marker opens its row. Above the list is the number of items, with the sensor's name when the card shows one feed. A feed with `in_list: false` stays out of the list, and its items show their details over the map when tapped.
 
 A list below the map that is shorter than 400 pixels, as in a card held to a few rows, has no room for details to
 unfold in it. There, tapping a row or a marker only selects the item and brings it into view, and a button on the

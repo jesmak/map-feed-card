@@ -54,6 +54,18 @@ const FIT_GROWTH_MS = 3000;
 
 /** From this width the details go beside the map instead of over it. */
 const WIDE_PX = 640;
+/** The order pill's own width around its name: its padding, the gap, the chevron and its border, as its styles set them. */
+const SORT_CHROME_PX = 44;
+
+let measurer: CanvasRenderingContext2D | null | undefined;
+
+/** A text's width on one line in the given font, without laying anything out. 0 where there is no canvas to measure on. */
+function textWidth(text: string, font: string): number {
+    measurer ??= document.createElement("canvas").getContext("2d");
+    if (!measurer) return 0;
+    measurer.font = font;
+    return measurer.measureText(text).width;
+}
 
 /** How much of the map the details' sheet leaves clear above it, for the item it shows. */
 const SHEET_CLEAR_PX = 96;
@@ -223,6 +235,8 @@ export class MapFeedCard extends LitElement {
     @state() private closing: ReadonlySet<string> = new Set();
     /** The list under the map is too short for details to unfold in it, so they open over the card instead. */
     @state() private compact = false;
+    /** The list's header has no room for its title and the order's name side by side, so the order is an icon button. */
+    @state() private sortTight = false;
     /** In a compact list, whether the selected item's details are open over the card. */
     @state() private overlayOpen = false;
     /** The theme's map colours, and the theme they were read for. */
@@ -349,6 +363,7 @@ export class MapFeedCard extends LitElement {
                 this.requestUpdate();
             }
             this.fitLegend();
+            this.fitSort();
             this.fillRowsSoon();
         });
         this.resizer.observe(this);
@@ -507,11 +522,14 @@ export class MapFeedCard extends LitElement {
         const name = feeds.length === 1 ? entityName(this.hass, this.hass?.states[feeds[0]!.entity]) : "";
         const count = name ? `${name} · ${number}` : number;
         return html`<div class="list">
-            <div class="list-head">
+            <div class=${classMap({ "list-head": true, tight: this.sortTight })}>
                 ${title ? html`<h1 class="list-title">${title}</h1>` : html`<span class="count">${count}</span>`}
                 ${
                     options.length > 1
-                        ? html`<label class="sort">
+                        ? html`<label
+                              class="sort"
+                              title=${`${this.text("list.sort")}: ${options.find((option) => option.key === key)?.label ?? ""}`}
+                          >
                               <select
                                   aria-label=${this.text("list.sort")}
                                   @change=${(event: Event) => (this.sortKey = (event.target as HTMLSelectElement).value)}
@@ -521,7 +539,8 @@ export class MapFeedCard extends LitElement {
                               <span class="sort-label" aria-hidden="true"
                                   >${options.find((option) => option.key === key)?.label ?? ""}</span
                               >
-                              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+                              <svg class="sort-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+                              <svg class="sort-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M7 12h10M10 17h4"></path></svg>
                           </label>`
                         : nothing
                 }
@@ -532,6 +551,26 @@ export class MapFeedCard extends LitElement {
                 ${entries.map((entry) => this.listItem(entry))}
             </div>
         </div>`;
+    }
+
+    /**
+     * Whether the header's title and the order's pill fit side by side, by their texts' widths, so the answer doesn't
+     * depend on which of the two the header shows now.
+     */
+    private fitSort(): void {
+        const head = this.renderRoot.querySelector<HTMLElement>(".list-head");
+        const title = head?.querySelector<HTMLElement>(".list-title, .count");
+        const sort = head?.querySelector<HTMLElement>(".sort");
+        if (!head || !title || !sort) return;
+        const style = getComputedStyle(head);
+        const room = head.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+        const name = sort.querySelector(".sort-label")?.textContent ?? "";
+        const needed =
+            textWidth(title.textContent?.trim() ?? "", getComputedStyle(title).font) +
+            parseFloat(style.columnGap) +
+            SORT_CHROME_PX +
+            textWidth(name.trim(), getComputedStyle(sort).font);
+        this.sortTight = needed > room;
     }
 
     /**
@@ -604,6 +643,7 @@ export class MapFeedCard extends LitElement {
 
     protected updated(changed: PropertyValues): void {
         this.fitLegend();
+        this.fitSort();
         // The rows are measured when their texts or their room may have changed, not on every update: a selection alone
         // changes neither, and measuring a long list takes longer than the fold it would run in. In a compact list the
         // selected row gives room to its details button.
@@ -1372,6 +1412,31 @@ export class MapFeedCard extends LitElement {
                 stroke-width: 2;
                 stroke-linecap: round;
                 stroke-linejoin: round;
+            }
+            .sort .sort-icon {
+                display: none;
+            }
+            /* With too little room for the title and the order's name side by side, the order is a round button with only
+               an icon, and the title has the rest of the line. Its name is in the menu and the tooltip. */
+            .tight .sort {
+                flex: none;
+                justify-content: center;
+                width: 32px;
+                padding: 0;
+            }
+            .tight .sort-label,
+            .tight .sort-chevron {
+                display: none;
+            }
+            .tight .sort-icon {
+                display: block;
+                width: 16px;
+                height: 16px;
+            }
+            .tight .list-title,
+            .tight .count {
+                flex: 1 1 0;
+                min-width: 0;
             }
             /* The rows are as wide whether the list scrolls or not, so a row splits by its data, never by whether it scrolls. */
             .rows {
